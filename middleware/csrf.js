@@ -48,6 +48,7 @@ const HEADER_NAME = 'x-nu-csrf';            // Express lowercases header names
 // here must have its own non-cookie authentication.
 const EXEMPT_PREFIXES = [
   '/api/auth/login',
+  '/api/auth/dev-login',
   '/api/payments/utr-webhook',             // ICICI bank — HMAC signed
   '/api/notifications/ses-webhook',        // AWS SES bounce/complaint — HMAC signed
   '/api/whatsapp/webhook',                 // Twilio inbound — HMAC signed
