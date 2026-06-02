@@ -9013,7 +9013,7 @@ APP.renderVendorsMaster = async function() {
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">Add / Upload Vendors</div>
       <div class="card-meta">Vendor fills the Excel template → you upload → AI validates → finance clears.</div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <div class="vendor-actions">
         <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download>
           <button class="btn-secondary">⬇ Download Template</button>
         </a>

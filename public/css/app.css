@@ -1629,3 +1629,36 @@ a:focus-visible,
     display: none !important; /* Hide role switcher on extremely narrow screens to ensure core features fit */
   }
 }
+
+/* ── VENDOR MASTER ACTION BUTTONS ROW ── */
+.vendor-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.vendor-actions > a,
+.vendor-actions > label,
+.vendor-actions > button {
+  flex: 1 1 auto;
+}
+.vendor-actions button {
+  width: 100% !important;
+  margin-top: 0 !important;
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .vendor-actions {
+    flex-wrap: nowrap !important;
+  }
+  .vendor-actions > a,
+  .vendor-actions > label,
+  .vendor-actions > button {
+    flex: 0 1 auto;
+  }
+  .vendor-actions button {
+    width: auto !important;
+  }
+}
