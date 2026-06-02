@@ -833,6 +833,33 @@ const APP = {
     }
   },
 
+  confirmLogout() {
+    return new Promise(resolve => {
+      UI.openModal('Confirm Sign Out', `
+        <div style="text-align: center; padding: 12px 0 20px;">
+          <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--red-bg); color: var(--red); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+            <svg viewBox="0 0 24 24" style="width: 28px; height: 28px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+              <line x1="12" y1="2" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 8px;">Sign Out of nu PMC</div>
+          <div style="font-size: 13px; color: var(--text2); line-height: 1.6;">
+            You will be signed out of your account and returned to the login screen.
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <button class="btn-secondary" style="flex:1" onclick="UI.closeModal();">Cancel</button>
+          <button class="btn-primary" style="flex:1;background:var(--red);margin-top:0;" onclick="UI.closeModal();document.dispatchEvent(new CustomEvent('logout-confirmed'))">Sign Out</button>
+        </div>
+      `);
+      document.addEventListener('logout-confirmed', async () => {
+        await APP.logout();
+        resolve(true);
+      }, { once: true });
+    });
+  },
+
   async logout() {
     await API.logout();
     APP.user = null;

@@ -92,7 +92,12 @@
       <button class="tb-notif" id="tb-notif" onclick="APP.switchTab('notifications')" title="Notifications" aria-label="Notifications">
         🔔<div class="notif-dot" id="notif-dot" style="display:none"></div>
       </button>
-      <button class="btn-out" onclick="APP.logout()">Out</button>
+      <button class="tb-notif tb-logout" onclick="APP.confirmLogout()" title="Logout" aria-label="Logout">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+          <line x1="12" y1="2" x2="12" y2="12"></line>
+        </svg>
+      </button>
     </div>
   </div>
 

@@ -119,7 +119,7 @@ describe('D3 — recipient resolution substrate discipline', () => {
     const files = findRouteFiles(path.join(root, 'modules'));
     const offenders = [];
     for (const f of files) {
-      const rel = path.relative(root, f);
+      const rel = path.relative(root, f).replace(/\\/g, '/');
       if (expectedCount.has(rel)) continue;        // covered by sync test
       const src = fs.readFileSync(f, 'utf8');
       const lines = src.split('\n');

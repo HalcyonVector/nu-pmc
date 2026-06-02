@@ -50,7 +50,16 @@
   .topbar *, #topbar * { color: inherit; }
   .topbar .tb-brand, .topbar .tb-ctx { color: #1A2332 !important; }
   .topbar .tb-ctx { color: var(--steel) !important; }
-  .btn-out { background: #F2F4F7; color: #1A2332; border: 1px solid #CDD3DC; }
+  .tb-logout {
+    color: var(--text2) !important;
+    border: none !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+  }
+  .tb-logout:hover {
+    background: rgba(0, 0, 0, 0.06) !important;
+    color: var(--navy) !important;
+  }
 
   /* Tabs bar repositioned as vertical sidebar on the left */
   .tabs, #tabs-bar {
