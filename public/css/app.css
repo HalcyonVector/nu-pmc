@@ -563,6 +563,41 @@ body {
 .pc-stat-lbl { font-size: var(--text-sm); color: var(--muted); display: block; margin-top: 2px; letter-spacing: .04em; text-transform: uppercase; }
 .pc-progress { padding: 0 16px 14px; }
 
+/* ── PROJECTS PAGE LAYOUT ── */
+.projects-page {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.projects-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.projects-head .sec-label {
+  margin: 0;
+  flex: 1 1 auto;
+}
+.projects-head .sec-label::after {
+  min-width: 24px;
+}
+.projects-new-btn {
+  min-height: 44px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+.projects-grid .proj-card {
+  margin-bottom: 0;
+}
+
 /* ── PROGRESS BARS ── */
 .prog-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .prog-label { font-size: var(--text-sm); color: var(--muted); width: 70px; flex-shrink: 0; }

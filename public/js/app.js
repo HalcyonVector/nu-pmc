@@ -1050,18 +1050,22 @@ Tomorrow: start formwork on next bay."
     const el = UI.contentEl();
     const data = await API.getProjects();
     if (!data) return;
-    let html = `<div class="sec-label">Projects</div>`;
-
     const isPrincipal = ['principal','design_principal'].includes(APP.user.role);
-    if (isPrincipal) {
-      html += `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showCreateProject()">+ New Project</button>`;
-    }
+
+    let html = `<div class="projects-page">`;
+    html += `<div class="projects-head">
+      <div class="sec-label">Projects</div>
+      ${isPrincipal ? `<button class="btn-primary projects-new-btn" onclick="APP.showCreateProject()">+ New Project</button>` : ''}
+    </div>`;
 
     if (!data.projects?.length) {
       html += UI.empty('🏗','No projects yet');
     } else {
+      html += `<div class="projects-grid">`;
       data.projects.forEach(p => { html += APP.projectCard(p, false); });
+      html += `</div>`;
     }
+    html += `</div>`;
     el.innerHTML = html;
   },
 
