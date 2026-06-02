@@ -37,7 +37,7 @@ const TAB_LABELS = {
   pi:'Invoices',            petty_cash:'Petty Cash',   client_receipts:'Receipts',
   submittals:'Submittals',  notifications:'Alerts',    ncr:'NCRs',
   compliance:'Compliance',  tally:'Tally',
-  gst_statement:'GST',
+  gst_statement:'GST',      pending:'Pending',
   // Consolidation renames (Sprint 2 Item 4)
   boq_mapping:'Vendor Allocation',      // was "BOQ Map"
   budget_tree:'Budget Tree',            // merged into Budget tab, kept for Audit visibility
@@ -6418,11 +6418,11 @@ APP.renderUsers = async function() {
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Bulk Upload Users</div>
     <div class="card-meta">Upload Excel with all team members at once — use the template</div>
-    <div class="btn-row" style="margin-top:10px">
+    <div class="actions-row">
       <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download>
         <button class="btn-secondary">⬇ Download Template</button>
       </a>
-      <label style="flex:1">
+      <label>
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="APP.bulkUploadUsers(this)">
         <button class="btn-primary" onclick="this.previousElementSibling.click()">⬆ Upload Excel</button>
       </label>
