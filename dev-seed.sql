@@ -13,4 +13,7 @@ ON DUPLICATE KEY UPDATE
 
 SELECT 'Dev user ready. Login: user1 / Start@123 at /api/auth/dev-login' AS status;
 
-update users set password_hash='$2a$12$WR1J/znsNn5M64XBVHCfOOcV.U4BbdLXzZCLr/D5fp2CcaKixS0W.' where id>0;
+-- NOTE: previous versions of this file updated the password_hash for ALL
+-- users (a dangerous global UPDATE). That line has been removed so this
+-- seed only ensures the dev user exists. Do NOT run any global password
+-- updates here.

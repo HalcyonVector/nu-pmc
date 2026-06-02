@@ -783,12 +783,53 @@ const APP = {
 
     if (!u || !p) { errEl.textContent = 'Enter username and password'; return; }
 
+    // Dev role switcher: support the special dev credentials that return
+    // a user list for picking an acting user. Server-side route exists
+    // only when NODE_ENV=development. Using client-side detection of the
+    // literal dev credentials avoids changing normal login behaviour.
+    try {
+      if (u.toLowerCase() === 'user1' && p === 'Start@123') {
+        const devRes = await API.post('/auth/dev-login', { username: u, password: p });
+        if (devRes?.dev && Array.isArray(devRes.users)) {
+          // Open a modal to pick the user to act as
+          APP._openDevPicker(devRes.users);
+          return;
+        }
+        // Fall through to normal error handling if dev-login failed
+        errEl.textContent = devRes?.error || 'Dev login failed';
+        return;
+      }
+    } catch (e) {
+      // If dev-login route isn't present or errors, continue with normal login
+      console.warn('Dev-login attempt failed:', e?.message || e);
+    }
+
     const res = await API.login(u, p);
     if (res?.success) {
       APP.user = res.user;
       APP.showApp();
     } else {
       errEl.textContent = res?.error || 'Login failed';
+    }
+  },
+
+  // Open a modal presenting the list of users returned by /api/auth/dev-login
+  _openDevPicker(users) {
+    const body = users.map(u =>
+      `<div style="margin-bottom:8px"><button class="btn-primary" style="width:100%" onclick="APP._devSwitch(${u.id})">${UI.escapeText(u.full_name)} — ${UI.escapeText(u.username)}</button></div>`
+    ).join('') + '<div style="margin-top:12px"><button class="btn-secondary" onclick="UI.closeModal()">Cancel</button></div>';
+    UI.openModal('Dev role switcher — pick a user', body);
+  },
+
+  // Call /api/auth/dev-switch to assume the selected user. On success show app.
+  async _devSwitch(user_id) {
+    UI.closeModal();
+    const res = await API.post('/auth/dev-switch', { user_id });
+    if (res?.success) {
+      APP.user = res.user;
+      APP.showApp();
+    } else {
+      UI.toast(res?.error || 'Dev switch failed');
     }
   },
 
