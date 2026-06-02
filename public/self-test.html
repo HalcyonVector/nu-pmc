@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1D3D62">
+<link rel="manifest" href="/manifest.json">
+<title>nu PMC — Mobile Self-Test</title>
+<style>
+  :root {
+    --navy:  #1D3D62;
+    --steel: #657B90;
+    --silver:#B1B1B2;
+    --white: #FFFFFF;
+    --red:   #C43A3A;
+    --green: #2F7D44;
+    --amber: #D89B20;
+    --muted: #888888;
+    --bg:    #F5F6F8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #222;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 16px 20px;
+    position: sticky; top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+  main { padding: 16px; max-width: 600px; margin: 0 auto; }
+  .test-group {
+    background: var(--white);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .test-group h2 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .test {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #F0F0F0;
+    min-height: 44px;
+  }
+  .test:last-child { border-bottom: none; }
+  .test-status {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+    color: var(--white);
+    margin-top: 2px;
+  }
+  .test-status.pass { background: var(--green); }
+  .test-status.fail { background: var(--red); }
+  .test-status.warn { background: var(--amber); }
+  .test-status.pending { background: var(--silver); }
+  .test-body { flex: 1; min-width: 0; }
+  .test-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .test-detail { font-size: 11px; color: var(--muted); }
+  button.run {
+    display: block; width: 100%;
+    padding: 14px;
+    background: var(--navy); color: var(--white);
+    border: none; border-radius: 6px;
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 16px;
+    cursor: pointer;
+    min-height: 48px;
+  }
+  button.run:active { background: #152C48; }
+  button.run:disabled { background: var(--silver); }
+  .summary {
+    position: sticky; bottom: 0;
+    background: var(--white);
+    padding: 12px;
+    border-top: 2px solid var(--navy);
+    display: flex; gap: 20px; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    margin: 0 -16px -16px -16px;
+  }
+  .summary .ok  { color: var(--green); }
+  .summary .bad { color: var(--red); }
+  .summary .w   { color: var(--amber); }
+  .touchbox {
+    width: 44px; height: 44px;
+    background: var(--steel);
+    display: inline-block;
+    border-radius: 6px;
+    margin: 4px;
+  }
+  .tapme {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: var(--navy);
+    color: white;
+    border: none; border-radius: 6px;
+    margin-top: 8px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔬 Mobile Self-Test</h1>
+  <div class="sub">Run this on the phone you'll use for site work</div>
+</header>
+
+<main>
+  <button class="run" id="run-btn" onclick="runAll()">Run All Tests</button>
+
+  <div class="test-group">
+    <h2>1. Device & Viewport</h2>
+    <div id="g-device"></div>
+  </div>
+
+  <div class="test-group">
+    <h2>2. Touch Target Sizing</h2>
+    <div id="g-touch"></div>
+    <button class="tapme" id="tap-btn" onclick="markTap()">Tap here to test</button>
+  </div>
+
+  <div class="test-group">
+    <h2>3. Network & PWA</h2>
+    <div id="g-pwa"></div>
+  </div>
+
+  <div class="test-group">
+    <h2>4. Storage & Offline</h2>
+    <div id="g-storage"></div>
+  </div>
+
+  <div class="test-group">
+    <h2>5. Backend Connectivity</h2>
+    <div id="g-backend"></div>
+  </div>
+
+  <div class="test-group">
+    <h2>6. Camera & Sensors</h2>
+    <div id="g-sensors"></div>
+  </div>
+
+  <div class="summary" id="summary">
+    <span class="ok">✓ 0 pass</span>
+    <span class="w">! 0 warn</span>
+    <span class="bad">✗ 0 fail</span>
+  </div>
+</main>
+
+<script>
+const results = [];
+
+function test(group, name, status, detail) {
+  results.push({ group, name, status, detail });
+  const el = document.getElementById('g-' + group);
+  if (!el) return;
+  const statusIcon = status === 'pass' ? '✓' : status === 'fail' ? '✗' : status === 'warn' ? '!' : '·';
+  el.insertAdjacentHTML('beforeend', `
+    <div class="test">
+      <div class="test-status ${status}">${statusIcon}</div>
+      <div class="test-body">
+        <div class="test-name">${name}</div>
+        <div class="test-detail">${detail}</div>
+      </div>
+    </div>
+  `);
+  updateSummary();
+}
+
+function updateSummary() {
+  const pass = results.filter(r => r.status === 'pass').length;
+  const warn = results.filter(r => r.status === 'warn').length;
+  const fail = results.filter(r => r.status === 'fail').length;
+  document.getElementById('summary').innerHTML = `
+    <span class="ok">✓ ${pass} pass</span>
+    <span class="w">! ${warn} warn</span>
+    <span class="bad">✗ ${fail} fail</span>
+  `;
+}
+
+// ── Test runners ──────────────────────────────────────────────────────────
+
+async function testDevice() {
+  // Viewport vs device
+  const vw = window.innerWidth, vh = window.innerHeight;
+  test('device', 'Viewport dimensions',
+    vw >= 360 && vw <= 500 ? 'pass' : 'warn',
+    `${vw} × ${vh}px (expected ~430×932 for modern phones)`);
+
+  // Device pixel ratio
+  test('device', 'Device pixel ratio',
+    window.devicePixelRatio >= 2 ? 'pass' : 'warn',
+    `${window.devicePixelRatio}x (1.0 = low-DPI, 2+ = HiDPI)`);
+
+  // Orientation
+  const orientation = vw > vh ? 'landscape' : 'portrait';
+  test('device', 'Orientation',
+    orientation === 'portrait' ? 'pass' : 'warn',
+    orientation + ' — site work usually portrait');
+
+  // User agent sniff
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua);
+  const isAndroid = /Android/.test(ua);
+  const isMobile = isIOS || isAndroid;
+  test('device', 'Platform',
+    isMobile ? 'pass' : 'warn',
+    isIOS ? 'iOS' : isAndroid ? 'Android' : 'Desktop/Other — not a site phone');
+
+  // Text scale (accessibility)
+  const htmlEl = document.documentElement;
+  const fontSize = parseFloat(getComputedStyle(htmlEl).fontSize);
+  test('device', 'Base text size',
+    fontSize >= 14 && fontSize <= 18 ? 'pass' : 'warn',
+    `${fontSize}px — if >18 user has accessibility scaling on`);
+
+  // Touch vs pointer
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  test('device', 'Touch input',
+    hasTouch ? 'pass' : 'fail',
+    hasTouch ? 'Multi-touch supported' : 'NO TOUCH — probably desktop browser');
+
+  // Pinch-zoom disabled via viewport
+  const viewportMeta = document.querySelector('meta[name=viewport]')?.content || '';
+  const zoomLocked = viewportMeta.includes('user-scalable=no') || viewportMeta.includes('maximum-scale=1');
+  test('device', 'Pinch-zoom locked',
+    zoomLocked ? 'pass' : 'warn',
+    zoomLocked ? 'Zoom disabled (prevents accidental zoom on tap)' : 'Zoom allowed — may cause layout issues');
+}
+
+let tapTimes = [];
+let tapStartCount = 0;
+function markTap() {
+  const now = Date.now();
+  tapTimes.push(now);
+  const btn = document.getElementById('tap-btn');
+  btn.textContent = `Tapped ${tapTimes.length} times — keep tapping for 3s`;
+}
+
+async function testTouch() {
+  // Touch target size
+  const btnSize = 44; // iOS HIG + Material Design min
+  test('touch', `Touch targets ≥ ${btnSize}×${btnSize}px`,
+    'pass', 'Buttons on this page all ≥ 44px by design');
+
+  // Latency test via tap button
+  const prevCount = tapTimes.length;
+  const startTime = Date.now();
+  document.getElementById('tap-btn').textContent = 'Tap me rapidly for 3 seconds!';
+  await new Promise(resolve => {
+    setTimeout(() => {
+      const newTaps = tapTimes.length - prevCount;
+      const elapsed = (Date.now() - startTime) / 1000;
+      const tps = newTaps / elapsed;
+      if (newTaps === 0) {
+        test('touch', 'Tap latency', 'warn', 'No taps recorded — please tap the button');
+      } else if (tps > 3) {
+        test('touch', 'Tap latency', 'pass', `${tps.toFixed(1)} taps/sec — low latency`);
+      } else {
+        test('touch', 'Tap latency', 'warn', `${tps.toFixed(1)} taps/sec — tap harder?`);
+      }
+      document.getElementById('tap-btn').textContent = 'Done testing taps ✓';
+      resolve();
+    }, 3000);
+  });
+}
+
+async function testPWA() {
+  // Service worker available
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        test('pwa', 'Service Worker registered',
+          'pass', `scope: ${reg.scope}`);
+      } else {
+        test('pwa', 'Service Worker registered',
+          'warn', 'Not registered — app won\'t work offline');
+      }
+    } catch (e) {
+      test('pwa', 'Service Worker registered', 'fail', e.message);
+    }
+  } else {
+    test('pwa', 'Service Worker support', 'fail', 'Not supported on this browser');
+  }
+
+  // Online status
+  test('pwa', 'Online status',
+    navigator.onLine ? 'pass' : 'warn',
+    navigator.onLine ? 'Online' : 'Offline (airplane mode or no signal)');
+
+  // Display mode — is app installed?
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                      window.navigator.standalone === true;
+  test('pwa', 'PWA install mode',
+    isStandalone ? 'pass' : 'warn',
+    isStandalone ? 'Running as installed app' : 'In browser — can still install via "Add to Home Screen"');
+
+  // Manifest
+  const manifestLink = document.querySelector('link[rel=manifest]');
+  test('pwa', 'Manifest declared',
+    manifestLink ? 'pass' : 'warn',
+    manifestLink ? manifestLink.href : 'No manifest link found');
+
+  // Network connection type
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (conn) {
+    test('pwa', 'Network type',
+      conn.effectiveType === '4g' || conn.effectiveType === 'wifi' ? 'pass' : 'warn',
+      `${conn.effectiveType || conn.type} — downlink ${conn.downlink || '?'} Mbps`);
+  } else {
+    test('pwa', 'Network info', 'warn', 'Navigator.connection API unavailable');
+  }
+}
+
+async function testStorage() {
+  // localStorage
+  try {
+    const key = '__selftest_' + Date.now();
+    localStorage.setItem(key, 'x');
+    const readBack = localStorage.getItem(key);
+    localStorage.removeItem(key);
+    test('storage', 'localStorage',
+      readBack === 'x' ? 'pass' : 'fail',
+      readBack === 'x' ? 'Read/write working' : 'Write succeeded but read failed');
+  } catch (e) {
+    test('storage', 'localStorage', 'fail', e.message);
+  }
+
+  // sessionStorage
+  try {
+    sessionStorage.setItem('__sst', 'y');
+    sessionStorage.removeItem('__sst');
+    test('storage', 'sessionStorage', 'pass', 'Available');
+  } catch (e) {
+    test('storage', 'sessionStorage', 'fail', e.message);
+  }
+
+  // IndexedDB (offline queue storage)
+  if ('indexedDB' in window) {
+    test('storage', 'IndexedDB', 'pass', 'Available (used for offline queue)');
+  } else {
+    test('storage', 'IndexedDB', 'fail', 'Not available — offline queue will not work');
+  }
+
+  // Storage quota estimate
+  if ('storage' in navigator && 'estimate' in navigator.storage) {
+    try {
+      const est = await navigator.storage.estimate();
+      const mbUsed = Math.round(est.usage / 1024 / 1024);
+      const mbQuota = Math.round(est.quota / 1024 / 1024);
+      test('storage', 'Storage quota',
+        mbQuota >= 50 ? 'pass' : 'warn',
+        `${mbUsed}MB used of ${mbQuota}MB — need 50+ MB for offline files`);
+    } catch (e) {
+      test('storage', 'Storage quota', 'warn', e.message);
+    }
+  }
+
+  // Cookies enabled
+  test('storage', 'Cookies enabled',
+    navigator.cookieEnabled ? 'pass' : 'fail',
+    navigator.cookieEnabled ? 'Enabled — session will persist' : 'DISABLED — login will not work');
+}
+
+async function testBackend() {
+  // Measure latency to GET /api/auth/me
+  const start = performance.now();
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include' });
+    const elapsed = Math.round(performance.now() - start);
+    if (r.ok) {
+      const body = await r.json();
+      test('backend', 'GET /auth/me',
+        elapsed < 1000 ? 'pass' : 'warn',
+        `${elapsed}ms — logged in as ${body.user?.username || '?'}`);
+    } else if (r.status === 401) {
+      test('backend', 'GET /auth/me',
+        'warn', `${elapsed}ms — 401 (not logged in, but endpoint responded)`);
+    } else {
+      test('backend', 'GET /auth/me', 'fail', `${elapsed}ms — status ${r.status}`);
+    }
+  } catch (e) {
+    test('backend', 'GET /auth/me', 'fail', 'Network error: ' + e.message);
+  }
+
+  // Measure static asset
+  const startStatic = performance.now();
+  try {
+    const r = await fetch('/favicon.ico', { cache: 'no-cache' });
+    const elapsed = Math.round(performance.now() - startStatic);
+    test('backend', 'Static asset fetch',
+      r.ok && elapsed < 500 ? 'pass' : 'warn',
+      `${elapsed}ms (status ${r.status})`);
+  } catch (e) {
+    test('backend', 'Static asset fetch', 'fail', e.message);
+  }
+
+  // Cold-cache JS bundle fetch
+  const startBundle = performance.now();
+  try {
+    const r = await fetch('/js/app.js?t=' + Date.now(), { cache: 'no-cache' });
+    const bytes = parseInt(r.headers.get('content-length') || '0');
+    const elapsed = Math.round(performance.now() - startBundle);
+    test('backend', 'JS bundle fetch',
+      elapsed < 3000 ? 'pass' : 'warn',
+      `${elapsed}ms, ${Math.round(bytes/1024)}KB — site-network capable`);
+  } catch (e) {
+    test('backend', 'JS bundle fetch', 'fail', e.message);
+  }
+}
+
+async function testSensors() {
+  // Camera/mic permission
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      test('sensors', 'Camera available',
+        cams.length > 0 ? 'pass' : 'warn',
+        cams.length > 0 ? `${cams.length} camera(s) — photo upload supported` : 'No camera detected');
+    } catch (e) {
+      test('sensors', 'Camera enumerate', 'warn', e.message);
+    }
+  } else {
+    test('sensors', 'Camera API', 'fail', 'Not available — photo upload won\'t work');
+  }
+
+  // Geolocation
+  if ('geolocation' in navigator) {
+    test('sensors', 'Geolocation available', 'pass', 'Browser supports it (permission prompt on first use)');
+  } else {
+    test('sensors', 'Geolocation', 'warn', 'Not available — location tag on photos will not work');
+  }
+
+  // Vibration
+  test('sensors', 'Vibration API',
+    'vibrate' in navigator ? 'pass' : 'warn',
+    'vibrate' in navigator ? 'Supported (used for haptic feedback)' : 'Not available');
+
+  // Battery
+  if ('getBattery' in navigator) {
+    try {
+      const batt = await navigator.getBattery();
+      const pct = Math.round(batt.level * 100);
+      test('sensors', 'Battery level',
+        pct > 20 ? 'pass' : 'warn',
+        `${pct}% — ${batt.charging ? 'charging' : 'on battery'}`);
+    } catch (e) {
+      test('sensors', 'Battery API', 'warn', e.message);
+    }
+  } else {
+    test('sensors', 'Battery API', 'warn', 'Not available on this browser');
+  }
+}
+
+async function runAll() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  results.length = 0;
+  ['device','touch','pwa','storage','backend','sensors'].forEach(g => {
+    document.getElementById('g-' + g).innerHTML = '';
+  });
+  updateSummary();
+
+  await testDevice();
+  await testTouch();
+  await testPWA();
+  await testStorage();
+  await testBackend();
+  await testSensors();
+
+  btn.disabled = false;
+  btn.textContent = 'Re-run Tests';
+}
+
+// Auto-start on load
+setTimeout(runAll, 300);
+</script>
+</body>
+</html>

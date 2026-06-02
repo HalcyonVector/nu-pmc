@@ -1,0 +1,521 @@
+// routes/schedule.js
+const express  = require('express');
+const db       = require('../../../middleware/db');
+const users = require('../../../services/users-lookup');
+const notif = require('../../../services/notifications');
+const { requireAuth, requirePMC, requireProjectScope } = require('../../../middleware/auth');
+const { upload } = require('../../../middleware/upload');
+const { readFile: readExcel } = require('../../../middleware/excel');
+const { validators } = require('../../../middleware/validate');
+const asyncHandler = require('../../../middleware/asyncHandler');
+const sequence = require('../../../services/sequence');
+const audit = require('../../../services/audit');
+const ol = require('../../../middleware/optimistic-lock');
+const router   = express.Router();
+
+// GET /api/schedule/:project_id — current schedule with today's tasks
+router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const { project_id } = req.params;
+    const { date } = req.query;  // YYYY-MM-DD, defaults to today IST
+
+    const today = date || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+    // Get current schedule version
+    const [[version]] = await db.query(
+      'SELECT * FROM schedule_versions WHERE project_id = ? AND is_current = 1',
+      [project_id]
+    );
+
+    if (!version) return res.json({ version: null, tasks: [] });
+
+    // Get tasks for today
+    const [tasks] = await db.query(
+      `SELECT st.*,
+         tu.pct_complete, tu.notes AS update_notes, tu.is_flagged, tu.flag_note, tu.id AS update_id,
+         tv.status AS validation_status, tv.rejection_note AS validation_rejection
+       FROM schedule_tasks st
+       LEFT JOIN task_updates tu ON tu.task_id = st.id AND tu.report_date = ? AND tu.updated_by = ?
+       LEFT JOIN task_validations tv ON tv.task_update_id = tu.id
+       WHERE st.schedule_version_id = ? AND st.start_date <= ? AND st.end_date >= ?
+       ORDER BY st.trade, st.display_order`,
+      [today, req.session.user.id, version.id, today, today]
+    );
+
+    res.json({ version, tasks, date: today });
+
+  }));
+
+// GET /api/schedule/:project_id/lookahead — next N days (default 7).
+// Returns the upcoming tasks plus an AI-generated site-readiness plan
+// (material / manpower / access / risks). The AI sees both what's done and
+// what's coming so the plan is grounded in real progress, not just the
+// raw schedule. If AI is unavailable, plan=null and the frontend renders
+// a deterministic fallback summary built from the same task list.
+router.get('/:project_id/lookahead', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const { project_id } = req.params;
+    const days = Math.max(1, Math.min(30, parseInt(req.query.days, 10) || 7));
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const window  = new Date(Date.now() + days * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+    const [[version]] = await db.query(
+      'SELECT * FROM schedule_versions WHERE project_id = ? AND is_current = 1',
+      [project_id]
+    );
+
+    if (!version) return res.json({ tasks: [], plan: null, days });
+
+    // Upcoming tasks in the window
+    const [tasks] = await db.query(
+      `SELECT * FROM schedule_tasks
+       WHERE schedule_version_id = ? AND end_date >= ? AND start_date <= ?
+       ORDER BY start_date, trade`,
+      [version.id, today, window]
+    );
+
+    // Recently-completed tasks (for AI context — what does the team already have done).
+    // pct_complete lives on task_updates (latest update per task), not on schedule_tasks.
+    // A task counts as "completed" if its most-recent update reached 100%.
+    const [completed] = await db.query(
+      `SELECT st.task_name, st.trade, st.end_date
+       FROM schedule_tasks st
+       INNER JOIN (
+         SELECT task_id, MAX(report_date) AS latest_date
+         FROM task_updates
+         GROUP BY task_id
+       ) latest ON latest.task_id = st.id
+       INNER JOIN task_updates tu ON tu.task_id = latest.task_id AND tu.report_date = latest.latest_date
+       WHERE st.schedule_version_id = ?
+         AND tu.pct_complete = 100
+         AND st.end_date < ?
+       ORDER BY st.end_date DESC
+       LIMIT 30`,
+      [version.id, today]
+    );
+
+    // Project name for the AI prompt
+    const [[proj]] = await db.query('SELECT name FROM projects WHERE id = ?', [project_id]);
+    const projectName = proj?.name || 'this project';
+
+    let plan = null;
+    if (tasks.length) {
+      try {
+        const ai = require('../../../services/ai');
+        plan = await ai.lookaheadPlan(projectName, completed, tasks, days);
+      } catch (err) {
+        console.error('[schedule.lookahead] AI plan failed:', err.message);
+        plan = null;
+      }
+    }
+
+    res.json({ version, tasks, completed_count: completed.length, plan, days });
+
+  }));
+
+// GET /api/schedule/:project_id/versions — version history
+router.get('/:project_id/versions', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const [versions] = await db.query(
+      `SELECT * FROM schedule_versions
+       WHERE project_id = ? ORDER BY version_number DESC`,
+      [req.params.project_id]
+    );
+    const Auth = require('../../auth/contract');
+    const users = await Auth.functions.getUsers(
+      versions.flatMap(v => [v.uploaded_by, v.approved_by].filter(Boolean))
+    );
+    versions.forEach(v => {
+      v.uploaded_by_name = users.get(v.uploaded_by)?.full_name || null;
+      v.approved_by_name = users.get(v.approved_by)?.full_name || null;
+    });
+    res.json({ versions });
+  }));
+
+// POST /api/schedule/:project_id/update — site manager records % of today's planned work completed
+router.post('/:project_id/update', requireAuth, requireProjectScope(), validators.taskUpdate, asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const { task_id, pct_complete, notes, is_flagged, flag_note, regression_reason } = req.body;
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const pct = parseInt(pct_complete) || 0;
+
+    // ── REGRESSION CHECK
+    const [[lastUpdate]] = await db.query(
+      `SELECT pct_complete, report_date FROM task_updates
+       WHERE task_id=? AND project_id=? AND report_date < ?
+       ORDER BY report_date DESC, id DESC LIMIT 1`,
+      [task_id, req.params.project_id, today]
+    );
+    let regressionFlag = is_flagged ? 1 : 0;
+    let regressionNote = flag_note;
+    if (lastUpdate && pct < parseInt(lastUpdate.pct_complete)) {
+      if (!regression_reason || regression_reason.trim().length < 5) {
+        return res.status(400).json({
+          error: `Progress was ${lastUpdate.pct_complete}% on ${lastUpdate.report_date}. ` +
+                 `You are reporting ${pct}% today. If this is correct (rework, demolition, error correction), ` +
+                 `provide a reason in the 'regression_reason' field.`,
+          code: 'PROGRESS_REGRESSION',
+          previous_pct: lastUpdate.pct_complete,
+          previous_date: lastUpdate.report_date,
+          new_pct: pct,
+        });
+      }
+      regressionFlag = 1;
+      regressionNote = `REGRESSION: ${lastUpdate.pct_complete}% → ${pct}%. Reason: ${regression_reason}`;
+    }
+
+    await db.query(
+      `INSERT INTO task_updates (task_id, project_id, report_date, pct_complete, notes, is_flagged, flag_note, updated_by)
+       VALUES (?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE pct_complete=VALUES(pct_complete), notes=VALUES(notes),
+       is_flagged=VALUES(is_flagged), flag_note=VALUES(flag_note)`,
+      [task_id, req.params.project_id, today, pct, notes || null, regressionFlag, regressionNote || null, me.id]
+    );
+
+    audit.log({ userId: me.id, action: 'task_update.create',
+      entityType: 'task_updates', entityId: null,
+      details: { project_id: parseInt(req.params.project_id), task_id: parseInt(task_id), pct_complete: pct, regression: !!regressionFlag, report_date: today }, req });
+
+    res.json({ success: true });
+
+  }));
+
+// POST /api/schedule/:project_id/validate — PMC validates task completion
+router.post('/:project_id/validate', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
+    const { task_update_id, status, rejection_note } = req.body;
+    if (!['validated', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+    await db.query(
+      `INSERT INTO task_validations (task_update_id, status, validated_by, rejection_note)
+       VALUES (?,?,?,?)
+       ON DUPLICATE KEY UPDATE status=VALUES(status), validated_by=VALUES(validated_by), rejection_note=VALUES(rejection_note)`,
+      [task_update_id, status, req.session.user.id, rejection_note || null]
+    );
+    audit.log({ userId: req.session.user.id, action: 'task_validation.set',
+      entityType: 'task_validations', entityId: null,
+      details: { project_id: parseInt(req.params.project_id), task_update_id: parseInt(task_update_id), status, rejection_note: rejection_note || null }, req });
+    // Notify site manager if task rejected
+    if (status === 'rejected') {
+      try {
+        const [[tu]] = await db.query(
+          `SELECT tu.updated_by, st.task_name FROM task_updates tu
+           JOIN schedule_tasks st ON tu.task_id = st.id WHERE tu.id = ?`,
+          [task_update_id]
+        );
+        if (tu) {
+          const { notifyTaskRejected } = require('../../../services/notifications');
+          notifyTaskRejected(tu.updated_by, tu.task_name, rejection_note||'No reason given').catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+        }
+      } catch(_e) { /* notification failure — non-blocking */ }
+    }
+    res.json({ success: true });
+
+  }));
+
+// POST /api/schedule/:project_id/upload — PMC uploads new schedule Excel
+router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePMC,
+  upload.single('schedule'), asyncHandler(async (req, res) => {
+    const { project_id } = req.params;
+    const { reason } = req.body;
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+    // Parse Excel
+    const rows = await readExcel(file.path);
+
+    // Get R0 end date
+    const Onboarding = require('../../onboarding/contract');
+    const project = await Onboarding.functions.getProject(project_id);
+
+    // Calculate end date from tasks in Excel
+    let maxEndDate = null;
+    for (const row of rows) {
+      const endDate = row['End Date'] || row['end_date'] || row['EndDate'];
+      if (endDate && (!maxEndDate || endDate > maxEndDate)) maxEndDate = endDate;
+    }
+
+    // Calculate drift
+    const r0End   = new Date(project.r0_end_date);
+    const newEnd  = new Date(maxEndDate);
+    const drift   = Math.round((newEnd - r0End) / 86400000);
+
+    // First schedule for a project auto-approves (no prior baseline)
+    // Subsequent uploads with drift need Naveen/Ajay approval
+    const [[priorCount]] = await db.query(
+      'SELECT COUNT(*) AS c FROM schedule_versions WHERE project_id = ?',
+      [project_id]
+    );
+    const isFirstUpload = priorCount.c === 0;
+    const needsApproval = !isFirstUpload && drift !== 0;
+
+    // Create version record atomically — regen on ER_DUP_ENTRY (uq_schedule_version added in v3.1)
+    const status = needsApproval ? 'pending_approval' : 'approved';
+    let nextVer, versionId;
+
+    // SC3: previously the version INSERT (in insertWithRetry), the tasks INSERT
+    // loop, and the demote-old-versions UPDATE were three separate auto-commit
+    // writes. A failure mid-loop left a current version with partial tasks,
+    // visible to site managers. Now: one tx around all three. insertWithRetry
+    // is still needed for the version_number race; it just nests inside the tx.
+    await db.tx(async (conn) => {
+      // Version INSERT with version_number race retry
+      await sequence.insertWithRetry(async () => {
+        // Inline the version_number SELECT so it sees the tx's snapshot
+        const [[last]] = await conn.query(
+          'SELECT version_number AS val FROM schedule_versions WHERE project_id = ? ORDER BY id DESC LIMIT 1',
+          [project_id]
+        );
+        nextVer = (parseInt(last?.val || 0, 10) || 0) + 1;
+        const [r] = await conn.query(
+          `INSERT INTO schedule_versions (project_id, version_number, label, end_date, drift_days, status, reason, uploaded_by, is_current)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [project_id, nextVer, `v${nextVer}`, maxEndDate, drift, status, reason || null, req.session.user.id, needsApproval ? 0 : 1]
+        );
+        versionId = r.insertId;
+      });
+
+      // Insert tasks within the same tx so a mid-loop failure rolls back the version too
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const trade    = row['Trade'] || row['trade'] || '';
+        const taskName = row['Task'] || row['task_name'] || row['Task Name'] || '';
+        const startDate = row['Start Date'] || row['start_date'] || '';
+        const endDate   = row['End Date'] || row['end_date'] || '';
+        if (!trade || !taskName || !startDate || !endDate) continue;
+
+        const msTypeRaw = String(row['Milestone Type']||row['milestone_type']||row['Milestone']||'').toLowerCase().trim();
+        const msType = ['schedule','payment','both'].includes(msTypeRaw) ? msTypeRaw : (msTypeRaw==='y'||msTypeRaw==='yes'?'schedule':'none');
+        const milestoneLabel = row['Milestone Label']||row['milestone_label']||null;
+        await conn.query(
+          `INSERT INTO schedule_tasks (project_id, schedule_version_id, trade, task_name, start_date, end_date, milestone_type, milestone_label, display_order)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [project_id, versionId, trade, taskName, startDate, endDate, msType, milestoneLabel, i]
+        );
+      }
+
+      // Auto-approve path: demote old versions inside the tx so the swap is atomic.
+      if (!needsApproval) {
+        await conn.query(
+          'UPDATE schedule_versions SET is_current = 0 WHERE project_id = ? AND id != ?',
+          [project_id, versionId]
+        );
+      }
+    });
+
+    // Side-effects after tx (non-atomic — checklist flag, notifications)
+    if (!needsApproval) {
+      const Onboarding = require('../../onboarding/contract');
+      await Onboarding.functions.setChecklistFlag(project_id, 'checklist_schedule');
+      // (Earlier code wrote an "audit clutter" row to wa_pending_actions
+      // with status='approved' for dashboard display. Removed: the dashboard
+      // reads only status='pending' rows, so it was pure write-noise.
+      // D1 cleanup, May 2026.)
+    } else {
+      // Create approval request for Naveen/Ajay
+      const principals = await users.principals();
+      for (const p of principals) {
+        await notif.notify(p.id, 'schedule_change', `Schedule v${nextVer} uploaded — ${drift} days drift from R0`);
+      }
+    }
+
+    audit.log({ userId: req.session.user.id, action: 'schedule.upload',
+      entityType: 'schedule_versions', entityId: versionId,
+      details: { project_id: parseInt(project_id), version_number: nextVer, drift_days: drift, status, needs_approval: needsApproval, reason: reason || null }, req });
+
+    res.json({
+      success: true,
+      version_id: versionId,
+      drift_days: drift,
+      needs_approval: needsApproval,
+      message: needsApproval
+        ? `Schedule uploaded. Drift is ${drift} days — PMC Head must acknowledge and prepare mitigation note before Naveen reviews.`
+        : `Schedule uploaded and live. Drift ${drift} days — within threshold.`
+    });
+
+  }));
+
+// PATCH /api/schedule/:project_id/drift-acknowledge — PMC Head acknowledges drift
+// and prepares mitigation before Naveen reviews
+//
+// Optimistic-lock guard (B28 fix): two PMC heads (or a head + their deputy)
+// on the same project could otherwise concurrently acknowledge the same
+// version's drift. The second save would silently overwrite the first's
+// mitigation note and `drift_acknowledged_by` attribution. Now: client must
+// echo row_version; second save 409s.
+router.patch('/:project_id/drift-acknowledge', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
+    const { version_id, mitigation_note, row_version } = req.body;
+    if (!mitigation_note) return res.status(400).json({ error: 'Mitigation note required to acknowledge drift' });
+    if (row_version === undefined || row_version === null) {
+      throw new ol.StaleVersionError('schedule_versions', parseInt(version_id), null, 'missing');
+    }
+    const [upd] = await db.query(
+      `UPDATE schedule_versions
+          SET drift_acknowledged = 1,
+              drift_acknowledged_by = ?,
+              drift_acknowledged_at = NOW(),
+              drift_mitigation = ?,
+              row_version = row_version + 1
+        WHERE id = ? AND project_id = ? AND row_version = ?`,
+      [req.session.user.id, mitigation_note, version_id, req.params.project_id, row_version]
+    );
+    if (upd.affectedRows === 0) {
+      const [[fresh]] = await db.query(
+        'SELECT row_version FROM schedule_versions WHERE id = ? AND project_id = ?',
+        [version_id, req.params.project_id]
+      );
+      throw new ol.StaleVersionError('schedule_versions', parseInt(version_id), row_version, fresh ? fresh.row_version : 'not_found');
+    }
+    // Now notify principals for review
+    const principals = await users.principals();
+    for (const p of principals) {
+      await notif.notify(p.id, 'schedule_drift', `Schedule drift acknowledged by PMC Head. Mitigation plan ready — your review needed.`);
+    }
+    audit.log({ userId: req.session.user.id, action: 'schedule.drift_acknowledge',
+      entityType: 'schedule_versions', entityId: parseInt(version_id),
+      details: { project_id: parseInt(req.params.project_id), mitigation_note }, req });
+    res.json({ success: true, row_version: parseInt(row_version) + 1, message: 'Drift acknowledged — Naveen and Ajay notified for review.' });
+  }));
+
+// PATCH /api/schedule/:project_id/tasks/:task_id/progress — site manager updates progress
+router.patch('/:project_id/tasks/:task_id/progress', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const canUpdate = ['site_manager','senior_site_manager','pmc_head',
+                       'principal','design_principal'].includes(me.role);
+    if (!canUpdate) return res.status(403).json({ error: 'Not authorised' });
+
+    const { pct_complete, notes, regression_reason } = req.body;
+
+    // ── NUMERIC VALIDATION
+    const { validatePercent } = require('../../../services/payment-validation');
+    const pctCheck = validatePercent(pct_complete, 'Progress %');
+    if (!pctCheck.ok) {
+      return res.status(400).json({ error: pctCheck.error, code: 'INVALID_PERCENT' });
+    }
+    const pct = pctCheck.pct;
+
+    // Calculate expected % from task dates
+    const [[task]] = await db.query(
+      'SELECT start_date, end_date FROM schedule_tasks WHERE id=? AND project_id=?',
+      [req.params.task_id, req.params.project_id]
+    );
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    // ── REGRESSION CHECK — today's % < previous %?
+    const [[lastUpdate]] = await db.query(
+      `SELECT pct_complete, report_date FROM task_updates
+       WHERE task_id=? AND project_id=?
+       ORDER BY report_date DESC, id DESC LIMIT 1`,
+      [req.params.task_id, req.params.project_id]
+    );
+    let regressionFlag = false;
+    let regressionNote = null;
+    if (lastUpdate && pct < parseInt(lastUpdate.pct_complete)) {
+      if (!regression_reason || regression_reason.trim().length < 5) {
+        return res.status(400).json({
+          error: `Progress was ${lastUpdate.pct_complete}% on ${lastUpdate.report_date}. ` +
+                 `You are reporting ${pct}% today. If this is correct (rework, demolition, error correction), ` +
+                 `provide a reason in the 'regression_reason' field.`,
+          code: 'PROGRESS_REGRESSION',
+          previous_pct: lastUpdate.pct_complete,
+          previous_date: lastUpdate.report_date,
+          new_pct: pct,
+        });
+      }
+      regressionFlag = true;
+      regressionNote = `REGRESSION: ${lastUpdate.pct_complete}% → ${pct}%. Reason: ${regression_reason}`;
+    }
+
+    const now      = new Date();
+    const start    = new Date(task.start_date);
+    const end      = new Date(task.end_date);
+    const duration = (end - start) / 86400000;
+    const elapsed  = Math.max(0, Math.min(duration, (now - start) / 86400000));
+    const expected = duration > 0 ? Math.min(100, (elapsed / duration) * 100) : 0;
+    const diff     = Math.abs(pct - expected);
+    const autoValidate = !regressionFlag && diff <= 15;
+
+    const today = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+    await db.query(
+      `INSERT INTO task_updates
+       (task_id, project_id, report_date, pct_complete, notes, is_flagged, flag_note, updated_by)
+       VALUES (?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE pct_complete=VALUES(pct_complete), notes=VALUES(notes),
+         is_flagged=VALUES(is_flagged), flag_note=VALUES(flag_note), updated_by=VALUES(updated_by)`,
+      [req.params.task_id, req.params.project_id, today, pct, notes||null,
+       autoValidate ? 0 : 1,
+       autoValidate ? null : (regressionNote || `Progress ${pct}% is ${diff.toFixed(1)}% from expected ${expected.toFixed(1)}%`),
+       me.id]
+    );
+
+    if (!autoValidate) {
+      // Flag to PMC Head
+      const Auth = require('../../auth/contract');
+      const pmcHeads = await Auth.functions.getUsersByRole('pmc_head', req.params.project_id);
+      for (const p of pmcHeads) {
+        await notif.notify(p.id, 'task_outlier',
+           `Task progress outlier: ${pct}% reported vs ${expected.toFixed(0)}% expected (${diff.toFixed(0)}% gap). Review needed.`);
+      }
+    }
+
+    audit.log({ userId: me.id, action: 'task_progress.update',
+      entityType: 'task_updates', entityId: null,
+      details: { project_id: parseInt(req.params.project_id), task_id: parseInt(req.params.task_id), pct_complete: pct, expected_pct: parseFloat(expected.toFixed(1)), auto_validated: autoValidate, regression: regressionFlag, report_date: today }, req });
+
+    res.json({ success: true, auto_validated: autoValidate,
+      expected_pct: expected.toFixed(1), actual_pct: pct,
+      message: autoValidate
+        ? `Progress updated (${pct}%) — auto-validated.`
+        : `Progress updated (${pct}%) — flagged to PMC: ${diff.toFixed(0)}% from expected.`
+    });
+  }));
+
+module.exports = router;
+
+// POST /api/schedule/:project_id/vendor-signoff — send schedule to vendor for commitment poll
+// F6, friction-reduction brief.
+// PMC sends the upcoming task list for a vendor's engagement.
+// Poll: ✅ Accepted — I commit to these dates / ❌ Cannot commit
+// Rejection handled offline. Matrix records final acceptance only.
+router.post('/:project_id/vendor-signoff', requireAuth, requireProjectScope(),
+  asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const canSend = ['pmc_head','senior_site_manager','principal','design_principal'].includes(me.role);
+    if (!canSend) return res.status(403).json({ error: 'Not authorised' });
+
+    const { vendor_id, task_ids, message } = req.body;
+    if (!vendor_id || !task_ids?.length) {
+      return res.status(400).json({ error: 'vendor_id and task_ids required' });
+    }
+
+    // Fetch the task details
+    const placeholders = task_ids.map(() => '?').join(',');
+    const [tasks] = await db.query(
+      `SELECT task_name, start_date, end_date FROM schedule_tasks
+        WHERE id IN (${placeholders}) AND project_id = ?`,
+      [...task_ids, req.params.project_id]
+    );
+    if (!tasks.length) return res.status(404).json({ error: 'Tasks not found' });
+
+    const taskLines = tasks.map(t => {
+      const start = new Date(t.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+      const end   = new Date(t.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+      return `  • ${t.task_name} — ${start} to ${end}`;
+    }).join('\n');
+
+    const pollMessage = [
+      message || 'Schedule for your commitment — please confirm you can meet these dates:',
+      taskLines,
+    ].join('\n');
+
+    const notif = require('../../../services/notifications');
+    await notif.notifyVendor(
+      vendor_id,
+      pollMessage,
+      ['✅ Accepted — I commit to these dates', '❌ Cannot commit']
+    );
+
+    audit.log({ userId: me.id, action: 'schedule.vendor_signoff_sent',
+      entityType: 'schedule_tasks', entityId: null,
+      details: { project_id: parseInt(req.params.project_id), vendor_id, task_count: tasks.length }, req });
+
+    res.json({ success: true, tasks_sent: tasks.length });
+  })
+);

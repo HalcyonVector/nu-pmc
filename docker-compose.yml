@@ -1,0 +1,144 @@
+# docker-compose.yml — nu PMC v4 full stack
+#
+# Services:
+#   - db       : MariaDB 10.11, persistent volume for data, internal network only
+#   - seed     : one-shot container that runs seed-full.sh against the DB
+#   - app      : the nu PMC Node app, talks to db over the internal network
+#   - adminer  : DB web UI, port 8080, for sanity checks — optional profile
+#
+# Usage:
+#   First-time setup:
+#     cp .env.docker.example .env
+#     # edit .env — set DB_PASSWORD, SESSION_SECRET to real values
+#     docker compose up -d db
+#     docker compose run --rm seed          # one-shot: apply migrations + seed
+#     docker compose up -d app
+#     docker compose ps                     # both should show "healthy"
+#
+#   Daily ops:
+#     docker compose logs -f app            # tail logs
+#     docker compose restart app            # restart app only
+#     docker compose exec app bash scripts/verify.sh   # run test suite
+#     docker compose --profile debug up -d adminer     # start DB UI on :8080
+#
+#   Data persists across container restarts in named volume `nu-pmc-db-data`.
+#   To wipe and start fresh:
+#     docker compose down -v               # -v removes volumes too
+#
+# Services communicate over the internal `nu-pmc-net` bridge network.
+# Only the app and adminer expose ports to the host; DB is internal only.
+
+version: '3.9'
+
+services:
+  db:
+    image: mariadb:10.11
+    container_name: nu-pmc-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change_me_root}
+      MARIADB_DATABASE:      ${DB_NAME:-nu_pmc}
+      MARIADB_USER:          ${DB_USER:-nu_app}
+      MARIADB_PASSWORD:      ${DB_PASSWORD:-change_me_app}
+      # Force utf8mb4 for Indian-language and emoji support in notes/WhatsApp
+      MARIADB_INITDB_SKIP_TZINFO: "yes"
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+05:30
+      --max-connections=200
+    volumes:
+      - nu-pmc-db-data:/var/lib/mysql
+    networks:
+      - nu-pmc-net
+    # No `ports:` stanza → DB not reachable from host.
+    # Access from host via: docker compose exec db mysql -u root -p
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  seed:
+    # One-shot container: runs migrations + seed against db, then exits.
+    # Uses the same image as the app so scripts/seed-full.sh is available.
+    build: .
+    image: nu-pmc-app:latest
+    container_name: nu-pmc-seed
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST:     db
+      DB_PORT:     3306
+      DB_USER:     root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD:-change_me_root}
+      DB_NAME:     ${DB_NAME:-nu_pmc}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        # The mariadb-client is already installed in the app image.
+        # seed-full.sh defaults to socket; override to use TCP here.
+        export DB_SOCKET=""
+        bash scripts/seed-full.sh
+    networks:
+      - nu-pmc-net
+    restart: "no"        # one-shot — don't loop
+    profiles:
+      - seed             # run only when explicitly invoked
+
+  app:
+    build: .
+    image: nu-pmc-app:latest
+    container_name: nu-pmc-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV:        ${NODE_ENV:-production}
+      PORT:            3100
+      DB_HOST:         db
+      DB_PORT:         3306
+      DB_USER:         ${DB_USER:-nu_app}
+      DB_PASSWORD:     ${DB_PASSWORD:-change_me_app}
+      DB_NAME:         ${DB_NAME:-nu_pmc}
+      SESSION_SECRET:  ${SESSION_SECRET:?SESSION_SECRET must be set in .env}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3100}
+      # Optional integrations — leave blank to disable
+      WA_ACCOUNT_SID:    ${WA_ACCOUNT_SID:-}
+      WA_AUTH_TOKEN:     ${WA_AUTH_TOKEN:-}
+      WA_FROM_NUMBER:    ${WA_FROM_NUMBER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "${APP_PORT:-3100}:3100"
+    volumes:
+      # Persist uploads across container restarts
+      - nu-pmc-uploads:/app/uploads
+      - nu-pmc-user-data:/app/user-data
+    networks:
+      - nu-pmc-net
+
+  adminer:
+    # DB UI for manual inspection. Only starts with: docker compose --profile debug up
+    image: adminer:latest
+    container_name: nu-pmc-adminer
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    networks:
+      - nu-pmc-net
+    profiles:
+      - debug
+
+volumes:
+  nu-pmc-db-data:
+  nu-pmc-uploads:
+  nu-pmc-user-data:
+
+networks:
+  nu-pmc-net:
+    driver: bridge

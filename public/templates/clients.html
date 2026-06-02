@@ -1,0 +1,82 @@
+<!-- public/templates/clients.html -->
+<!-- Alpine component: clients (see public/js/components/clients.js) -->
+
+<template x-if="loading">
+  <div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading clients…</div></div>
+</template>
+
+<template x-if="!loading && accessError">
+  <div class="empty">
+    <div class="empty-icon">🔒</div>
+    <div class="empty-text" x-text="accessError"></div>
+  </div>
+</template>
+
+<template x-if="!loading && !accessError">
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="sec-label" style="margin:0">Client Master</div>
+      <button class="btn-primary" @click="openNewClient()">+ New Client</button>
+    </div>
+
+    <!-- Incomplete / pending completion -->
+    <template x-if="hasIncomplete">
+      <div>
+        <div class="sec-label" style="color:#C8A040;margin-top:14px">
+          ⚠ Pending Completion (<span x-text="incomplete.length"></span>)
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+          These were auto-created when a project was added. Complete master data
+          (GSTIN, Tally ledger, payment terms) before first PI.
+        </div>
+        <template x-for="c in incomplete" :key="c.id">
+          <div class="card" style="border-left:3px solid #C8A040;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <div style="font-weight:600" x-text="c.client_name"></div>
+                <div style="font-size:11px;color:var(--muted)">
+                  Projects: <span x-text="c.project_codes || '—'"></span> ·
+                  Added by <span x-text="c.created_by_name || '—'"></span>
+                  on <span x-text="fmtDate(c.created_at)"></span>
+                </div>
+                <div x-show="c.stub_reason" style="font-size:11px;color:var(--muted);font-style:italic"
+                     x-text="c.stub_reason"></div>
+              </div>
+              <button class="btn-sm gold" @click="openCompleteClient(c.id, c.client_name)">
+                Complete →
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Complete clients -->
+    <div class="sec-label" style="margin-top:18px">
+      All Clients (<span x-text="complete.length"></span>)
+    </div>
+
+    <template x-if="!hasComplete">
+      <div class="empty">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">No clients in master yet</div>
+      </div>
+    </template>
+
+    <template x-for="c in complete" :key="c.id">
+      <div class="card" style="margin-bottom:6px;cursor:pointer" @click="openEditClient(c.id)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:600" x-text="c.client_name"></div>
+            <div style="font-size:11px;color:var(--muted)">
+              GSTIN: <span x-text="c.gstin"></span>
+              · <span x-text="c.state_name || ''"></span>
+              · Terms: <span x-text="c.payment_terms_days"></span>d
+            </div>
+          </div>
+          <span class="badge b-green">✓</span>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
