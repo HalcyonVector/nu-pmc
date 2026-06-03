@@ -38,6 +38,7 @@ const TAB_LABELS = {
   submittals:'Submittals',  notifications:'Alerts',    ncr:'NCRs',
   compliance:'Compliance',  tally:'Tally',
   gst_statement:'GST',      pending:'Pending',
+  reports:'Reports',        approvals:'Approvals',    deputy:'Deputy',
   // Consolidation renames (Sprint 2 Item 4)
   boq_mapping:'Vendor Allocation',      // was "BOQ Map"
   budget_tree:'Budget Tree',            // merged into Budget tab, kept for Audit visibility

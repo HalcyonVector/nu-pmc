@@ -87,11 +87,11 @@
   .tabs, #tabs-bar {
     position: fixed;
     left: 0;
-    top: 0;
+    top: 130px;
     bottom: 0;
     width: 240px;
     background: #1D3D62;
-    padding: 80px 14px 24px;
+    padding: 10px 14px 24px;
     display: flex !important;
     flex-direction: column !important;
     gap: 2px !important;
@@ -107,7 +107,7 @@
   }
 
   /* Sidebar brand header */
-  .tabs::before, #tabs-bar::before {
+  .bottom-nav::before, #bottom-nav::before {
     content: "nu associates";
     position: absolute;
     top: 22px;
@@ -119,7 +119,7 @@
     color: #FFFFFF;
     letter-spacing: -0.3px;
   }
-  .tabs::after, #tabs-bar::after {
+  .bottom-nav::after, #bottom-nav::after {
     content: "SITE PMC";
     position: absolute;
     top: 48px;
@@ -166,19 +166,21 @@
   .bottom-nav, #bottom-nav {
     position: fixed !important;
     left: 0 !important;
-    top: 64px !important;          /* below the brand header */
+    top: 0 !important;
+    height: 130px !important;
     bottom: auto !important;
     right: auto !important;
     width: 240px !important;
-    background: transparent !important;
+    background: #1D3D62 !important;
     border-top: none !important;
     border-bottom: 1px solid #16304f !important;
-    padding: 8px 6px 10px !important;
+    padding: 72px 6px 10px !important;
     z-index: 51;                   /* above .tabs (50) so chips are clickable */
     display: flex !important;
     flex-direction: row !important;
     gap: 2px !important;
     justify-content: space-between !important;
+    box-sizing: border-box !important;
   }
   .bottom-nav .bb-item, #bottom-nav .bb-item {
     flex: 1 1 0px !important;
@@ -206,7 +208,8 @@
     fill: none !important;
     width: 16px !important; height: 16px !important;
   }
-  .bottom-nav .bb-label, #bottom-nav .bb-label {
+  .bottom-nav .bb-label, #bottom-nav .bb-label,
+  .bottom-nav .bb-item.active .bb-label, #bottom-nav .bb-item.active .bb-label {
     font-size: 11px !important;
     font-weight: 600 !important;
     text-transform: uppercase;
@@ -214,15 +217,24 @@
     margin-top: 2px;
   }
   .bottom-nav .bb-icon-rupee, #bottom-nav .bb-icon-rupee {
-    font-size: var(--text-base);
-    font-weight: 700;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    position: relative !important;
+    top: 2px !important;
     color: currentColor;
   }
 
   /* Tabs sit below the bucket switcher — push them down by switcher height.
      Switcher row: top:64px + 44px min-height + 18px padding = 126px end → 132px clear. */
   .tabs, #tabs-bar {
-    padding-top: 140px !important;
+    padding-top: 14px !important;
   }
 
   /* Content wrapper shifts to account for sidebar */
