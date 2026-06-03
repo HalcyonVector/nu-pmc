@@ -738,13 +738,13 @@ const APP = {
           return `<button class="wp-row" style="min-height:44px" onclick="${onclick}">
             <span class="wp-row-label" style="color:var(--amber)">⚠ ${UI.escapeText(it.label)}</span>
             <span class="wp-row-chevron">→</span>
-          </div>`;
+          </button>`;
         }
         // Approval row — navy count badge
         return `<button class="wp-row" style="min-height:44px" onclick="APP.switchTab('${it.tab}')">
           <span class="wp-row-label">${UI.escapeText(it.label)}</span>
           <span class="wp-row-count">${it.count}</span>
-        </div>`;
+        </button>`;
       }).join('');
 
       needsYouCard = `<div class="wp-card">
