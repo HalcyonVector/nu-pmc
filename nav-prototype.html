@@ -75,8 +75,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: max(48px, env(safe-area-inset-top)) 24px 24px;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px 24px;
   overflow-y: auto;
   background: linear-gradient(160deg, #1D3D62 0%, #16304f 60%, #0f2540 100%);
 }
@@ -95,6 +95,7 @@ body {
   color: var(--navy);
   letter-spacing: -.02em;
   margin-bottom: 2px;
+  text-align: center;
 }
 .login-sub {
   font-size: var(--text-sm);
@@ -103,12 +104,14 @@ body {
   text-transform: uppercase;
   margin-bottom: 28px;
   font-family: var(--mono);
+  text-align: center;
 }
 .login-title {
   font-size: 17px;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 20px;
+  text-align: center;
 }
 .field { margin-bottom: 14px; }
 .field label {
@@ -154,11 +157,12 @@ body {
 
 /* ── APP SHELL ── */
 #app { display: none; }
+#app.is-visible { display: block; }
 
 .topbar {
   background: var(--navy);
   min-height: calc(52px + env(safe-area-inset-top, 0));
-  padding: env(safe-area-inset-top, 0) 16px 0;
+  padding: env(safe-area-inset-top, 0) max(16px, calc((100% - 720px) / 2 + 16px)) 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -166,6 +170,98 @@ body {
   top: 0;
   z-index: 200;
   box-shadow: 0 2px 8px rgba(29,61,98,.25);
+}
+.tb-menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: var(--white);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+}
+.tb-menu-toggle:hover {
+  background: rgba(255,255,255,0.1);
+}
+.tb-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Medium & Small screens styling (<1200px) */
+@media (max-width: 1199px) {
+  .topbar {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .tb-menu-toggle {
+    display: flex;
+  }
+  .tb-actions {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 16px;
+    background: var(--navy);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--r);
+    flex-direction: row;
+    padding: 6px;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 210;
+  }
+  .tb-actions.show {
+    display: flex;
+  }
+  .topbar .tb-brand span {
+    display: none;
+  }
+}
+
+/* Small screens styling (<800px) */
+@media (max-width: 799px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 8px 12px;
+    padding: 12px 16px !important;
+    align-items: center;
+    min-height: auto !important;
+  }
+  .tb-left {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tb-sep {
+    display: none;
+  }
+  .tb-ctx {
+    grid-column: 1 / span 3;
+    grid-row: 2;
+    max-width: 100%;
+    white-space: normal;
+    font-size: var(--text-xs);
+    color: rgba(255,255,255,0.7);
+  }
+  .tb-right {
+    grid-column: 2 / span 2;
+    grid-row: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    justify-self: end;
+  }
 }
 .tb-left { display: flex; align-items: center; gap: 10px; }
 .tb-brand {
@@ -180,13 +276,21 @@ body {
 .tb-ctx { font-size: var(--text-sm); color: rgba(255,255,255,.88); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
 .tb-who  { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.95); text-overflow: ellipsis; overflow: hidden; }
 .tb-proj { font-size: var(--text-xs); font-family: var(--mono); color: rgba(255,255,255,.70); text-overflow: ellipsis; overflow: hidden; margin-top: 1px; }
-.tb-right { display: flex; align-items: center; gap: 8px; }
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 3px 6px;
+  border-radius: 24px;
+}
 .tb-notif {
   position: relative;
   background: rgba(255,255,255,.12);
   border: none;
-  width: 44px;               /* HIG: 34 → 44 */
-  height: 44px;              /* HIG: 34 → 44 */
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -196,6 +300,25 @@ body {
   transition: background .15s;
 }
 .tb-notif:hover { background: rgba(255,255,255,.2); }
+.tb-notif svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tb-logout {
+  color: rgba(255,255,255,0.9) !important;
+  background: rgba(255,255,255,0.12) !important;
+  border: none !important;
+  border-radius: 50% !important;
+}
+.tb-logout:hover {
+  background: rgba(255,255,255,0.2) !important;
+  color: #ffffff !important;
+}
 .notif-dot {
   position: absolute;
   top: 6px; right: 6px;
@@ -204,24 +327,32 @@ body {
   border: 2px solid var(--navy);
   border-radius: 50%;
 }
-.btn-out {
+
+/* Dropdown shown only to Principal; lets them sudo into other roles. */
+.tb-role {
   background: rgba(255,255,255,.12);
-  border: none;
-  color: rgba(255,255,255,.95);   /* HIG contrast: .75 → .95 to hit 4.5:1 on navy */
+  border: 1px solid rgba(255,255,255,.18);
+  color: rgba(255,255,255,.95);
   font-family: var(--mono);
   font-size: var(--text-sm);
-  padding: 12px 14px;              /* HIG: was 6 10 */
-  border-radius: 6px;
-  cursor: pointer;
   letter-spacing: .04em;
-  transition: background .15s;
-  min-height: 44px;
-  min-width: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0 24px 0 10px;
+  min-height: 36px;
+  height: 36px;
+  border-radius: 18px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='white' stroke-width='1.6'><path d='M1 1l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px;
 }
-.btn-out:hover { background: rgba(255,255,255,.2); }
+.tb-role.is-impersonating {
+  background-color: rgba(176,125,26,.55);    /* amber tint when sudo'd */
+  border-color: rgba(255,255,255,.4);
+}
+.tb-role option { color: #1A2332; background: #FFFFFF; }
 
 .tabs {
   background: var(--white);
@@ -232,6 +363,7 @@ body {
   position: sticky;
   top: calc(52px + env(safe-area-inset-top, 0));
   z-index: 199;
+  padding: 0;
   /* Fade right edge to signal "more tabs scrollable to the right".
      When content fits, the fade falls on empty whitespace and is invisible.
      When content overflows, the last tab visibly fades into transparency. */
@@ -314,12 +446,12 @@ body {
   text-overflow: ellipsis;
 }
 
-.content { padding: 16px; max-width: 520px; margin: 0 auto; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0)); }
+.content { padding: 16px; width: 100%; max-width: 1000px; margin: 0 auto; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0)); }
 
 /* ── WORK PINNED SECTION — shows above content for Needs You / Today's Report
    at the top of the Work bucket. Hidden when empty via :empty. */
 .work-pinned {
-  max-width: 520px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 12px 16px 0;
 }
@@ -328,9 +460,10 @@ body {
   background: var(--white);
   border: 1px solid var(--border);
   border-left: 3px solid var(--navy);
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-radius: var(--r2);
+  padding: 16px 20px;
   margin-bottom: 8px;
+  box-shadow: var(--shadow);
 }
 .wp-label {
   font-family: var(--mono, ui-monospace, monospace);
@@ -339,25 +472,45 @@ body {
   letter-spacing: .12em;
   color: var(--muted);
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  text-align: center;
+  position: relative;
+}
+.wp-symbol {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .wp-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r);
   cursor: pointer;
+  transition: background .15s, color .15s;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  margin-bottom: 4px;
 }
-.wp-row:last-child { border-bottom: none; }
-.wp-row:hover { color: var(--navy); }
-.wp-row-label { font-size: var(--text-sm); color: var(--text); }
+.wp-row:last-child { margin-bottom: 0; }
+.wp-row:hover { background: rgba(29, 61, 98, 0.05); color: var(--navy); }
+.wp-row-label { font-size: var(--text-sm); color: var(--text); flex: 1; min-width: 0; }
 .wp-row-count {
   background: var(--navy);
   color: var(--white);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 10px;
   min-width: 24px;
+  text-align: center;
+  margin-left: 12px;
+  flex-shrink: 0;
   text-align: center;
 }
 .wp-row-chevron {
@@ -366,10 +519,7 @@ body {
   font-weight: 700;
   flex-shrink: 0;
 }
-
-/* ── BOTTOM NAV — 4-button bucket switcher ──
-   Fixed to the bottom of the viewport. Hidden when #bottom-nav is empty
-   (trainee / detailing roles use 2-tab strip in tabs-bar instead). */
+/* ── BOTTOM NAV — 4-column Segmented Navigation ── */
 .bottom-nav {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -378,23 +528,35 @@ body {
   border-top: 1px solid var(--border);
   z-index: 100;
   padding-bottom: env(safe-area-inset-bottom, 0);
+  box-sizing: border-box;
 }
 .bottom-nav:empty { display: none; }
 .bb-item {
-  flex: 1 1 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
+  flex: 1 1 0px;
+  width: 25%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 8px 2px 10px;
-  min-height: 52px;        /* touch target */
+  min-height: 52px;
   cursor: pointer;
   color: var(--muted);
   user-select: none;
-  transition: color .12s;
+  transition: color .12s, background-color .12s;
   position: relative;
+  background: transparent;
+  border: none;
+  font: inherit;
+  box-sizing: border-box;
 }
-.bb-item.active { color: var(--navy); }
+.bb-item.active {
+  color: var(--navy);
+  background: rgba(29, 61, 98, 0.05); /* inline background highlight only */
+}
 .bb-item.pending { color: var(--red); }
 .bb-item:hover:not(.active) { color: var(--text2); }
+
 .bb-icon {
   width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
@@ -439,13 +601,61 @@ body {
 .sec-label::after { content:''; flex: 1; height: 1px; background: var(--border); }
 
 /* ── STAT ROW ── */
-.stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
 .stat-card {
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 14px 12px;
   text-align: center;
+  box-shadow: var(--shadow);
+  /* Reset button styles for consistent flex behavior */
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  margin: 0;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
+}
+.stat-card:hover {
+  box-shadow: var(--shadow2);
+  border-color: var(--steel);
+}
+
+.action-card {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  text-align: center !important;
+  background: var(--white) !important;
+  border: 1.5px solid var(--border2) !important;
+  border-radius: var(--r) !important;
+  color: var(--text2) !important;
+  cursor: pointer !important;
+  font-family: var(--sans) !important;
+  min-height: 72px !important;
+  margin: 0 !important;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s, box-shadow 0.15s !important;
+}
+.action-card:hover {
+  border-color: var(--navy) !important;
+  background: rgba(29, 61, 98, 0.02) !important;
+  transform: translateY(-1px);
   box-shadow: var(--shadow);
 }
 .stat-val {
@@ -528,6 +738,7 @@ body {
   cursor: pointer;
   transition: box-shadow .15s, transform .1s;
   box-shadow: var(--shadow);
+  max-width: 400px;
 }
 .proj-card:hover { box-shadow: var(--shadow2); transform: translateY(-1px); }
 .pc-top { padding: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -544,6 +755,41 @@ body {
 .pc-stat-lbl { font-size: var(--text-sm); color: var(--muted); display: block; margin-top: 2px; letter-spacing: .04em; text-transform: uppercase; }
 .pc-progress { padding: 0 16px 14px; }
 
+/* ── PROJECTS PAGE LAYOUT ── */
+.projects-page {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.projects-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.projects-head .sec-label {
+  margin: 0;
+  flex: 1 1 auto;
+}
+.projects-head .sec-label::after {
+  min-width: 24px;
+}
+.projects-new-btn {
+  min-height: 44px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+.projects-grid .proj-card {
+  margin-bottom: 0;
+}
+
 /* ── PROGRESS BARS ── */
 .prog-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .prog-label { font-size: var(--text-sm); color: var(--muted); width: 70px; flex-shrink: 0; }
@@ -556,34 +802,74 @@ body {
 /* ── SCHEDULE ── */
 .date-strip {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin-bottom: 16px;
-  padding-bottom: 2px;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-          mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 4px 2px;
+  width: 100%;
 }
 .date-strip::-webkit-scrollbar { display: none; }
 .date-chip {
-  flex-shrink: 0;
-  padding: 10px 14px;
+  flex: 1;
+  min-width: 44px;
+  height: 72px;
+  padding: 10px 4px;
   border-radius: var(--r);
-  border: 1.5px solid var(--border);
-  background: var(--white);
   cursor: pointer;
   text-align: center;
-  transition: all .15s;
-  min-width: 56px;
+  transition: all .15s ease-in-out;
   box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
-.date-chip.today { border-color: var(--steel); }
-.date-chip.sel   { background: var(--navy); border-color: var(--navy); }
-.date-chip.sel .dc-day, .date-chip.sel .dc-num { color: var(--white); }
-.dc-day { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-family: var(--mono); }
-.dc-num { font-size: var(--text-lg); font-weight: 600; color: var(--text); margin-top: 2px; font-family: var(--mono); }
-.dc-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--amber); margin: 3px auto 0; }
-.date-chip.sel .dc-dot { background: rgba(255,255,255,.5); }
+.date-chip.past {
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  opacity: 0.65;
+}
+.date-chip.past .dc-day,
+.date-chip.past .dc-num {
+  color: var(--muted);
+}
+.date-chip.future {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.date-chip.future .dc-day {
+  color: var(--muted);
+}
+.date-chip.future .dc-num {
+  color: var(--text);
+}
+.date-chip.today {
+  background: var(--white);
+  border: 1.5px solid var(--navy);
+  color: var(--navy);
+}
+.date-chip.today .dc-day,
+.date-chip.today .dc-num {
+  color: var(--navy);
+  font-weight: 700;
+}
+.date-chip.sel {
+  background: var(--navy) !important;
+  border: 1.5px solid var(--navy) !important;
+  color: var(--white) !important;
+}
+.date-chip.sel .dc-day,
+.date-chip.sel .dc-num {
+  color: var(--white) !important;
+  font-weight: 600;
+}
+.dc-day { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); }
+.dc-num { font-size: var(--text-base); font-weight: 600; margin-top: 2px; font-family: var(--mono); }
+.dc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); margin-top: 4px; flex-shrink: 0; transition: opacity .15s; }
+.dc-dot.has-notes { opacity: 1; }
+.dc-dot:not(.has-notes) { opacity: 0; }
+.date-chip.sel .dc-dot { background: var(--white) !important; }
 
 /* ── TRADE GROUPS ── */
 .trade-group { margin-bottom: 10px; }
@@ -676,7 +962,7 @@ body {
 .btn-primary {
   background: var(--navy);
   color: var(--white);
-  border: none;
+  border: 1.5px solid transparent;
   border-radius: var(--r);
   padding: 13px 16px;
   min-height: 44px;
@@ -733,7 +1019,8 @@ body {
   min-height: 44px;
 }
 .btn-secondary:hover { border-color: var(--steel); }
-.btn-row { display: flex; gap: 8px; margin-top: 8px; }
+.btn-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.btn-row > .btn-primary, .btn-row > .btn-secondary, .btn-row > .btn-ghost { margin-top: 0; }
 
 /* ── FORMS ── */
 .upload-btn {
@@ -756,6 +1043,13 @@ body {
 }
 .upload-btn:hover, .upload-btn.has-files { border-color: var(--navy); color: var(--navy); }
 .upload-btn:active { background: var(--bg); }   /* tap feedback */
+.upload-btn-icon {
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-2px); /* visual correction for emoji baseline alignment */
+}
 
 /* Ghost button — used on photo-tag review screen for non-primary actions.
    Previously had no CSS rule at all (fell through to browser default).
@@ -908,6 +1202,18 @@ textarea { resize: none; }
   align-items: center;
 }
 .btn-close { background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; line-height: 1; padding: 8px 12px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+
+@media (min-width: 580px) {
+  .modal-overlay {
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .modal {
+    border-radius: var(--r2) !important;
+    margin: 24px !important;
+    max-height: calc(90vh - 48px) !important;
+  }
+}
 
 /* ── CHANGE NOTICE / SIGNATURE ── */
 .sig-chip { font-size: var(--text-sm); padding: 3px 8px; border-radius: 4px; font-family: var(--mono); letter-spacing: .04em; }
@@ -1489,8 +1795,8 @@ a:focus-visible,
     --text-sm:   0.875rem;   /* 14px */
     --text-base: 1rem;       /* 16px */
   }
-  .content { max-width: 720px; padding: 20px 24px 100px; }
-  .work-pinned { max-width: 720px; }
+  .content { max-width: 1000px; padding: 20px 24px 100px; }
+  .work-pinned { max-width: 1000px; }
   .modal { max-width: 600px !important; }
   .projects-grid {
     display: grid;
@@ -1499,6 +1805,21 @@ a:focus-visible,
   }
   .bottom-nav .bb-item { flex-direction: row; gap: 8px; padding: 10px 8px; }
   .bottom-nav .bb-label { font-size: var(--text-sm); }
+  .topbar {
+    padding-left: max(24px, calc((100% - 1000px) / 2 + 24px)) !important;
+    padding-right: max(24px, calc((100% - 1000px) / 2 + 24px)) !important;
+  }
+  .tabs {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .tab {
+    flex: 1 1 0% !important;
+    justify-content: center !important;
+  }
 }
 
 /* ── UTILITY CLASSES — replace inline styles in app.js ── */
@@ -1506,6 +1827,137 @@ a:focus-visible,
 .u-meta       { font-size: var(--text-xs); color: var(--muted); line-height: 1.5; }
 .u-amount     { font-family: var(--mono); font-size: var(--text-sm); color: var(--navy); }
 .u-loading    { text-align: center; padding: 40px; color: var(--muted); font-family: var(--mono); font-size: var(--text-sm); }
+
+/* ── RESPONSIVE HEADER ADJUSTMENTS for half screen/reduced size ── */
+@media (max-width: 820px) {
+  .tb-ctx {
+    max-width: 140px !important;
+    font-size: 12px !important;
+  }
+  .tb-role {
+    max-width: 120px !important;
+    font-size: 12px !important;
+    padding: 0 24px 0 8px !important;
+  }
+}
+@media (max-width: 680px) {
+  .tb-ctx {
+    max-width: 90px !important;
+  }
+  .tb-role {
+    max-width: 95px !important;
+    font-size: 11px !important;
+    padding: 0 20px 0 6px !important;
+  }
+  .tb-brand span {
+    display: none !important;
+  }
+}
+@media (max-width: 480px) {
+  .tb-ctx, .tb-sep {
+    display: none !important;
+  }
+  .tb-role {
+    max-width: 85px !important;
+    font-size: 10px !important;
+  }
+  .tb-notif {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .tb-right {
+    gap: 4px !important;
+  }
+}
+@media (max-width: 360px) {
+  .tb-role {
+    display: none !important; /* Hide role switcher on extremely narrow screens to ensure core features fit */
+  }
+}
+
+/* ── VENDOR MASTER ACTION BUTTONS ROW ── */
+.vendor-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.vendor-actions > a,
+.vendor-actions > label,
+.vendor-actions > button {
+  flex: 1 1 auto;
+}
+.vendor-actions button {
+  width: 100% !important;
+  margin-top: 0 !important;
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .vendor-actions {
+    flex-wrap: nowrap !important;
+  }
+  .vendor-actions > a,
+  .vendor-actions > label,
+  .vendor-actions > button {
+    flex: 0 1 auto;
+  }
+  .vendor-actions button {
+    width: auto !important;
+  }
+}
+
+/* ── PROJECT SUMMARY ACTIONS AS TABS ── */
+.action-nav-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+.ps-btn {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center !important;
+  align-items: stretch !important;
+  padding: 10px 16px !important;
+  min-height: 44px !important;
+  margin-bottom: 0 !important; /* Managed by grid gap */
+  box-sizing: border-box !important;
+  border-radius: var(--r) !important;
+  width: 100% !important;
+}
+.ps-btn.approvals-card {
+  height: auto !important;
+}
+.ps-btn:active {
+  background: var(--bg) !important;
+}
+.ps-cat-row:hover {
+  background: rgba(29, 61, 98, 0.05) !important;
+}
+
+@media (min-width: 768px) {
+  .action-nav-group {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .action-nav-group {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ── DRAWINGS PAGE LAYOUT ── */
+.drawings-page {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
 
 
 /* ── prototype-only overrides ── */
@@ -1581,22 +2033,7 @@ a:focus-visible,
     <p>Mirrors the real app: bottom bucket-bar, horizontal tab strip (≤5 items) or accordion (>5 items), real SVG icons, role-branched dashboards, approval gating.</p>
     <p style="font-size:11px;padding:8px 10px;background:rgba(176,125,26,0.08);border-left:3px solid var(--amber);border-radius:4px;color:var(--text2)"><strong>Prototype:</strong> placeholder data — role nav, icons, and screen structure mirror live code.</p>
     <select id="role-select">
-      <option value="audit">Audit</option>
-      <option value="coordinator">Coordinator</option>
-      <option value="design_head">Design Head</option>
-      <option value="design_principal">Design Principal</option>
-      <option value="detailing">Detailing</option>
-      <option value="finance_admin">Finance Admin</option>
-      <option value="it_admin">IT Admin</option>
-      <option value="jr_architect">Jr. Architect</option>
-      <option value="pmc_head">PMC Head</option>
       <option value="principal">Principal</option>
-      <option value="senior_site_manager">Senior Site Manager</option>
-      <option value="services_engineer">Services Engineer</option>
-      <option value="services_head">Services Head</option>
-      <option value="site_manager">Site Manager</option>
-      <option value="team_lead">Team Lead</option>
-      <option value="trainee">Trainee</option>
     </select>
     <button class="rp-enter" onclick="enterApp()">Enter prototype</button>
   </div>
@@ -1636,7 +2073,7 @@ a:focus-visible,
 </div>
 
 <script>
-const NAV          = {"principal":{"home":[{"role":"principal","bucket":"home","item":"dashboard","sort":1},{"role":"principal","bucket":"home","item":"monthly","sort":2},{"role":"principal","bucket":"home","item":"projects","sort":3},{"role":"principal","bucket":"home","item":"project_detail","sort":4}],"money":[{"role":"principal","bucket":"money","item":"payments","sort":1},{"role":"principal","bucket":"money","item":"vendors_master","sort":2},{"role":"principal","bucket":"money","item":"budget","sort":3},{"role":"principal","bucket":"money","item":"boq_mapping","sort":4},{"role":"principal","bucket":"money","item":"client_boq","sort":5}],"pending":[{"role":"principal","bucket":"pending","item":"pending","sort":1}],"more":[{"role":"principal","bucket":"more","item":"register","sort":1},{"role":"principal","bucket":"more","item":"delegations","sort":2},{"role":"principal","bucket":"more","item":"changes","sort":3},{"role":"principal","bucket":"more","item":"weekly_health","sort":4},{"role":"principal","bucket":"more","item":"users","sort":5},{"role":"principal","bucket":"more","item":"governance","sort":50}]},"design_principal":{"home":[{"role":"design_principal","bucket":"home","item":"dashboard","sort":1},{"role":"design_principal","bucket":"home","item":"monthly","sort":2},{"role":"design_principal","bucket":"home","item":"projects","sort":3},{"role":"design_principal","bucket":"home","item":"project_detail","sort":4}],"money":[{"role":"design_principal","bucket":"money","item":"payments","sort":1},{"role":"design_principal","bucket":"money","item":"vendors_master","sort":2},{"role":"design_principal","bucket":"money","item":"budget","sort":3},{"role":"design_principal","bucket":"money","item":"boq_mapping","sort":4},{"role":"design_principal","bucket":"money","item":"client_boq","sort":5}],"pending":[{"role":"design_principal","bucket":"pending","item":"pending","sort":1}],"more":[{"role":"design_principal","bucket":"more","item":"register","sort":1},{"role":"design_principal","bucket":"more","item":"delegations","sort":2},{"role":"design_principal","bucket":"more","item":"changes","sort":3},{"role":"design_principal","bucket":"more","item":"weekly_health","sort":4},{"role":"design_principal","bucket":"more","item":"users","sort":5},{"role":"design_principal","bucket":"more","item":"governance","sort":50}]},"pmc_head":{"home":[{"role":"pmc_head","bucket":"home","item":"dashboard","sort":1},{"role":"pmc_head","bucket":"home","item":"monthly","sort":2},{"role":"pmc_head","bucket":"home","item":"project_detail","sort":3}],"work":[{"role":"pmc_head","bucket":"work","item":"reports","sort":1},{"role":"pmc_head","bucket":"work","item":"issues","sort":2},{"role":"pmc_head","bucket":"work","item":"meetings","sort":3},{"role":"pmc_head","bucket":"work","item":"drawings","sort":4},{"role":"pmc_head","bucket":"work","item":"register","sort":5},{"role":"pmc_head","bucket":"work","item":"materials","sort":6},{"role":"pmc_head","bucket":"work","item":"labour","sort":7}],"money":[{"role":"pmc_head","bucket":"money","item":"grn","sort":1},{"role":"pmc_head","bucket":"money","item":"payments","sort":2},{"role":"pmc_head","bucket":"money","item":"vendors","sort":3},{"role":"pmc_head","bucket":"money","item":"vendors_master","sort":4}],"pending":[{"role":"pmc_head","bucket":"pending","item":"pending","sort":1}]},"design_head":{"home":[{"role":"design_head","bucket":"home","item":"dashboard","sort":1},{"role":"design_head","bucket":"home","item":"monthly","sort":2},{"role":"design_head","bucket":"home","item":"project_detail","sort":3}],"work":[{"role":"design_head","bucket":"work","item":"drawings","sort":1},{"role":"design_head","bucket":"work","item":"issues","sort":2},{"role":"design_head","bucket":"work","item":"submittals","sort":3},{"role":"design_head","bucket":"work","item":"register","sort":4},{"role":"design_head","bucket":"work","item":"phototags","sort":5}],"money":[{"role":"design_head","bucket":"money","item":"materials","sort":1},{"role":"design_head","bucket":"money","item":"budget","sort":2},{"role":"design_head","bucket":"money","item":"payments","sort":3}],"more":[{"role":"design_head","bucket":"more","item":"signoff","sort":1},{"role":"design_head","bucket":"more","item":"delegations","sort":2}]},"services_head":{"home":[{"role":"services_head","bucket":"home","item":"dashboard","sort":1},{"role":"services_head","bucket":"home","item":"monthly","sort":2},{"role":"services_head","bucket":"home","item":"project_detail","sort":3}],"work":[{"role":"services_head","bucket":"work","item":"drawings","sort":1},{"role":"services_head","bucket":"work","item":"issues","sort":2},{"role":"services_head","bucket":"work","item":"submittals","sort":3},{"role":"services_head","bucket":"work","item":"register","sort":4},{"role":"services_head","bucket":"work","item":"phototags","sort":5}],"money":[{"role":"services_head","bucket":"money","item":"materials","sort":1},{"role":"services_head","bucket":"money","item":"budget","sort":2},{"role":"services_head","bucket":"money","item":"payments","sort":3}],"more":[{"role":"services_head","bucket":"more","item":"signoff","sort":1},{"role":"services_head","bucket":"more","item":"delegations","sort":2}]},"site_manager":{"home":[{"role":"site_manager","bucket":"home","item":"dashboard","sort":1},{"role":"site_manager","bucket":"home","item":"project_detail","sort":2}],"work":[{"role":"site_manager","bucket":"work","item":"tasks","sort":1},{"role":"site_manager","bucket":"work","item":"photos","sort":2},{"role":"site_manager","bucket":"work","item":"issues_site","sort":3},{"role":"site_manager","bucket":"work","item":"issues","sort":4},{"role":"site_manager","bucket":"work","item":"labour","sort":5},{"role":"site_manager","bucket":"work","item":"drawings","sort":6},{"role":"site_manager","bucket":"work","item":"register","sort":7}],"money":[{"role":"site_manager","bucket":"money","item":"grn","sort":1},{"role":"site_manager","bucket":"money","item":"payments","sort":2},{"role":"site_manager","bucket":"money","item":"materials_site","sort":3}]},"senior_site_manager":{"home":[{"role":"senior_site_manager","bucket":"home","item":"dashboard","sort":1},{"role":"senior_site_manager","bucket":"home","item":"project_detail","sort":2}],"work":[{"role":"senior_site_manager","bucket":"work","item":"tasks","sort":1},{"role":"senior_site_manager","bucket":"work","item":"photos","sort":2},{"role":"senior_site_manager","bucket":"work","item":"issues_site","sort":3},{"role":"senior_site_manager","bucket":"work","item":"issues","sort":4},{"role":"senior_site_manager","bucket":"work","item":"labour","sort":5},{"role":"senior_site_manager","bucket":"work","item":"drawings","sort":6},{"role":"senior_site_manager","bucket":"work","item":"register","sort":7}],"money":[{"role":"senior_site_manager","bucket":"money","item":"grn","sort":1},{"role":"senior_site_manager","bucket":"money","item":"payments","sort":2},{"role":"senior_site_manager","bucket":"money","item":"materials_site","sort":3}]},"finance_admin":{"home":[{"role":"finance_admin","bucket":"home","item":"dashboard","sort":1},{"role":"finance_admin","bucket":"home","item":"monthly","sort":2},{"role":"finance_admin","bucket":"home","item":"project_detail","sort":3}],"money":[{"role":"finance_admin","bucket":"money","item":"payments_fin","sort":1},{"role":"finance_admin","bucket":"money","item":"vendors_master","sort":2},{"role":"finance_admin","bucket":"money","item":"client_receipts","sort":3},{"role":"finance_admin","bucket":"money","item":"petty_cash","sort":4},{"role":"finance_admin","bucket":"money","item":"pi","sort":5},{"role":"finance_admin","bucket":"money","item":"gst_statement","sort":6},{"role":"finance_admin","bucket":"money","item":"client_boq","sort":7},{"role":"finance_admin","bucket":"money","item":"clients","sort":8}]},"team_lead":{"home":[{"role":"team_lead","bucket":"home","item":"dashboard","sort":1},{"role":"team_lead","bucket":"home","item":"project_detail","sort":2}],"work":[{"role":"team_lead","bucket":"work","item":"drawings","sort":1},{"role":"team_lead","bucket":"work","item":"register","sort":2},{"role":"team_lead","bucket":"work","item":"issues","sort":3},{"role":"team_lead","bucket":"work","item":"submittals","sort":4},{"role":"team_lead","bucket":"work","item":"phototags","sort":5}]},"jr_architect":{"home":[{"role":"jr_architect","bucket":"home","item":"dashboard","sort":1},{"role":"jr_architect","bucket":"home","item":"project_detail","sort":2}],"work":[{"role":"jr_architect","bucket":"work","item":"drawings","sort":1},{"role":"jr_architect","bucket":"work","item":"issues","sort":2},{"role":"jr_architect","bucket":"work","item":"submittals","sort":3}]},"services_engineer":{"home":[{"role":"services_engineer","bucket":"home","item":"dashboard","sort":1},{"role":"services_engineer","bucket":"home","item":"project_detail","sort":2}],"work":[{"role":"services_engineer","bucket":"work","item":"drawings","sort":1},{"role":"services_engineer","bucket":"work","item":"issues","sort":2},{"role":"services_engineer","bucket":"work","item":"submittals","sort":3},{"role":"services_engineer","bucket":"work","item":"phototags","sort":4}]},"coordinator":{"home":[{"role":"coordinator","bucket":"home","item":"dashboard","sort":1},{"role":"coordinator","bucket":"home","item":"project_detail","sort":2}],"work":[{"role":"coordinator","bucket":"work","item":"meetings","sort":1},{"role":"coordinator","bucket":"work","item":"tasks","sort":2},{"role":"coordinator","bucket":"work","item":"issues","sort":3},{"role":"coordinator","bucket":"work","item":"drawings","sort":4},{"role":"coordinator","bucket":"work","item":"register","sort":5},{"role":"coordinator","bucket":"work","item":"photos","sort":6},{"role":"coordinator","bucket":"work","item":"grn","sort":7}]},"trainee":{"strip":[{"role":"trainee","bucket":"strip","item":"drawings","sort":1},{"role":"trainee","bucket":"strip","item":"schedule_view","sort":2}]},"detailing":{"strip":[{"role":"detailing","bucket":"strip","item":"drawings","sort":1},{"role":"detailing","bucket":"strip","item":"submittals","sort":2}]},"audit":{"home":[{"role":"audit","bucket":"home","item":"dashboard","sort":1},{"role":"audit","bucket":"home","item":"monthly","sort":2},{"role":"audit","bucket":"home","item":"projects","sort":3},{"role":"audit","bucket":"home","item":"project_detail","sort":4}],"money":[{"role":"audit","bucket":"money","item":"payments","sort":1},{"role":"audit","bucket":"money","item":"payments_fin","sort":2},{"role":"audit","bucket":"money","item":"vendors","sort":3},{"role":"audit","bucket":"money","item":"vendors_master","sort":4},{"role":"audit","bucket":"money","item":"finance_clearance","sort":5},{"role":"audit","bucket":"money","item":"budget","sort":6},{"role":"audit","bucket":"money","item":"budget_tree","sort":7},{"role":"audit","bucket":"money","item":"boq_mapping","sort":8},{"role":"audit","bucket":"money","item":"client_boq","sort":9},{"role":"audit","bucket":"money","item":"materials","sort":10},{"role":"audit","bucket":"money","item":"grn","sort":11},{"role":"audit","bucket":"money","item":"pi","sort":12},{"role":"audit","bucket":"money","item":"petty_cash","sort":13},{"role":"audit","bucket":"money","item":"client_receipts","sort":14},{"role":"audit","bucket":"money","item":"gst_statement","sort":15},{"role":"audit","bucket":"money","item":"clients","sort":16}],"pending":[{"role":"audit","bucket":"pending","item":"pending","sort":1}],"more":[{"role":"audit","bucket":"more","item":"register","sort":1},{"role":"audit","bucket":"more","item":"drawings","sort":2},{"role":"audit","bucket":"more","item":"submittals","sort":3},{"role":"audit","bucket":"more","item":"issues","sort":4},{"role":"audit","bucket":"more","item":"issues_site","sort":5},{"role":"audit","bucket":"more","item":"tasks","sort":6},{"role":"audit","bucket":"more","item":"photos","sort":7},{"role":"audit","bucket":"more","item":"phototags","sort":8},{"role":"audit","bucket":"more","item":"meetings","sort":9},{"role":"audit","bucket":"more","item":"reports","sort":10},{"role":"audit","bucket":"more","item":"labour","sort":11},{"role":"audit","bucket":"more","item":"schedule_view","sort":12},{"role":"audit","bucket":"more","item":"approvals","sort":13},{"role":"audit","bucket":"more","item":"signoff","sort":14},{"role":"audit","bucket":"more","item":"changes","sort":15},{"role":"audit","bucket":"more","item":"delegations","sort":16},{"role":"audit","bucket":"more","item":"deputy","sort":17},{"role":"audit","bucket":"more","item":"weekly_health","sort":18},{"role":"audit","bucket":"more","item":"users","sort":19},{"role":"audit","bucket":"more","item":"ncr","sort":20},{"role":"audit","bucket":"more","item":"compliance","sort":21},{"role":"audit","bucket":"more","item":"tally","sort":22},{"role":"audit","bucket":"more","item":"notifications","sort":23}]},"it_admin":{"home":[{"role":"it_admin","bucket":"home","item":"nav_editor","sort":1}]}};
+const NAV          = {"principal":{"home":[{"role":"principal","bucket":"home","item":"dashboard","sort":1}]}};
 const TAB_LABELS   = {"dashboard":"Dashboard","projects":"Projects","changes":"CNs","monthly":"Monthly Overview","project_detail":"Project Summary","budget":"Budget","payments":"Payments","payments_fin":"Payments","schedule_view":"Schedule","weekly_health":"Health","users":"Users","reports_daily":"Daily Reports","reports_weekly":"Weekly Reports","grn":"GRNs","issues":"Issues","meetings":"Meetings","labour":"Labour","drawings":"Drawings","register":"Register","delegations":"Delegations","signoff":"Weekly Sign-off","phototags":"Photo Review","issues_site":"Field Issues","tasks":"Tasks","photos":"Photos","pi":"Invoices","petty_cash":"Petty Cash","client_receipts":"Receipts","submittals":"Submittals","notifications":"Alerts","ncr":"NCRs","compliance":"Compliance","tally":"Tally","gst_statement":"GST","boq_mapping":"Vendor Allocation","budget_tree":"Budget Tree","clients":"Clients","vendors_master":"Vendors","finance_clearance":"Vendor Clearance","vendors":"Engagements","materials":"Materials","materials_site":"Materials","client_boq":"Client Contract","nav_editor":"Nav Editor","boq_versions":"BOQ Versions","governance":"Governance","account_setup":"Account Setup","errors_log":"Error Log","library":"Knowledge Library"};
 const TAB_ICONS    = {"reports":"<svg viewBox=\"0 0 24 24\"><path d=\"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/><line x1=\"16\" y1=\"17\" x2=\"8\" y2=\"17\"/></svg>","reports_daily":"<svg viewBox=\"0 0 24 24\"><path d=\"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/><line x1=\"16\" y1=\"17\" x2=\"8\" y2=\"17\"/></svg>","reports_weekly":"<svg viewBox=\"0 0 24 24\"><path d=\"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/><line x1=\"16\" y1=\"17\" x2=\"8\" y2=\"17\"/></svg>","issues":"<svg viewBox=\"0 0 24 24\"><path d=\"M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>","issues_site":"<svg viewBox=\"0 0 24 24\"><path d=\"M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>","labour":"<svg viewBox=\"0 0 24 24\"><path d=\"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75\"/></svg>","grn":"<svg viewBox=\"0 0 24 24\"><path d=\"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/></svg>","tasks":"<svg viewBox=\"0 0 24 24\"><polyline points=\"9 11 12 14 22 4\"/><path d=\"M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11\"/></svg>","drawings":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M9 21V9\"/></svg>","register":"<svg viewBox=\"0 0 24 24\"><line x1=\"8\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"8\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"8\" y1=\"18\" x2=\"21\" y2=\"18\"/><line x1=\"3\" y1=\"6\" x2=\"3.01\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"3.01\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"3.01\" y2=\"18\"/></svg>","meetings":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/></svg>","schedule_view":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/><line x1=\"8\" y1=\"15\" x2=\"16\" y2=\"15\"/></svg>","payments":"<svg viewBox=\"0 0 24 24\"><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"23\"/><path d=\"M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6\"/></svg>","payments_fin":"<svg viewBox=\"0 0 24 24\"><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"23\"/><path d=\"M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6\"/></svg>","vendors":"<svg viewBox=\"0 0 24 24\"><path d=\"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg>","vendors_master":"<svg viewBox=\"0 0 24 24\"><path d=\"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg>","budget":"<svg viewBox=\"0 0 24 24\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>","budget_tree":"<svg viewBox=\"0 0 24 24\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>","materials":"<svg viewBox=\"0 0 24 24\"><path d=\"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z\"/></svg>","materials_site":"<svg viewBox=\"0 0 24 24\"><path d=\"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z\"/></svg>","client_boq":"<svg viewBox=\"0 0 24 24\"><path d=\"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/></svg>","boq_mapping":"<svg viewBox=\"0 0 24 24\"><polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/></svg>","approvals":"<svg viewBox=\"0 0 24 24\"><polyline points=\"9 11 12 14 22 4\"/><path d=\"M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11\"/></svg>","pending":"<svg viewBox=\"0 0 24 24\"><path d=\"M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0\"/></svg>","finance_clearance":"<svg viewBox=\"0 0 24 24\"><polyline points=\"20 6 9 17 4 12\"/></svg>","changes":"<svg viewBox=\"0 0 24 24\"><path d=\"M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7\"/><path d=\"M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z\"/></svg>","photos":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/></svg>","phototags":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/></svg>","ncr":"<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"15\" y1=\"9\" x2=\"9\" y2=\"15\"/><line x1=\"9\" y1=\"9\" x2=\"15\" y2=\"15\"/></svg>","submittals":"<svg viewBox=\"0 0 24 24\"><path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"17 8 12 3 7 8\"/><line x1=\"12\" y1=\"3\" x2=\"12\" y2=\"15\"/></svg>","notifications":"<svg viewBox=\"0 0 24 24\"><path d=\"M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0\"/></svg>","weekly_health":"<svg viewBox=\"0 0 24 24\"><polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/></svg>","compliance":"<svg viewBox=\"0 0 24 24\"><polyline points=\"9 11 12 14 22 4\"/><path d=\"M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11\"/></svg>","users":"<svg viewBox=\"0 0 24 24\"><path d=\"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75\"/></svg>","delegations":"<svg viewBox=\"0 0 24 24\"><polyline points=\"17 1 21 5 17 9\"/><path d=\"M3 11V9a4 4 0 014-4h14\"/><polyline points=\"7 23 3 19 7 15\"/><path d=\"M21 13v2a4 4 0 01-4 4H3\"/></svg>","governance":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18M9 21V9\"/></svg>","account_setup":"<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z\"/></svg>","errors_log":"<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>","nav_editor":"<svg viewBox=\"0 0 24 24\"><line x1=\"8\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"8\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"8\" y1=\"18\" x2=\"21\" y2=\"18\"/><line x1=\"3\" y1=\"6\" x2=\"3.01\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"3.01\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"3.01\" y2=\"18\"/></svg>","library":"<svg viewBox=\"0 0 24 24\"><path d=\"M4 19.5A2.5 2.5 0 016.5 17H20\"/><path d=\"M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z\"/></svg>","tally":"<svg viewBox=\"0 0 24 24\"><path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"17 8 12 3 7 8\"/><line x1=\"12\" y1=\"3\" x2=\"12\" y2=\"15\"/></svg>","gst_statement":"<svg viewBox=\"0 0 24 24\"><line x1=\"12\" y1=\"1\" x2=\"12\" y2=\"23\"/><path d=\"M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6\"/></svg>","pi":"<svg viewBox=\"0 0 24 24\"><path d=\"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/></svg>","petty_cash":"<svg viewBox=\"0 0 24 24\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"2\" y1=\"10\" x2=\"22\" y2=\"10\"/></svg>","client_receipts":"<svg viewBox=\"0 0 24 24\"><path d=\"M14 2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2V8z\"/></svg>","clients":"<svg viewBox=\"0 0 24 24\"><path d=\"M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/></svg>","signoff":"<svg viewBox=\"0 0 24 24\"><path d=\"M12 20h9\"/><path d=\"M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z\"/></svg>","monthly":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/><path d=\"M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01\"/></svg>","projects":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\"/></svg>","project_detail":"<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>","dashboard":"<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"9\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\"/></svg>"};
 const BUCKET_ICONS = {"home":"<svg viewBox=\"0 0 24 24\"><path d=\"M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9\"/></svg>","work":"<svg viewBox=\"0 0 24 24\"><rect x=\"2\" y=\"7\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2\"/></svg>","money":"<span class=\"bb-icon-rupee\">₹</span>","pending":"<svg viewBox=\"0 0 24 24\"><path d=\"M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0\"/></svg>","more":"<svg viewBox=\"0 0 24 24\"><circle cx=\"5\" cy=\"12\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"12\" r=\"1.5\" fill=\"currentColor\"/></svg>"};
@@ -1695,16 +2132,16 @@ function dashSite() {
     '<div style="color:var(--white);font-size:22px;font-weight:700;margin-top:4px">PV90 — Bangalore Penthouse</div>' +
     '</div>' +
     '<div class="stat-row">' +
-    '<button class="stat-card" style="min-height:44px"><span class="stat-val">3</span><span class="stat-lbl">Active Tasks</span></button>' +
-    '<button class="stat-card" style="min-height:44px"><span class="stat-val" style="color:var(--red)">1</span><span class="stat-lbl">Issues</span></button>' +
-    '<button class="stat-card" style="min-height:44px"><span class="stat-val">0</span><span class="stat-lbl">GRNs</span></button>' +
+    '<button class="stat-card"><span class="stat-val">3</span><span class="stat-lbl">Active Tasks</span></button>' +
+    '<button class="stat-card"><span class="stat-val" style="color:var(--red)">1</span><span class="stat-lbl">Issues</span></button>' +
+    '<button class="stat-card"><span class="stat-val">0</span><span class="stat-lbl">GRNs</span></button>' +
     '</div>' +
     '<div class="sec-label">Quick Actions</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">📊<div style="font-size:12px;margin-top:4px">Update Tasks</div></button>' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">📦<div style="font-size:12px;margin-top:4px">Raise GRN</div></button>' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">⚠️<div style="font-size:12px;margin-top:4px">Raise Issue</div></button>' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">📐<div style="font-size:12px;margin-top:4px">Drawing Query</div></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">📊</span><span style="font-size:13px;font-weight:600">Update Tasks</span></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">📦</span><span style="font-size:13px;font-weight:600">Raise GRN</span></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">⚠️</span><span style="font-size:13px;font-weight:600">Raise Issue</span></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">📐</span><span style="font-size:13px;font-weight:600">Drawing Query</span></button>' +
     '</div>';
 }
 

@@ -24,7 +24,7 @@ const path = require('path');
 
 const ROOT      = path.join(__dirname, '..');
 const CSS_PATH  = path.join(ROOT, 'public/css/app.css');
-const PV90_PATH = path.join(ROOT, 'pv90-loaded.sql');
+const PV90_PATH = path.join(ROOT, 'nu-pmc-install-20260502.sql');
 const OUT_PATH  = path.join(ROOT, 'nav-prototype.html');
 
 // ── 1. Real CSS ─────────────────────────────────────────────────────────────
@@ -206,16 +206,16 @@ function dashSite() {
     '<div style="color:var(--white);font-size:22px;font-weight:700;margin-top:4px">PV90 — Bangalore Penthouse</div>' +
     '</div>' +
     '<div class="stat-row">' +
-    '<button class="stat-card" style="min-height:44px"><span class="stat-val">3</span><span class="stat-lbl">Active Tasks</span></button>' +
-    '<button class="stat-card" style="min-height:44px"><span class="stat-val" style="color:var(--red)">1</span><span class="stat-lbl">Issues</span></button>' +
-    '<button class="stat-card" style="min-height:44px"><span class="stat-val">0</span><span class="stat-lbl">GRNs</span></button>' +
+    '<button class="stat-card"><span class="stat-val">3</span><span class="stat-lbl">Active Tasks</span></button>' +
+    '<button class="stat-card"><span class="stat-val" style="color:var(--red)">1</span><span class="stat-lbl">Issues</span></button>' +
+    '<button class="stat-card"><span class="stat-val">0</span><span class="stat-lbl">GRNs</span></button>' +
     '</div>' +
     '<div class="sec-label">Quick Actions</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">📊<div style="font-size:12px;margin-top:4px">Update Tasks</div></button>' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">📦<div style="font-size:12px;margin-top:4px">Raise GRN</div></button>' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">⚠️<div style="font-size:12px;margin-top:4px">Raise Issue</div></button>' +
-    '<button class="btn-secondary" style="padding:14px;text-align:center;min-height:44px">📐<div style="font-size:12px;margin-top:4px">Drawing Query</div></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">📊</span><span style="font-size:13px;font-weight:600">Update Tasks</span></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">📦</span><span style="font-size:13px;font-weight:600">Raise GRN</span></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">⚠️</span><span style="font-size:13px;font-weight:600">Raise Issue</span></button>' +
+    '<button class="action-card"><span style="font-size:24px;margin-bottom:6px">📐</span><span style="font-size:13px;font-weight:600">Drawing Query</span></button>' +
     '</div>';
 }
 

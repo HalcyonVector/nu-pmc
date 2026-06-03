@@ -8894,33 +8894,37 @@ APP.renderSiteDashboard = async function() {
   </div>
 
   <div class="stat-row">
-    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('tasks')">
+    <button class="stat-card" onclick="APP.switchTab('tasks')">
       <span class="stat-val">${data?.tasks?.filter(t=>t.pct_complete<100&&new Date(t.end_date)>=new Date()).length||0}</span>
       <span class="stat-lbl">Active Tasks</span>
-    </div>
-    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('issues')">
+    </button>
+    <button class="stat-card" onclick="APP.switchTab('issues')">
       <span class="stat-val">${data?.open_issues||0}</span>
       <span class="stat-lbl">Issues</span>
-    </div>
-    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('grn')">
+    </button>
+    <button class="stat-card" onclick="APP.switchTab('grn')">
       <span class="stat-val">${data?.pending_grns||0}</span>
       <span class="stat-lbl">GRNs</span>
-    </div>
+    </button>
   </div>
 
   <div class="sec-label">Quick Actions</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-    <button class="btn-secondary" onclick="APP.switchTab('tasks')" style="padding:14px;text-align:center">
-      📊<div style="font-size:12px;margin-top:4px">Update Tasks</div>
+    <button class="action-card" onclick="APP.switchTab('tasks')">
+      <span style="font-size:24px;margin-bottom:6px">📊</span>
+      <span style="font-size:13px;font-weight:600">Update Tasks</span>
     </button>
-    <button class="btn-secondary" onclick="APP.switchTab('grn')" style="padding:14px;text-align:center">
-      📦<div style="font-size:12px;margin-top:4px">Raise GRN</div>
+    <button class="action-card" onclick="APP.switchTab('grn')">
+      <span style="font-size:24px;margin-bottom:6px">📦</span>
+      <span style="font-size:13px;font-weight:600">Raise GRN</span>
     </button>
-    <button class="btn-secondary" onclick="APP.switchTab('issues')" style="padding:14px;text-align:center">
-      ⚠️<div style="font-size:12px;margin-top:4px">Raise Issue</div>
+    <button class="action-card" onclick="APP.switchTab('issues')">
+      <span style="font-size:24px;margin-bottom:6px">⚠️</span>
+      <span style="font-size:13px;font-weight:600">Raise Issue</span>
     </button>
-    <button class="btn-secondary" onclick="APP.switchTab('queries_site')" style="padding:14px;text-align:center">
-      📐<div style="font-size:12px;margin-top:4px">Drawing Query</div>
+    <button class="action-card" onclick="APP.switchTab('queries_site')">
+      <span style="font-size:24px;margin-bottom:6px">📐</span>
+      <span style="font-size:13px;font-weight:600">Drawing Query</span>
     </button>
   </div>`;
 
