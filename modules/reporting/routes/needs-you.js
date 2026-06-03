@@ -80,7 +80,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   if (role === 'pmc_head') {
     const [reports, moms, prs, grns] = await Promise.all([
       countWithScope(
-        "SELECT COUNT(*) cnt FROM daily_reports WHERE status='pending_review' AND NOW() < TIMESTAMPADD(DAY, 2, report_date){SCOPE}",
+        "SELECT COUNT(*) cnt FROM daily_reports WHERE status='pending_review'{SCOPE}",
         [], projectIds
       ),
       countWithScope(
@@ -96,7 +96,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
         [], projectIds
       ),
     ]);
-    push('reports',  reports, 'Reports to approve',     'reports');
+    push('reports',  reports, 'Reports to approve',     'reports_daily');
     push('meetings', moms,    'MOMs awaiting approval', 'meetings');
     push('payments', prs,     'PRs to review',          'payments');
     push('grn',      grns,    'GRNs to sign off',       'grn');

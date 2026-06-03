@@ -480,7 +480,8 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border: none;
+  border: none !important;
+  outline: none !important;
   background: transparent;
   border-radius: var(--r);
   cursor: pointer;

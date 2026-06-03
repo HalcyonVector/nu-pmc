@@ -1030,6 +1030,7 @@ Tomorrow: start formwork on next bay."
       monthly:       APP.renderMonthly,
       vendors:       APP.renderVendors,
       gantt:         APP.renderGantt,
+      reports:        () => APP.renderWeeklyReports(),
       reports_daily:  () => APP.renderDailyReports(),
       reports_weekly: () => APP.renderWeeklyReports(),
       changes:       APP.renderChanges,
@@ -1542,7 +1543,7 @@ Tomorrow: start formwork on next bay."
       
       // Build Assignee options
       const assigneeOptions = assignees.map(u => 
-        `<option value="${u.id}">${u.full_name} (${u.role.replace('_', ' ')})</option>`
+        `<option value="${u.id}">${u.full_name} (${APP._roleLabel(u.role)})</option>`
       ).join('');
       
       // Render layout HTML
@@ -3992,65 +3993,8 @@ Tomorrow: start formwork on next bay."
   // Internal method (object literal). External counterpart renderDailyReports
   // is defined separately further down. Two distinct surfaces, two tab keys.
   async renderWeeklyReports() {
-    const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📊','Select a project first'); return; }
-
-    const [repData, genData] = await Promise.all([API.getReports(pid), API.generateReport(pid)]);
-    const reports = repData?.reports || [];
-    const gen     = genData || {};
-
-    const isPMC = APP.user.role === 'pmc_head';
-    const isPrincipal = ['principal','design_principal'].includes(APP.user.role);
-
-    let html = `<div class="sec-label">Weekly Report — Week ${gen.week_number||'?'}</div>`;
-
-    // Trade progress
-    if (gen.trade_progress?.length) {
-      html += `<div class="card" style="margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:8px">📊 Schedule Progress</div>
-        ${gen.trade_progress.map(t=>{
-          const col=TRADE_COLORS[t.trade]||'#5a5a5a';
-          const pct=Math.round(t.avg_pct||0);
-          return `<div class="prog-row">
-            <div class="prog-label">${t.trade.split(' ')[0]}</div>
-            <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
-            <div class="prog-pct">${pct}%</div>
-          </div>`;
-        }).join('')}
-      </div>`;
-    }
-
-    if (isPMC) {
-      html += `<div class="card" style="margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:8px">📝 Summary for Client</div>
-        <textarea id="rpt-summary" rows="4" placeholder="Overall summary — progress, highlights, concerns…"></textarea>
-      </div>
-      <div class="card" style="margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:8px">⚠️ Issues for Client</div>
-        <textarea id="rpt-issues" rows="3" placeholder="Issues requiring client decision or action…"></textarea>
-      </div>
-      <button class="btn-primary" onclick="APP.submitReport(${pid},${gen.week_number||0},'${gen.week_ending||''}')">Submit for Approval</button>`;
-    }
-
-    if (reports.length) {
-      html += `<div class="sec-label" style="margin-top:20px">Past Reports</div>`;
-      reports.forEach(r => {
-        html += `<div class="card">
-          <div style="display:flex;justify-content:space-between">
-            <div class="card-title">Week ${r.week_number} — ${UI.fmtDate(r.week_ending)}</div>
-            <span class="badge ${r.status==='sent'?'b-green':r.status==='approved'?'b-blue':'b-amber'}">${r.status.toUpperCase()}</span>
-          </div>
-          <div class="card-meta">${r.drafted_by_name} · ${r.created_at?.split('T')[0]||''}</div>
-          ${isPrincipal && r.status==='draft'?`<div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn-approve" onclick="APP.approveWeeklyReport(${r.id})">Approve</button>
-          </div>`:''}
-          ${r.status==='approved' && APP.user.role==='design_coord'?`<button class="btn-sm gold" style="margin-top:10px" onclick="APP.markReportSent(${r.id})">Mark Sent to Client</button>`:''}
-        </div>`;
-      });
-    }
-
-    el.innerHTML = html;
+    const el = UI.contentEl();
+    el.innerHTML = UI.empty('🚧', 'Weekly Reports Coming Soon');
   },
 
   async submitReport(pid, weekNum, weekEnding) {
@@ -4932,7 +4876,7 @@ APP._loadPendingUsersLegacy = async function() {
       html += `<div class="card" style="margin-bottom:8px;border-left:4px solid #C8A040">
         <div style="padding:12px">
           <div style="font-weight:bold;font-size:15px">${u.full_name}</div>
-          <div style="font-size:12px;color:#666">@${u.username} · ${u.role.replace(/_/g,' ')} · ${u.stream}</div>
+          <div style="font-size:12px;color:#666">@${u.username} · ${APP._roleLabel(u.role)} · ${u.stream}</div>
           <div style="font-size:11px;color:#888;margin-top:2px">Requested by ${u.initiated_by_name} · ${new Date(u.initiated_at).toLocaleDateString()}</div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="btn-primary" style="flex:1" onclick="APP.approveUser(${u.id})">✓ Approve</button>
@@ -6850,7 +6794,7 @@ APP.renderUsers = async function() {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <div style="flex:1;min-width:0">
           <div class="card-title">${UI.escapeText(u.full_name)}</div>
-          <div class="card-meta" style="text-transform:capitalize">${u.role.replace(/_/g,' ')} · ${u.email||u.phone||'—'}</div>
+          <div class="card-meta">${APP._roleLabel(u.role)} · ${u.email||u.phone||'—'}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           <span class="badge b-green">Active</span>
@@ -9048,7 +8992,7 @@ APP._updateTopbar = function() {
   const projName = proj ? proj.name.split(' ').slice(0,3).join(' ') : (projects.length > 0 ? 'Select Project' : '—');
 
   const firstName = (APP.user?.full_name || '').split(' ')[0] || '';
-  const roleLabel = (APP.user?.role || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+  const roleLabel = APP._roleLabel(APP.user?.role || '');
   const who = firstName && roleLabel ? `${firstName} · ${roleLabel}` : (firstName || roleLabel || '');
 
   ctx.innerHTML = `
@@ -9068,6 +9012,7 @@ APP.IMPERSONATABLE_ROLES = [
 ];
 
 APP._roleLabel = function(role) {
+  if (role === 'it_admin') return 'IT Admin';
   return (role || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
 };
 
