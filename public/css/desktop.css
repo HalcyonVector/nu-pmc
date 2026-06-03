@@ -27,7 +27,7 @@
   /* App container becomes a CSS grid: sidebar | topbar+content */
   #app-container, #app.is-visible, body > div.app, .app-shell {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: 240px minmax(0, 1fr);
     min-height: 100vh;
     background: #F2F4F7;
   }
@@ -421,7 +421,7 @@
 /* XL desktop tweaks */
 @media (min-width: 1440px) {
   #app-container, #app.is-visible, body > div.app, .app-shell {
-    grid-template-columns: 260px 1fr !important;
+    grid-template-columns: 260px minmax(0, 1fr) !important;
   }
   .tabs, #tabs-bar { width: 260px !important; }
   .bottom-nav, #bottom-nav { width: 260px !important; }

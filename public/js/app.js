@@ -1069,7 +1069,7 @@ Tomorrow: start formwork on next bay."
     let html = `<div class="sec-label">Action Centre</div>`;
 
     const addItem = (icon, title, meta, c, b, badge, fn) =>
-      `<button class="action-item c-${c}" style="min-height:44px;cursor:pointer" onclick="${fn}">
+      `<div class="action-item c-${c}" style="min-height:44px;cursor:pointer;width:100%" onclick="${fn}">
         <div class="ai-icon">${icon}</div>
         <div class="ai-body"><div class="ai-title">${title}</div><div class="ai-meta">${meta}</div></div>
         <span class="badge b-${b}">${badge}</span>
@@ -1090,10 +1090,12 @@ Tomorrow: start formwork on next bay."
       html += addItem('🔄','Change notices — signatures pending',`${ac.pending_changes.length} need sign-off`,'blue','blue','ACTION',"APP.showActionTriage('pending_changes')");
 
     if (!Object.values(ac).some(a => a.length))
-      html += `<div class="action-item c-green"><div class="ai-icon">✅</div><div class="ai-body"><div class="ai-title">All clear</div><div class="ai-meta">No urgent actions</div></div></div>`;
+      html += `<div class="action-item c-green" style="width:100%"><div class="ai-icon">✅</div><div class="ai-body"><div class="ai-title">All clear</div><div class="ai-meta">No urgent actions</div></div></div>`;
 
     html += `<div class="sec-label">Projects</div>`;
+    html += `<div class="projects-grid">`;
     (data.projects || []).forEach(p => { html += APP.projectCard(p, true); });
+    html += `</div>`;
 
     el.innerHTML = html;
   },
@@ -1128,39 +1130,39 @@ Tomorrow: start formwork on next bay."
     const checklist  = p.checklist_project_created && p.checklist_design_boq &&
                        p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager;
 
-    let html = `<button class="proj-card fade-in" style="min-height:44px; display:flex; flex-direction:column; justify-content:space-between; text-align:left; height:100%" onclick="APP.selectProject('${p.id}')">
-      <div class="pc-top" style="flex:1 1 auto; width:100%">
-        <div>
-          <div class="pc-name">${p.name}</div>
-          <div class="pc-client">${p.client}</div>
-          <div class="pc-loc">📍 ${p.location}</div>
+    let html = `<div class="proj-card fade-in" style="min-height:44px; text-align:center; width:100%; cursor:pointer" onclick="APP.selectProject('${p.id}')">
+      <div class="pc-top" style="flex-direction:column; align-items:center; text-align:center; gap:8px">
+        <div style="width:100%">
+          <div class="pc-name" style="text-align:center">${p.name}</div>
+          <div class="pc-client" style="text-align:center">${p.client || p.client_name || '—'}</div>
+          <div class="pc-loc" style="text-align:center">📍 ${p.location || '—'}</div>
         </div>
-        ${statusHtml}
+        <div>${statusHtml}</div>
       </div>`;
 
     if (!checklist) {
       const steps = [
-        ['Created',      p.checklist_project_created],
-        ['Design BOQ',   p.checklist_design_boq],
-        ['Services BOQ', p.checklist_services_boq],
-        ['Schedule',     p.checklist_schedule],
-        ['Site Mgr',     p.checklist_site_manager],
+        ['Project created',          p.checklist_project_created],
+        ['Design BOQ uploaded',      p.checklist_design_boq],
+        ['Services BOQ uploaded',    p.checklist_services_boq],
+        ['Schedule uploaded',        p.checklist_schedule],
+        ['Site manager assigned',    p.checklist_site_manager],
       ];
       const done = steps.filter(s => s[1]).length;
-      html += `<div style="padding:0 16px 16px; flex:0 0 auto; width:100%">
+      html += `<div style="padding:0 16px 16px; width:100%; text-align:center">
         <div style="font-size:10px;color:#60a8c8;font-family:var(--mono);margin-bottom:8px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px">INITIALISING — ${done}/5 complete</div>
-        <div style="display:flex; flex-wrap:wrap; gap:6px">
+        <div style="display:flex; flex-direction:column; gap:6px; text-align:center">
           ${steps.map(([l, v]) => `
-            <div style="display:inline-flex; align-items:center; gap:4px; padding:4px 8px; background:${v ? 'rgba(46,125,50,0.08)' : 'rgba(0,0,0,0.03)'}; border:1px solid ${v ? 'rgba(46,125,50,0.15)' : 'rgba(0,0,0,0.05)'}; border-radius:4px; font-size:11px; opacity:${v ? 1 : 0.6}">
-              <span style="color:${v ? 'var(--green)' : 'var(--muted)'}; font-weight:bold">${v ? '✓' : '○'}</span>
-              <span style="color:var(--text); ${v ? 'text-decoration:line-through; opacity:0.6' : ''}">${l}</span>
+            <div class="check-item${v ? ' done' : ''}" style="justify-content:center">
+              <div class="ci-icon">${v ? '✓' : '○'}</div>
+              <div class="ci-label" style="flex:none">${l}</div>
             </div>
           `).join('')}
         </div>
       </div>`;
     } else {
       const stats = p.stats || {};
-      html += `<div class="pc-stats" style="flex:0 0 auto; width:100%">
+      html += `<div class="pc-stats">
         <div class="pc-stat"><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.open_queries>0?' amber':''}">${stats.open_queries||0}</span><span class="pc-stat-lbl">Queries</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
@@ -1180,7 +1182,7 @@ Tomorrow: start formwork on next bay."
         html += `</div>`;
       }
     }
-    html += `</button>`;
+    html += `</div>`;
     return html;
   },
 
@@ -8274,7 +8276,7 @@ APP.renderProjectDetail = async function() {
       const target = BUTTON_TARGET[b.key];
       const onclick = target ? `APP.switchTab('${target}')` : '';
       return `<div class="card ps-btn" style="cursor:pointer; width:100% !important; box-sizing:border-box !important; display:flex !important" onclick="${onclick}">
-        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;gap:10px">
           <div style="font-weight:600;font-size:14px;color:var(--navy)">${b.label}</div>
           ${countPill(b.count)}
         </div>
