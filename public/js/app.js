@@ -151,9 +151,23 @@ const APP = {
   },
 
   async init() {
-    // Register service worker
+    // Register service worker — force update on every load to prevent stale JS
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(console.error);
+      // Clear ALL caches on boot to prevent stale JS from being served
+      if (window.caches) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+      }
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        // If a new SW is waiting, tell it to activate immediately
+        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (nw) nw.addEventListener('statechange', () => {
+            if (nw.state === 'activated') location.reload();
+          });
+        });
+        reg.update(); // Force check for new SW
+      }).catch(console.error);
     }
 
     // PWA install prompt — capture and show custom banner
@@ -190,6 +204,10 @@ const APP = {
 
     // Check existing session
     const res = await API.me();
+    if (res?.today) {
+      APP.state.serverToday = res.today;
+      APP.state.selectedDate = res.today;
+    }
     if (res?.user) {
       APP.user = res.user;
       APP.showApp();
@@ -806,6 +824,10 @@ const APP = {
 
     const res = await API.login(u, p);
     if (res?.success) {
+      if (res.today) {
+        APP.state.serverToday = res.today;
+        APP.state.selectedDate = res.today;
+      }
       APP.user = res.user;
       APP.showApp();
     } else {
@@ -826,6 +848,10 @@ const APP = {
     UI.closeModal();
     const res = await API.post('/auth/dev-switch', { user_id });
     if (res?.success) {
+      if (res.today) {
+        APP.state.serverToday = res.today;
+        APP.state.selectedDate = res.today;
+      }
       APP.user = res.user;
       APP.showApp();
     } else {
@@ -1102,8 +1128,8 @@ Tomorrow: start formwork on next bay."
     const checklist  = p.checklist_project_created && p.checklist_design_boq &&
                        p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager;
 
-    let html = `<button class="proj-card fade-in" style="min-height:44px" onclick="APP.selectProject('${p.id}')">
-      <div class="pc-top">
+    let html = `<button class="proj-card fade-in" style="min-height:44px; display:flex; flex-direction:column; justify-content:space-between; text-align:left; height:100%" onclick="APP.selectProject('${p.id}')">
+      <div class="pc-top" style="flex:1 1 auto; width:100%">
         <div>
           <div class="pc-name">${p.name}</div>
           <div class="pc-client">${p.client}</div>
@@ -1114,23 +1140,27 @@ Tomorrow: start formwork on next bay."
 
     if (!checklist) {
       const steps = [
-        ['Project created',       p.checklist_project_created],
-        ['Design BOQ uploaded',   p.checklist_design_boq],
-        ['Services BOQ uploaded', p.checklist_services_boq],
-        ['Schedule uploaded',     p.checklist_schedule],
-        ['Site manager assigned', p.checklist_site_manager],
+        ['Created',      p.checklist_project_created],
+        ['Design BOQ',   p.checklist_design_boq],
+        ['Services BOQ', p.checklist_services_boq],
+        ['Schedule',     p.checklist_schedule],
+        ['Site Mgr',     p.checklist_site_manager],
       ];
       const done = steps.filter(s => s[1]).length;
-      html += `<div style="padding:0 14px 12px">
-        <div style="font-size:10px;color:#60a8c8;font-family:var(--mono);margin-bottom:6px">INITIALISING — ${done}/5 complete</div>
-        ${steps.map(([l, v]) => `<div class="check-item${v?' done':''}">
-          <div class="ci-icon">${v?'✓':'○'}</div>
-          <div class="ci-label">${l}</div>
-        </div>`).join('')}
+      html += `<div style="padding:0 16px 16px; flex:0 0 auto; width:100%">
+        <div style="font-size:10px;color:#60a8c8;font-family:var(--mono);margin-bottom:8px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px">INITIALISING — ${done}/5 complete</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px">
+          ${steps.map(([l, v]) => `
+            <div style="display:inline-flex; align-items:center; gap:4px; padding:4px 8px; background:${v ? 'rgba(46,125,50,0.08)' : 'rgba(0,0,0,0.03)'}; border:1px solid ${v ? 'rgba(46,125,50,0.15)' : 'rgba(0,0,0,0.05)'}; border-radius:4px; font-size:11px; opacity:${v ? 1 : 0.6}">
+              <span style="color:${v ? 'var(--green)' : 'var(--muted)'}; font-weight:bold">${v ? '✓' : '○'}</span>
+              <span style="color:var(--text); ${v ? 'text-decoration:line-through; opacity:0.6' : ''}">${l}</span>
+            </div>
+          `).join('')}
+        </div>
       </div>`;
     } else {
       const stats = p.stats || {};
-      html += `<div class="pc-stats">
+      html += `<div class="pc-stats" style="flex:0 0 auto; width:100%">
         <div class="pc-stat"><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.open_queries>0?' amber':''}">${stats.open_queries||0}</span><span class="pc-stat-lbl">Queries</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
@@ -1138,7 +1168,7 @@ Tomorrow: start formwork on next bay."
       </div>`;
 
       if (!compact && trades.length) {
-        html += `<div class="pc-progress">`;
+        html += `<div class="pc-progress" style="padding:12px 16px; border-top:1px solid var(--border)">`;
         trades.forEach(([trade, pct]) => {
           const col = TRADE_COLORS[trade] || '#5a5a5a';
           html += `<div class="prog-row">
@@ -1150,7 +1180,7 @@ Tomorrow: start formwork on next bay."
         html += `</div>`;
       }
     }
-    html += `</div>`;
+    html += `</button>`;
     return html;
   },
 
@@ -1225,7 +1255,7 @@ Tomorrow: start formwork on next bay."
   // ── SCHEDULE (site manager)
   async renderSchedule() {
     const el = UI.contentEl();
-    const today = UI.todayIST();
+    const today = APP.state.serverToday || UI.todayIST();
     const date  = APP.state.selectedDate;
     const sub   = APP.state.scheduleView;
     const pid   = APP.state.selectedProject || APP.user.projects?.[0]?.id;
@@ -1238,36 +1268,62 @@ Tomorrow: start formwork on next bay."
     </div>`;
 
     if (sub === 'ahead') {
-      const data = await API.getLookahead(pid);
-      el.innerHTML = subTabs + APP.buildAhead(data || {});
+      await APP.renderLookaheadWorkspace(pid, subTabs, el);
       return;
     }
 
-    // Pre-fetch today's daily-report so the Site Notes textarea pre-fills with
-    // whatever was previously saved. Without this, an unrelated page nav would
-    // wipe the visible textarea even though the notes ARE persisted to DB.
-    // Errors are non-fatal — empty pre-fill is acceptable.
-    if (date === today) {
-      try {
-        const dr = await API.call('GET', `/daily-reports/${pid}/today`);
-        APP.state._scheduleNotesPrefill = dr?.notes || '';
-      } catch (e) {
-        APP.state._scheduleNotesPrefill = '';
-      }
-    } else {
+    // Load dates with notes
+    const datesWithNotes = new Set();
+    try {
+      const listRes = await API.call('GET', `/daily-reports/${pid}`);
+      const reports = listRes?.reports || [];
+      reports.forEach(r => {
+        if (r.overall_notes && r.overall_notes.trim()) {
+          let dStr = r.report_date;
+          if (dStr) {
+            if (typeof dStr === 'string') {
+              dStr = dStr.slice(0, 10);
+            } else if (dStr instanceof Date) {
+              dStr = dStr.toISOString().slice(0, 10);
+            }
+            datesWithNotes.add(dStr);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to load daily reports list:', e);
+    }
+
+    // Pre-fetch the selected date's daily-report so the Site Notes textarea pre-fills
+    try {
+      const dr = await API.call('GET', `/daily-reports/${pid}/today?date=${date}`);
+      APP.state._scheduleNotesPrefill = dr?.notes || '';
+    } catch (e) {
       APP.state._scheduleNotesPrefill = '';
     }
 
-    // Date strip
+    // Date strip (past 3 days, today, future 3 days)
     let strip = '<div class="date-strip">';
-    for (let i = 0; i < 4; i++) {
+    for (let i = -3; i <= 3; i++) {
       const d = UI.addDays(today, i);
       const sel = d === date;
-      strip += `<button class="date-chip${d===today?' today':''}${sel?' sel':''}" style="min-height:44px" onclick="APP.state.selectedDate='${d}';APP.renderSchedule()">
-        <div class="dc-day">${d===today?'Today':UI.fmtDay(d)}</div>
-        <div class="dc-num">${new Date(d+'T00:00:00').getDate()}</div>
-        <div class="dc-dot"></div>
-      </div>`;
+      
+      let stateClass = '';
+      if (i < 0) {
+        stateClass = 'past';
+      } else if (i === 0) {
+        stateClass = 'today';
+      } else {
+        stateClass = 'future';
+      }
+      
+      const hasNotes = datesWithNotes.has(d);
+      
+      strip += `<button class="date-chip ${stateClass}${sel ? ' sel' : ''}" onclick="APP.state.selectedDate='${d}';APP.renderSchedule()">
+        <div class="dc-day">${i === 0 ? 'Today' : UI.fmtDay(d)}</div>
+        <div class="dc-num">${new Date(d + 'T00:00:00').getDate()}</div>
+        <div class="dc-dot${hasNotes ? ' has-notes' : ''}"></div>
+      </button>`;
     }
     strip += '</div>';
 
@@ -1275,64 +1331,9 @@ Tomorrow: start formwork on next bay."
     const tasks = data?.tasks || [];
     const byTrade = APP.groupByTrade(tasks);
 
-    let html = subTabs + strip;
-
-    // Big photo button
-    html += `<button class="upload-btn" onclick="document.getElementById('photo-file').click()" id="photo-btn">
-      <span style="font-size:22px">📷</span> Upload Site Photos
-    </button>
-    <input type="file" id="photo-file" accept="image/*" multiple capture="environment" style="display:none"
-      onchange="APP.uploadPhotos(${pid},this)">`;
-
-    if (!tasks.length) {
-      html += UI.empty('📅','No tasks scheduled today');
-    } else {
-      const done = tasks.filter(t => (APP.state.taskPct[t.id]??t.pct_complete??0) === 100).length;
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Tasks — ${date===today?'Today':UI.fmtDate(date)}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${done}/${tasks.length} done</span>
-      </div>`;
-
-      Object.entries(byTrade).forEach(([trade, tlist]) => {
-        const col  = TRADE_COLORS[trade] || '#5a5a5a';
-        const tdone = tlist.filter(t => (APP.state.taskPct[t.id]??t.pct_complete??0) === 100).length;
-        html += `<div class="trade-group">
-          <div class="trade-hdr">
-            <div class="trade-dot" style="background:${col}"></div>
-            <div class="trade-name">${trade}</div>
-            <div class="trade-prog">${tdone}/${tlist.length}</div>
-          </div>`;
-
-        tlist.forEach(t => {
-          const pct     = APP.state.taskPct[t.id] ?? t.pct_complete ?? 0;
-          const isDone  = pct === 100;
-          const isProgress = pct > 0 && pct < 100;
-          const flagged = t.is_flagged;
-          html += `<div class="task-item${isDone?' task-done':isProgress?' task-progress':''}">
-            <div class="task-dot"></div>
-            <div style="flex:1">
-              <div class="task-name">${t.task_name}</div>
-              <div class="pct-wrap">
-                <input type="range" class="pct-slider" min="0" max="100" step="5" value="${pct}"
-                  oninput="APP.liveUpdatePct(${t.id},${pid},'${date}',this);this.nextElementSibling.textContent=this.value+'%'">
-                <div class="pct-val">${pct}%</div>
-              </div>
-              <div class="task-actions">
-                <button class="btn-sm${flagged?' flagged':''}" onclick="APP.toggleFlag(${t.id},${pid},'${date}',${t.update_id||'null'})">${flagged?'🚩 Flagged':'⚑ Flag'}</button>
-                ${isDone?`<button class="btn-sm query" onclick="APP.raiseQueryFromTask(${t.id},'${UI.escapeAttr(t.task_name)}',${pid})">💬 Query</button>`:''}
-              </div>
-            </div>
-          </div>`;
-        });
-        html += `</div>`;
-      });
-    }
-
     // Build final HTML
     let finalHtml = subTabs + strip +
-      `<button class="upload-btn" onclick="document.getElementById('photo-file-${date}').click()">
-        <span style="font-size:22px">📷</span> Upload Site Photos
-      </button>
+      `<button class="upload-btn" onclick="document.getElementById('photo-file-${date}').click()"><span class="upload-btn-icon">📷</span><span>Upload Site Photos</span></button>
       <input type="file" id="photo-file-${date}" accept="image/*" multiple capture="environment" style="display:none"
         onchange="APP.uploadPhotos(${pid},this)">`;
 
@@ -1373,21 +1374,19 @@ Tomorrow: start formwork on next bay."
         finalHtml+=`</div>`;
       });
     }
+
+    const isPast = date < today;
     finalHtml+=`<div style="margin-top:16px">
       <div class="field-row"><label class="field-label" for="schedule-site-notes">Site Notes</label>
-        <textarea id="schedule-site-notes" rows="3" placeholder="Work done, observations, blockers…"${date !== today ? ' disabled' : ''}>${UI.escapeText(APP.state._scheduleNotesPrefill || '')}</textarea>
+        <textarea id="schedule-site-notes" rows="3" placeholder="Work done, observations, blockers…"${isPast ? ' disabled' : ''}>${UI.escapeText(APP.state._scheduleNotesPrefill || '')}</textarea>
       </div>
-      ${date === today
+      ${!isPast
         ? `<button class="btn-primary" onclick="APP.saveScheduleNotes(${pid})">Save Notes</button>`
-        : `<div class="field-help" style="color:var(--muted);font-size:12px">Notes can only be saved for today.</div>`}
+        : `<div class="field-help" style="color:var(--muted);font-size:12px">Notes cannot be edited for past dates.</div>`}
     </div>`;
     el.innerHTML = finalHtml;
   },
 
-  // Save the Site Notes textarea to today's daily report. Replaces the prior
-  // fake button (UI.toast only) — that one lied: textarea had no id, value was
-  // never read, no API call made. Site managers lost notes on every reload.
-  // Now: posts to /api/daily-reports/:pid/submit which upserts overall_notes.
   async saveScheduleNotes(pid) {
     const ta = document.getElementById('schedule-site-notes');
     if (!ta) { UI.toast('Notes field not found'); return; }
@@ -1396,11 +1395,12 @@ Tomorrow: start formwork on next bay."
       UI.toast('Notes must be under 5000 characters');
       return;
     }
-    const res = await API.call('POST', `/daily-reports/${pid}/submit`, { notes });
+    const date = APP.state.selectedDate;
+    const res = await API.call('POST', `/daily-reports/${pid}/submit`, { notes, date });
     if (res?.ok) {
-      // Stash so a re-render of the schedule keeps the value visible
       APP.state._scheduleNotesPrefill = notes;
       UI.toast('Notes saved ✓');
+      APP.renderSchedule();
     } else {
       UI.toast(res?.error || 'Could not save notes');
     }
@@ -1467,6 +1467,267 @@ Tomorrow: start formwork on next bay."
       html += `</div>`;
     });
     return html;
+  },
+
+  async renderLookaheadWorkspace(pid, subTabs, el) {
+    el.innerHTML = subTabs + `<div style="text-align:center;padding:40px;color:var(--muted)"><span class="spinner"></span> Loading Planning Workspace...</div>`;
+    
+    try {
+      const data = await API.getLookaheadWorkspace(pid);
+      const { tasks, assignees, metrics } = data;
+      
+      if (!APP.state.lookaheadMonthFilter) {
+        APP.state.lookaheadMonthFilter = 'all';
+      }
+      
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayObj = new Date(todayStr + 'T00:00:00');
+      const dayOfWeek = todayObj.getDay();
+      const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const startOfWeek = new Date(todayObj.getTime() + diffToMon * 86400000);
+      const endOfWeek = new Date(startOfWeek.getTime() + 6 * 86400000);
+      const startOfWeekStr = startOfWeek.toLocaleDateString('en-CA');
+      const endOfWeekStr = endOfWeek.toLocaleDateString('en-CA');
+      
+      const dynMetrics = {
+        upcoming: tasks.filter(t => t.start_date >= todayStr).length,
+        dueThisWeek: tasks.filter(t => t.end_date >= startOfWeekStr && t.end_date <= endOfWeekStr && t.pct_complete < 100).length,
+        overdue: tasks.filter(t => t.end_date < todayStr && t.pct_complete < 100).length,
+        completedThisWeek: metrics?.completedThisWeek || 0
+      };
+      
+      // Filter tasks by selected month if not 'all'
+      let filteredTasks = tasks;
+      if (APP.state.lookaheadMonthFilter !== 'all') {
+        filteredTasks = tasks.filter(t => t.start_date && t.start_date.startsWith(APP.state.lookaheadMonthFilter));
+      } else {
+        // Only show future tasks and overdue tasks by default in Look Ahead
+        filteredTasks = tasks.filter(t => (t.start_date >= todayStr) || (t.end_date < todayStr && t.pct_complete < 100));
+      }
+      
+      // Group tasks by date
+      const grouped = {};
+      filteredTasks.forEach(t => {
+        if (!t.start_date) return;
+        const dStr = t.start_date.slice(0, 10);
+        if (!grouped[dStr]) grouped[dStr] = [];
+        grouped[dStr].push(t);
+      });
+      
+      // Sort dates chronologically
+      const sortedDates = Object.keys(grouped).sort();
+      
+      // Build Months options for navigation filter
+      const monthsSet = new Set();
+      tasks.forEach(t => {
+        if (t.start_date) monthsSet.add(t.start_date.slice(0, 7)); // YYYY-MM
+      });
+      const currYm = todayStr.slice(0, 7);
+      monthsSet.add(currYm);
+      const nextMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
+      const nextYm = nextMonth.getFullYear() + '-' + String(nextMonth.getMonth() + 1).padStart(2, '0');
+      monthsSet.add(nextYm);
+      
+      const sortedMonths = Array.from(monthsSet).sort();
+      
+      const monthOptions = sortedMonths.map(ym => {
+        const [y, m] = ym.split('-');
+        const dateObj = new Date(parseInt(y), parseInt(m) - 1, 1);
+        const label = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        return `<option value="${ym}" ${APP.state.lookaheadMonthFilter === ym ? 'selected' : ''}>${label}</option>`;
+      }).join('');
+      
+      // Build Assignee options
+      const assigneeOptions = assignees.map(u => 
+        `<option value="${u.id}">${u.full_name} (${u.role.replace('_', ' ')})</option>`
+      ).join('');
+      
+      // Render layout HTML
+      let html = `
+        <!-- Metrics Grid -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:20px;">
+          <div style="background:#f4f7fa;border:1px solid #d4dce5;border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:var(--navy);margin-bottom:4px;">${dynMetrics.upcoming}</div>
+            <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Upcoming Tasks</div>
+          </div>
+          <div style="background:#fcf8e3;border:1px solid #faebcc;border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:#8a6d3b;margin-bottom:4px;">${dynMetrics.dueThisWeek}</div>
+            <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Due This Week</div>
+          </div>
+          <div style="background:#f2dede;border:1px solid #ebccd1;border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:#a94442;margin-bottom:4px;">${dynMetrics.overdue}</div>
+            <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Overdue Tasks</div>
+          </div>
+          <div style="background:#dff0d8;border:1px solid #d6e9c6;border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:#3c763d;margin-bottom:4px;">${dynMetrics.completedThisWeek}</div>
+            <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Completed This Week</div>
+          </div>
+        </div>
+        
+        <!-- Header Controls Row -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text)">Filter Month:</span>
+            <select style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);color:var(--text);outline:none;cursor:pointer;" 
+              onchange="APP.state.lookaheadMonthFilter=this.value; APP.renderSchedule()">
+              <option value="all" ${APP.state.lookaheadMonthFilter === 'all' ? 'selected' : ''}>All Future Months</option>
+              ${monthOptions}
+            </select>
+          </div>
+          
+          <button class="btn-primary" style="display:flex;align-items:center;gap:6px;padding:8px 16px;font-size:12px;" onclick="document.getElementById('task-create-dialog').style.display='flex'">
+            <span>➕</span> Schedule Task
+          </button>
+        </div>
+        
+        <!-- Task Creation Dialog (Modal overlay style) -->
+        <div id="task-create-dialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;padding:16px;">
+          <div style="background:var(--white);width:100%;max-width:480px;border-radius:var(--r);box-shadow:var(--shadow2);overflow:hidden;animation:fadeIn .2s;">
+            <div style="padding:16px;background:var(--navy);color:var(--white);display:flex;justify-content:space-between;align-items:center;">
+              <h3 style="margin:0;font-size:14px;font-weight:600;">Schedule Future Task</h3>
+              <button type="button" style="background:none;border:none;color:var(--white);font-size:18px;cursor:pointer;" onclick="document.getElementById('task-create-dialog').style.display='none'">×</button>
+            </div>
+            <form id="task-create-form" style="padding:16px;display:flex;flex-direction:column;gap:12px;" onsubmit="APP.submitLookaheadTask(event, ${pid})">
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Task Name *</label>
+                <input type="text" name="task_name" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+              </div>
+              
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Description</label>
+                <textarea name="description" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;resize:none;"></textarea>
+              </div>
+              
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Planned Date *</label>
+                  <input type="date" name="planned_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Trade</label>
+                  <select name="trade" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                    <option value="General">General</option>
+                    <option value="Civil">Civil</option>
+                    <option value="Structural">Structural</option>
+                    <option value="HVAC">HVAC</option>
+                    <option value="Electrical">Electrical</option>
+                    <option value="Plumbing">Plumbing</option>
+                    <option value="Finishes">Finishes</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Assignee</label>
+                  <select name="assignee_id" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                    <option value="">Unassigned</option>
+                    ${assigneeOptions}
+                  </select>
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Priority</label>
+                  <select name="priority" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div style="display:flex;justify-content:end;gap:8px;margin-top:8px;">
+                <button type="button" class="btn-secondary" style="padding:8px 16px;font-size:12px;" onclick="document.getElementById('task-create-dialog').style.display='none'">Cancel</button>
+                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:12px;">Save Task</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      
+      // Render Chronological Feed
+      if (!sortedDates.length) {
+        html += UI.empty('📅', 'No scheduled future tasks for this month filter');
+      } else {
+        html += `<div style="display:flex;flex-direction:column;gap:16px;">`;
+        sortedDates.forEach(date => {
+          const dayTasks = grouped[date];
+          const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+          const isToday = date === todayStr;
+          
+          html += `
+            <div>
+              <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--navy);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;">
+                <span>📅 ${dateLabel}</span>
+                ${isToday ? `<span class="badge b-blue" style="font-size:9px;padding:1px 6px;">Today</span>` : ''}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+          `;
+          
+          dayTasks.forEach(t => {
+            const pColors = { low: 'var(--muted)', medium: 'var(--navy)', high: '#d9534f', urgent: '#d9534f' };
+            const pBg = { low: '#f0f0f0', medium: '#eef2f7', high: '#fdf2f2', urgent: '#fdf2f2' };
+            const priorityLabel = t.priority.toUpperCase();
+            
+            html += `
+              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);">
+                <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;">
+                  <div style="font-weight:600;font-size:13px;color:var(--text);">${t.task_name}</div>
+                  <span class="badge" style="background:${pBg[t.priority]};color:${pColors[t.priority]};font-size:9px;font-weight:700;text-transform:uppercase;">${priorityLabel}</span>
+                </div>
+                ${t.description ? `<div style="font-size:11px;color:var(--text2);line-height:1.4;">${t.description}</div>` : ''}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;flex-wrap:wrap;gap:8px;">
+                  <div style="display:flex;align-items:center;gap:4px;">
+                    <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#f5f5f5;padding:2px 6px;border-radius:4px;">${t.trade}</span>
+                    <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#e8f4fd;color:#0275d8;padding:2px 6px;border-radius:4px;">${t.pct_complete}% Done</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--muted);">
+                    👤 ${t.assignee_name || 'Unassigned'}
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+          
+          html += `</div></div>`;
+        });
+        html += `</div>`;
+      }
+      
+      el.innerHTML = subTabs + html;
+    } catch(err) {
+      console.error(err);
+      el.innerHTML = subTabs + UI.empty('⚠️', 'Error loading Look Ahead workspace: ' + err.message);
+    }
+  },
+
+  async submitLookaheadTask(event, pid) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const data = {
+      task_name: formData.get('task_name'),
+      description: formData.get('description'),
+      assignee_id: formData.get('assignee_id') || null,
+      priority: formData.get('priority') || 'medium',
+      planned_date: formData.get('planned_date'),
+      trade: formData.get('trade') || 'General'
+    };
+    
+    try {
+      UI.toast('Saving task...', 'info');
+      const res = await API.createTask(pid, data);
+      if (res.success) {
+        UI.toast('Task scheduled successfully!', 'success');
+        document.getElementById('task-create-dialog').style.display = 'none';
+        APP.renderSchedule();
+      } else {
+        UI.toast(res.error || 'Failed to create task', 'error');
+      }
+    } catch(err) {
+      console.error(err);
+      UI.toast(err.message || 'Error creating task', 'error');
+    }
   },
 
   // ── SCHEDULE VIEW (PMC / Admin)
@@ -2167,57 +2428,115 @@ Tomorrow: start formwork on next bay."
     }
     const draft = APP.state.navEditorDraft;
 
+    const BUCKETS = ['home','work','money','pending','more','strip'];
+
+    // Ensure draft is sorted correctly by bucket and then sort_order
+    draft.sort((a, b) => {
+      const bIdxA = BUCKETS.indexOf(a.bucket);
+      const bIdxB = BUCKETS.indexOf(b.bucket);
+      if (bIdxA !== bIdxB) return bIdxA - bIdxB;
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
+
     const roleOpts = EDITABLE_ROLES.map(r =>
-      `<option value="${r}" ${r===role?'selected':''}>${r.replace(/_/g,' ')}</option>`
+      `<option value="${r}" ${r===role?'selected':''}>${r.replace(/_/g,' ').toUpperCase()}</option>`
     ).join('');
 
-    const BUCKETS = ['home','work','money','pending','more','strip'];
-    const bucketOpts = bSel => BUCKETS.map(b =>
-      `<option value="${b}" ${b===bSel?'selected':''}>${b}</option>`
-    ).join('');
+    const tabOpts = tabSel => {
+      const entries = Object.entries(TAB_LABELS);
+      if (tabSel && !TAB_LABELS[tabSel]) {
+        entries.push([tabSel, tabSel]);
+      }
+      return entries.map(([k, label]) =>
+        `<option value="${k}" ${k===tabSel?'selected':''}>${label} (${k})</option>`
+      ).join('');
+    };
 
     let html = `
       <div class="sec-label">Nav Editor</div>
-      <div class="card" style="margin-bottom:12px">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Editing nav for role:</div>
-        <select onchange="APP.setNavEditorRole(this.value)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px">
+      <div class="card" style="margin-bottom:16px; padding:16px; border-left: 4px solid var(--navy)">
+        <div style="font-size:12px; font-weight:bold; color:var(--navy); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px">Select Role to Administer</div>
+        <select onchange="APP.setNavEditorRole(this.value)" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px; background:var(--card); color:var(--text); outline:none">
           ${roleOpts}
         </select>
       </div>
 
-      <div class="sec-label" style="margin-top:14px">Tabs for <b>${role}</b></div>
+      <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center">
+        <div class="sec-label" style="margin:0">Navigation Groups for <b>${role.replace(/_/g,' ')}</b></div>
+      </div>
     `;
 
-    draft.forEach((it, i) => {
-      html += `<div class="card" style="margin-bottom:6px;padding:10px">
-        <div style="display:flex;gap:6px;align-items:center">
-          <select onchange="APP.updateNavDraft(${i},'bucket',this.value)"
-                  style="flex:0 0 80px;padding:4px;border:1px solid var(--border);border-radius:3px;font-size:12px">
-            ${bucketOpts(it.bucket)}
-          </select>
-          <input value="${UI.escapeAttr(it.tab_key)}"
-                 oninput="APP.updateNavDraft(${i},'tab_key',this.value)"
-                 style="flex:1;padding:4px 6px;border:1px solid var(--border);border-radius:3px;font-size:12px">
-          <input type="number" min="1" max="99" value="${it.sort_order}"
-                 oninput="APP.updateNavDraft(${i},'sort_order',parseInt(this.value))"
-                 style="flex:0 0 50px;padding:4px;border:1px solid var(--border);border-radius:3px;font-size:12px;text-align:center">
-          <button class="btn-sm reject" onclick="APP.removeNavRow(${i})" style="flex:0 0 auto">×</button>
-        </div>
-      </div>`;
+    // Group items by bucket for display
+    const groups = {};
+    draft.forEach((it, idx) => {
+      if (!groups[it.bucket]) groups[it.bucket] = [];
+      groups[it.bucket].push({ item: it, globalIndex: idx });
     });
 
-    html += `
-      <button class="btn-secondary" onclick="APP.addNavRow()" style="margin:8px 0">+ Add Tab</button>
+    BUCKETS.forEach(bucket => {
+      const bucketItems = groups[bucket] || [];
+      if (bucketItems.length === 0) return; // Only render active groups
 
-      <div style="margin-top:14px">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Note to Principal (optional)</div>
-        <textarea id="nav-edit-note" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:13px"
+      html += `
+        <div class="sec-label" style="margin-top:16px; text-transform:capitalize; color:var(--text); font-weight:600">${bucket} Module</div>
+        <div class="card" style="margin-bottom:16px; padding:16px; display:flex; flex-direction:column; gap:12px">
+          <div style="display:flex; flex-direction:column; gap:8px">
+      `;
+
+      bucketItems.forEach(({ item, globalIndex }, subIdx) => {
+        const isFirst = subIdx === 0;
+        const isLast = subIdx === bucketItems.length - 1;
+
+        html += `
+          <div style="display:flex; gap:8px; align-items:center; background:rgba(0,0,0,0.02); padding:6px; border-radius:6px; border:1px solid rgba(0,0,0,0.03)">
+            <select onchange="APP.updateNavDraft(${globalIndex},'tab_key',this.value)"
+                    style="flex:1; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:var(--card)">
+              ${tabOpts(item.tab_key)}
+            </select>
+            <div style="display:flex; gap:4px; align-items:center">
+              <button class="btn-sm" style="padding:6px 10px; font-size:11px" onclick="APP.moveNavDraftItem(${globalIndex}, 'up')" ${isFirst ? 'disabled style="opacity:0.3; cursor:not-allowed"' : ''}>▲</button>
+              <button class="btn-sm" style="padding:6px 10px; font-size:11px" onclick="APP.moveNavDraftItem(${globalIndex}, 'down')" ${isLast ? 'disabled style="opacity:0.3; cursor:not-allowed"' : ''}>▼</button>
+              <button class="btn-sm reject" style="padding:6px 10px; font-size:12px; margin-left:4px" onclick="APP.removeNavRow(${globalIndex})">×</button>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+          <button class="btn-secondary" style="border-style:dashed; margin-top:4px; width:100%; padding:8px" onclick="APP.addNavItem('${bucket}')">+ Add Navigation Item</button>
+        </div>
+      `;
+    });
+
+    // Check if any buckets are unused, so the admin can add them as a new group
+    const unusedBuckets = BUCKETS.filter(b => !groups[b] || groups[b].length === 0);
+    if (unusedBuckets.length > 0) {
+      const groupOptions = unusedBuckets.map(b => `<option value="${b}">${b.toUpperCase()}</option>`).join('');
+      html += `
+        <div class="card" style="margin-top:20px; padding:16px; border: 1px dashed var(--border)">
+          <div style="font-size:13px; font-weight:bold; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px">Add Navigation Group</div>
+          <div style="display:flex; gap:8px">
+            <select id="new-group-bucket-select" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--card)">
+              <option value="">-- Select Module Group --</option>
+              ${groupOptions}
+            </select>
+            <button class="btn-secondary" onclick="APP.addNavGroupFromSelect()" style="margin:0; white-space:nowrap">+ Add Group</button>
+          </div>
+        </div>
+      `;
+    }
+
+    html += `
+      <div style="margin-top:20px">
+        <div style="font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px">Note to Principal (optional)</div>
+        <textarea id="nav-edit-note" rows="2" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:13px"
           placeholder="e.g. Site managers requested GRN move from Work to Money"></textarea>
       </div>
 
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn-primary" onclick="APP.submitNavDraft()" style="flex:1">Submit for Principal Approval</button>
-        <button class="btn-secondary" onclick="APP.resetNavDraft()">Reset</button>
+      <div style="display:flex; gap:12px; margin-top:20px">
+        <button class="btn-primary" onclick="APP.submitNavDraft()" style="flex:1; padding:12px; font-size:14px; font-weight:bold">Save Changes (Submit for Approval)</button>
+        <button class="btn-secondary" onclick="APP.resetNavDraft()" style="padding:12px; font-size:14px">Reset</button>
       </div>
     `;
 
@@ -2233,17 +2552,55 @@ Tomorrow: start formwork on next bay."
     if (!APP.state.navEditorDraft) return;
     APP.state.navEditorDraft[idx][field] = value;
   },
-  addNavRow() {
+  addNavItem(bucket) {
     if (!APP.state.navEditorDraft) APP.state.navEditorDraft = [];
-    const nextOrder = (APP.state.navEditorDraft.length
-      ? Math.max(...APP.state.navEditorDraft.map(r => r.sort_order||0)) + 1
-      : 1);
-    APP.state.navEditorDraft.push({ bucket:'home', tab_key:'', sort_order: nextOrder, is_visible: 1 });
+    const bucketItems = APP.state.navEditorDraft.filter(r => r.bucket === bucket);
+    const nextOrder = bucketItems.length
+      ? Math.max(...bucketItems.map(r => r.sort_order||0)) + 1
+      : 1;
+    // Find first unused tab key, or default to first valid tab key
+    const usedKeys = new Set(APP.state.navEditorDraft.map(r => r.tab_key));
+    const nextTabKey = Object.keys(TAB_LABELS).find(k => !usedKeys.has(k)) || 'dashboard';
+
+    APP.state.navEditorDraft.push({ bucket, tab_key: nextTabKey, sort_order: nextOrder, is_visible: 1 });
     APP.renderNavEditor();
+  },
+  addNavGroupFromSelect() {
+    const sel = document.getElementById('new-group-bucket-select');
+    if (!sel || !sel.value) {
+      UI.toast('Please select a module group to add');
+      return;
+    }
+    APP.addNavItem(sel.value);
   },
   removeNavRow(idx) {
     if (!APP.state.navEditorDraft) return;
     APP.state.navEditorDraft.splice(idx, 1);
+    APP.renderNavEditor();
+  },
+  moveNavDraftItem(idx, direction) {
+    if (!APP.state.navEditorDraft) return;
+    const item = APP.state.navEditorDraft[idx];
+    if (!item) return;
+
+    // Filter items in the same bucket
+    const bucketItems = APP.state.navEditorDraft.filter(r => r.bucket === item.bucket);
+    const subIdx = bucketItems.findIndex(r => r === item);
+
+    if (direction === 'up' && subIdx > 0) {
+      const other = bucketItems[subIdx - 1];
+      // Swap order
+      const temp = item.sort_order;
+      item.sort_order = other.sort_order;
+      other.sort_order = temp;
+    } else if (direction === 'down' && subIdx < bucketItems.length - 1) {
+      const other = bucketItems[subIdx + 1];
+      // Swap order
+      const temp = item.sort_order;
+      item.sort_order = other.sort_order;
+      other.sort_order = temp;
+    }
+
     APP.renderNavEditor();
   },
   resetNavDraft() {
@@ -3192,7 +3549,7 @@ Tomorrow: start formwork on next bay."
     const el  = UI.contentEl();
     const pid = APP.user.projects?.[0]?.id;
     const date= APP.state.selectedDate;
-    const today = UI.todayIST();
+    const today = APP.state.serverToday || UI.todayIST();
     if (!pid) { el.innerHTML = UI.empty('📷','No project assigned'); return; }
 
     // Filter: 'all' (progress + defects), 'progress' only, 'defects' only.
@@ -3205,19 +3562,55 @@ Tomorrow: start formwork on next bay."
     const data   = await API.getPhotos(pid, date, typesParam);
     const photos = data?.photos || [];
 
+    // Load dates with notes
+    const datesWithNotes = new Set();
+    try {
+      const listRes = await API.call('GET', `/daily-reports/${pid}`);
+      const reports = listRes?.reports || [];
+      reports.forEach(r => {
+        if (r.overall_notes && r.overall_notes.trim()) {
+          let dStr = r.report_date;
+          if (dStr) {
+            if (typeof dStr === 'string') {
+              dStr = dStr.slice(0, 10);
+            } else if (dStr instanceof Date) {
+              dStr = dStr.toISOString().slice(0, 10);
+            }
+            datesWithNotes.add(dStr);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to load daily reports list:', e);
+    }
+
     let strip = '<div class="date-strip">';
-    for (let i = 0; i < 4; i++) {
+    for (let i = -3; i <= 3; i++) {
       const d = UI.addDays(today, i);
-      strip += `<button class="date-chip${d===today?' today':''}${d===date?' sel':''}" style="min-height:44px" onclick="APP.state.selectedDate='${d}';APP.renderPhotos()">
-        <div class="dc-day">${d===today?'Today':UI.fmtDay(d)}</div>
-        <div class="dc-num">${new Date(d+'T00:00:00').getDate()}</div>
-      </div>`;
+      const sel = d === date;
+      
+      let stateClass = '';
+      if (i < 0) {
+        stateClass = 'past';
+      } else if (i === 0) {
+        stateClass = 'today';
+      } else {
+        stateClass = 'future';
+      }
+      
+      const hasNotes = datesWithNotes.has(d);
+      
+      strip += `<button class="date-chip ${stateClass}${sel ? ' sel' : ''}" onclick="APP.state.selectedDate='${d}';APP.renderPhotos()">
+        <div class="dc-day">${i === 0 ? 'Today' : UI.fmtDay(d)}</div>
+        <div class="dc-num">${new Date(d + 'T00:00:00').getDate()}</div>
+        <div class="dc-dot${hasNotes ? ' has-notes' : ''}"></div>
+      </button>`;
     }
     strip += '</div>';
 
     // Filter chips — All / Progress / Defects
     const chip = (key, label) =>
-      `<button style="min-height:44px;display:inline-block;padding:4px 10px;margin-right:6px;border-radius:14px;font-size:11px;cursor:pointer;
+      `<button style="min-height:44px;min-width:80px;text-align:center;display:inline-block;padding:4px 10px;margin-right:6px;border-radius:14px;font-size:11px;cursor:pointer;
         ${filter===key?'background:#1D3D62;color:#fff':'background:#f0f0f0;color:#666'}" onclick="APP.state.photoFilter='${key}';APP.renderPhotos()">${label}</button>`;
     const filterRow = `<div style="padding:6px 4px 10px">${chip('all','All')}${chip('progress','Progress')}${chip('defects','Defects')}</div>`;
 
@@ -3225,10 +3618,7 @@ Tomorrow: start formwork on next bay."
     let html = strip + filterRow + `
       <input type="file" id="photo-input" accept="image/*" multiple capture="environment" style="display:none"
         onchange="APP.uploadPhotos(${pid},this)">
-      <button class="upload-btn${count?' has-files':''}" onclick="document.getElementById('photo-input').click()">
-        <span style="font-size:24px">📷</span>
-        ${count?`${count} photo${count>1?'s':''} ${filter==='defects'?'with defects':filter==='progress'?'(progress)':'in gallery'} · Tap to add more`:'Tap to Upload Site Photos'}
-      </button>`;
+      <button class="upload-btn${count?' has-files':''}" onclick="document.getElementById('photo-input').click()"><span class="upload-btn-icon">📷</span><span>${count?`${count} photo${count>1?'s':''} ${filter==='defects'?'with defects':filter==='progress'?'(progress)':'in gallery'} · Tap to add more`:'Tap to Upload Site Photos'}</span></button>`;
 
     if (photos.length) {
       // Stash for viewer modal to read without another fetch
@@ -3945,7 +4335,7 @@ Tomorrow: start formwork on next bay."
   },
 
   showRaisePayment(pid, vendorId, vendorName, engagementId) {
-    const today = UI.todayIST();
+    const today = APP.state.serverToday || UI.todayIST();
     const weekEnd = UI.addDays(today, 6 - new Date(today+'T00:00:00').getDay());
     const TYPES = ['running_account_bill','advance','mobilisation_advance','material_advance',
                    'final_bill','retention_release','extra_item','deduction'];
@@ -4474,7 +4864,7 @@ APP._loadPettyCashLegacy = async function(projectId) {
 
 APP.showAddCashTxn = function(projectId) {
   UI.showModal('Add Petty Cash Spend', `
-    <div class="field"><label>Date</label><input type="date" id="pct-date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div class="field"><label>Date</label><input type="date" id="pct-date" value="${UI.todayIST()}"></div>
     <div class="field"><label>Description</label><input id="pct-desc" placeholder="e.g. Nails and screws from hardware shop"></div>
     <div class="field"><label>Amount (₹)</label><input id="pct-amount" type="number"></div>
     <div class="field"><label>Category</label>
@@ -5466,7 +5856,7 @@ APP.showGRNForm = function() {
     <div class="field-row"><label class="field-label" for="grn-rate">Unit Rate (₹)</label>
       <input type="number" id="grn-rate" placeholder="0"></div>
     <div class="field-row"><label class="field-label" for="grn-date">Delivery Date</label>
-      <input type="date" id="grn-date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <input type="date" id="grn-date" value="${UI.todayIST()}"></div>
     <button class="btn-primary" onclick="APP.submitGRN()">Submit GRN</button>`;
 };
 APP.submitGRN = async function() {
@@ -5513,8 +5903,8 @@ APP.renderIssues = async function() {
     html += `<div class="sec-label">Needs Confirmation (${needsConfirm.length})</div>`;
     needsConfirm.forEach(i => {
       html += `<div class="issue-item ${i.issue_type}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
+          <div style="flex:1;min-width:0">
             <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
             <div class="iss-title">${i.title}</div>
             <div class="iss-meta">Raised: ${i.raised_by_name||'—'} · ${UI.fmtDate(i.created_at)}</div>
@@ -5543,7 +5933,7 @@ APP.renderIssues = async function() {
   else filtered.slice(0,20).forEach(i => {
     const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
     html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer" onclick="APP.openIssueDetail(${i.id})">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
         <div style="flex:1;min-width:0">
           <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
           <div class="iss-title">${i.title}</div>
@@ -5551,7 +5941,7 @@ APP.renderIssues = async function() {
         </div>
         <span class="badge ${badge}">${i.status}</span>
       </div>
-    </div>`;
+    </button>`;
   });
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -5806,7 +6196,7 @@ APP.showMOMForm = function() {
     <div class="field-row"><label class="field-label" for="mom-title">Title / Purpose</label>
       <input type="text" id="mom-title" placeholder="e.g. Site coordination meeting"></div>
     <div class="field-row"><label class="field-label" for="mom-date">Meeting Date</label>
-      <input type="date" id="mom-date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <input type="date" id="mom-date" value="${UI.todayIST()}"></div>
     <div class="field-row"><label class="field-label" for="mom-attendees">Attendees</label>
       <input type="text" id="mom-attendees" placeholder="Names separated by commas"></div>
     <button class="btn-primary" onclick="APP.submitMOM()">Create MOM</button>`;
@@ -5878,7 +6268,7 @@ APP.renderLabour = async function() {
 };
 
 APP.validateAllLabour = async function(pid) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = UI.todayIST();
   const res = await API.post(`/labour/${pid}/validate-all`, { register_date: today });
   if (res?.success) { UI.toast(`${res.validated} entr${res.validated>1?'ies':'y'} validated ✓`); APP.renderLabour(); }
 };
@@ -5897,7 +6287,7 @@ APP.showLabourForm = async function() {
     <div class="field-row"><label class="field-label" for="lab-count">Headcount</label>
       <input type="number" id="lab-count" placeholder="0" min="0"></div>
     <div class="field-row"><label class="field-label" for="lab-date">Date</label>
-      <input type="date" id="lab-date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <input type="date" id="lab-date" value="${UI.todayIST()}"></div>
     <div class="field-row"><label class="field-label" for="lab-notes">Notes (optional)</label>
       <textarea id="lab-notes" rows="2" placeholder="Any notes..."></textarea></div>
     <button class="btn-primary" onclick="APP.submitLabour()">Save</button>`;
@@ -5982,7 +6372,7 @@ APP.showVisitForm = function() {
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title">Log Visit <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
     <div class="field-row"><label class="field-label" for="visit-date">Visit Date</label>
-      <input type="date" id="visit-date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <input type="date" id="visit-date" value="${UI.todayIST()}"></div>
     <div class="field-row"><label class="field-label" for="visit-summary">Summary</label>
       <textarea id="visit-summary" rows="3" placeholder="What was observed / discussed..."></textarea></div>
     <button class="btn-primary" onclick="APP.submitVisit()">Log Visit</button>`;
@@ -7407,7 +7797,7 @@ APP._renderNotificationsLegacy = async function() {
   if (!msgs.length) {
     html += UI.empty('', 'No notifications yet');
   } else {
-    const today = UI.todayIST();
+    const today = APP.state.serverToday || UI.todayIST();
     const todayMsgs = msgs.filter(m => (m.sent_at||'').startsWith(today));
     const older     = msgs.filter(m => !(m.sent_at||'').startsWith(today));
 
@@ -7870,7 +8260,7 @@ APP.renderProjectDetail = async function() {
     html += buttons.map(b => {
       if (b.key === 'approvals') {
         // Approvals tab button
-        return `<div class="card ps-btn approvals-card" style="cursor:pointer" onclick="APP._togglePsApprovals()">
+        return `<div class="card ps-btn approvals-card" style="cursor:pointer; width:100% !important; box-sizing:border-box !important; display:flex !important" onclick="APP._togglePsApprovals()">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px">
             <div style="font-weight:600;font-size:14px;color:var(--navy)">Approvals</div>
             <div style="display:flex;align-items:center;gap:6px">
@@ -7883,12 +8273,12 @@ APP.renderProjectDetail = async function() {
       // Regular button — tap to switch to the target tab
       const target = BUTTON_TARGET[b.key];
       const onclick = target ? `APP.switchTab('${target}')` : '';
-      return `<button class="card ps-btn" style="cursor:pointer" onclick="${onclick}">
+      return `<div class="card ps-btn" style="cursor:pointer; width:100% !important; box-sizing:border-box !important; display:flex !important" onclick="${onclick}">
         <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">
           <div style="font-weight:600;font-size:14px;color:var(--navy)">${b.label}</div>
           ${countPill(b.count)}
         </div>
-      </button>`;
+      </div>`;
     }).join('');
     html += `</div>`;
 
@@ -7971,7 +8361,7 @@ APP.openChangePmc = async function(pid, kind) {
   const current  = assignmentRes?.assignment || {};
   const currentId = kind === 'primary' ? current.primary_pmc_id : current.backup_pmc_id;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = UI.todayIST();
 
   UI.openModal(`Change ${kind === 'primary' ? 'Primary' : 'Backup'} PMC`, `
       <div style="margin-bottom:12px">
@@ -8437,11 +8827,21 @@ APP.renderPMCDashboard = async function() {
 
   let hasItems = false;
 
-  if (ac.anomaly_reports?.length) { hasItems=true; html += addItem('⚠️','Report anomalies flagged',`${ac.anomaly_reports.length} need review`,'red','red',ac.anomaly_reports.length,'reports_weekly'); }
-  if (ac.pending_grns?.length)    { hasItems=true; html += addItem('📦','GRNs pending approval',`${ac.pending_grns.length} awaiting sign-off`,'amber','amber',ac.pending_grns.length,'grn'); }
-  if (ac.safety_issues?.length)   { hasItems=true; html += addItem('🦺','Safety issues open',`${ac.safety_issues.length} need confirmation`,'red','red','ACTION','issues'); }
-  if (ac.overdue_moms?.length)    { hasItems=true; html += addItem('📋','MOM actions overdue',`${ac.overdue_moms.length} past due date`,'red','red',ac.overdue_moms.length,'moms'); }
-  if (budget?.has_alerts)         { hasItems=true; html += addItem('💰','Budget variance flagged','One or more heads over threshold','amber','amber','ALERT','budget'); }
+  const proj_id = parseInt(pid, 10);
+  const filterByPid = (arr) => (arr || []).filter(item => parseInt(item.project_id, 10) === proj_id);
+
+  const pending_approvals = filterByPid(ac.pending_approvals);
+  const overdue_queries = filterByPid(ac.overdue_queries);
+  const open_flags = filterByPid(ac.open_flags);
+  const overdue_materials = filterByPid(ac.overdue_materials);
+  const pending_changes = filterByPid(ac.pending_changes);
+
+  if (pending_approvals.length) { hasItems=true; html += addItem('✍️','Approvals Pending',`${pending_approvals.length} requests awaiting PMC sign-off`,'blue','blue',pending_approvals.length,'pending'); }
+  if (overdue_queries.length)   { hasItems=true; html += addItem('⚠️','Design Queries Overdue',`${overdue_queries.length} queries blocked > 3 days`,'red','red',overdue_queries.length,'issues'); }
+  if (open_flags.length)        { hasItems=true; html += addItem('🚩','Task Updates Flagged',`${open_flags.length} tasks marked delayed by site team`,'amber','orange',open_flags.length,'schedule'); }
+  if (overdue_materials.length) { hasItems=true; html += addItem('📦','Materials Overdue',`${overdue_materials.length} material requests past needed date`,'amber','amber',overdue_materials.length,'materials'); }
+  if (pending_changes.length)   { hasItems=true; html += addItem('📝','Changes Pending',`${pending_changes.length} change notices pending signature`,'blue','blue',pending_changes.length,'changes'); }
+  if (budget?.has_alerts)       { hasItems=true; html += addItem('💰','Budget variance flagged','One or more heads over threshold','amber','amber','ALERT','budget'); }
 
   if (!hasItems) html += `<div class="card" style="text-align:center;padding:20px">
     <div style="font-size:24px;margin-bottom:8px">✅</div>
@@ -8450,20 +8850,21 @@ APP.renderPMCDashboard = async function() {
   </div>`;
 
   // Quick stats
+  const projSummary = (dash.projects || []).find(p => parseInt(p.id, 10) === proj_id) || {};
   html += `<div class="sec-label">Project Snapshot</div>
   <div class="stat-row">
-    <div class="stat-card">
-      <span class="stat-val ${(ac.open_issues||0)>0?'red':'green'}">${ac.open_issues||0}</span>
-      <span class="stat-lbl">Issues</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-val">${ac.pending_grns?.length||0}</span>
-      <span class="stat-lbl">GRNs</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-val">${ac.pending_payments||0}</span>
-      <span class="stat-lbl">Payments</span>
-    </div>
+    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('issues')">
+      <span class="stat-val ${(projSummary.open_queries||0)>0?'red':'green'}">${projSummary.open_queries||0}</span>
+      <span class="stat-lbl">Open Queries</span>
+    </button>
+    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('schedule')">
+      <span class="stat-val">${projSummary.open_flags||0}</span>
+      <span class="stat-lbl">Task Flags</span>
+    </button>
+    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('changes')">
+      <span class="stat-val">${projSummary.open_changes||0}</span>
+      <span class="stat-lbl">Open Changes</span>
+    </button>
   </div>`;
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -8476,10 +8877,10 @@ APP.renderSiteDashboard = async function() {
   if (!pid) { el.innerHTML = UI.empty('🏗️','No project assigned'); return; }
 
   const [data, setupBanner] = await Promise.all([
-    API.get(`/schedule/${pid}?date=${UI.todayIST()}`),
+    API.get(`/schedule/${pid}?date=${APP.state.serverToday || UI.todayIST()}`),
     APP.renderSetupBanner(pid),
   ]);
-  const today = UI.todayIST();
+  const today = APP.state.serverToday || UI.todayIST();
 
   let html = setupBanner; // Add setup banner at top
   
@@ -8805,8 +9206,7 @@ APP.renderGSTStatement = async function() {
         <input type="month" id="gst-month" value="${defaultMonth}" max="${defaultMonth}"></div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn-primary" onclick="APP.loadGSTStatement()">View</button>
-        <a id="gst-dl-link" href="#" onclick="APP.downloadGSTStatement();return false">
-          <button class="btn-secondary">⬇ Excel</button></a>
+        <button class="btn-secondary" onclick="APP.downloadGSTStatement()">⬇ Excel</button>
       </div>
     </div>
     <div id="gst-results"></div>

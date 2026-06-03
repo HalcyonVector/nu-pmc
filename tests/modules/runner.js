@@ -22,6 +22,7 @@ const MODULES = [
   '11-reports',
   '12-finance',
   '13-whatsapp',
+  'lookahead-workspace',
 ];
 
 async function run() {

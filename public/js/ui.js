@@ -149,12 +149,17 @@ const UI = {
   },
 
   todayIST() {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    if (window.APP && window.APP.state && window.APP.state.serverToday) {
+      return window.APP.state.serverToday;
+    }
+    const now = new Date();
+    const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+    return ist.toISOString().slice(0, 10);
   },
 
   addDays(dateStr, n) {
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() + n);
+    const d = new Date(dateStr + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().split('T')[0];
   },
 

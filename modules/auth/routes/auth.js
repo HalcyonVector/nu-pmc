@@ -103,10 +103,12 @@ if (process.env.NODE_ENV === 'development') {
       force_password_change: false, projects,
     };
 
+    const DateUtil = require('../../../services/date-util');
     res.json({
       success: true, dev: true,
       user: req.session.user,
       force_password_change: false,
+      today: DateUtil.todayIST(),
     });
   }));
 }
@@ -184,9 +186,11 @@ router.post('/login', asyncHandler(async (req, res) => {
     const { issueToken } = require('../../../middleware/csrf');
     const csrfToken = issueToken(req, res);
 
+    const DateUtil = require('../../../services/date-util');
     res.json({
       success: true,
       csrf_token: csrfToken,
+      today: DateUtil.todayIST(),
       user: {
         id:                   user.id,
         username:             user.username,
@@ -227,10 +231,13 @@ router.post('/logout', (req, res) => {
 // console and misrepresents it as a failure. Real endpoints stay behind
 // requireAuth.
 router.get('/me', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  const DateUtil = require('../../../services/date-util');
+  const today = DateUtil.todayIST();
   if (req.session?.user) {
-    return res.json({ user: req.session.user });
+    return res.json({ user: req.session.user, today });
   }
-  res.json({ user: null });
+  res.json({ user: null, today });
 });
 
 // POST /api/auth/refresh-projects — re-pull the user's project list and update

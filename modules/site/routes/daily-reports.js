@@ -106,7 +106,7 @@ router.get('/:project_id/today',
       if (!assigned) return res.status(403).json({ error: 'Not assigned to this project' });
     }
 
-    const today = todayIST();
+    const today = req.query.date || todayIST();
     // For submitter roles, return THEIR specific row. For viewer roles,
     // return whatever was submitted today (site manager row).
     let row = null;
@@ -157,6 +157,7 @@ router.get('/:project_id/today',
 // ── POST submit or re-submit today's report ────────────────────────────
 // Site manager can re-submit before PMC approves — ON DUPLICATE KEY updates
 // the existing row. Once approved, further submissions are blocked.
+// Supports saving notes for today as well as future dates.
 router.post('/:project_id/submit',
   requireAuth, requireProjectScope(),
   asyncHandler(async (req, res) => {
@@ -173,7 +174,7 @@ router.post('/:project_id/submit',
     if (notes.length > 5000) {
       return res.status(400).json({ error: 'Notes must be under 5000 characters' });
     }
-    const today = todayIST();
+    const today = req.body.date || req.query.date || todayIST();
 
     // Block re-submission after approval
     const [[existing]] = await db.query(

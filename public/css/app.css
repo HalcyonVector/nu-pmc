@@ -737,34 +737,74 @@ body {
 /* ── SCHEDULE ── */
 .date-strip {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin-bottom: 16px;
-  padding-bottom: 2px;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-          mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 4px 2px;
+  width: 100%;
 }
 .date-strip::-webkit-scrollbar { display: none; }
 .date-chip {
-  flex-shrink: 0;
-  padding: 10px 14px;
+  flex: 1;
+  min-width: 44px;
+  height: 72px;
+  padding: 10px 4px;
   border-radius: var(--r);
-  border: 1.5px solid var(--border);
-  background: var(--white);
   cursor: pointer;
   text-align: center;
-  transition: all .15s;
-  min-width: 56px;
+  transition: all .15s ease-in-out;
   box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
-.date-chip.today { border-color: var(--steel); }
-.date-chip.sel   { background: var(--navy); border-color: var(--navy); }
-.date-chip.sel .dc-day, .date-chip.sel .dc-num { color: var(--white); }
-.dc-day { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-family: var(--mono); }
-.dc-num { font-size: var(--text-lg); font-weight: 600; color: var(--text); margin-top: 2px; font-family: var(--mono); }
-.dc-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--amber); margin: 3px auto 0; }
-.date-chip.sel .dc-dot { background: rgba(255,255,255,.5); }
+.date-chip.past {
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  opacity: 0.65;
+}
+.date-chip.past .dc-day,
+.date-chip.past .dc-num {
+  color: var(--muted);
+}
+.date-chip.future {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.date-chip.future .dc-day {
+  color: var(--muted);
+}
+.date-chip.future .dc-num {
+  color: var(--text);
+}
+.date-chip.today {
+  background: var(--white);
+  border: 1.5px solid var(--navy);
+  color: var(--navy);
+}
+.date-chip.today .dc-day,
+.date-chip.today .dc-num {
+  color: var(--navy);
+  font-weight: 700;
+}
+.date-chip.sel {
+  background: var(--navy) !important;
+  border: 1.5px solid var(--navy) !important;
+  color: var(--white) !important;
+}
+.date-chip.sel .dc-day,
+.date-chip.sel .dc-num {
+  color: var(--white) !important;
+  font-weight: 600;
+}
+.dc-day { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); }
+.dc-num { font-size: var(--text-base); font-weight: 600; margin-top: 2px; font-family: var(--mono); }
+.dc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); margin-top: 4px; flex-shrink: 0; transition: opacity .15s; }
+.dc-dot.has-notes { opacity: 1; }
+.dc-dot:not(.has-notes) { opacity: 0; }
+.date-chip.sel .dc-dot { background: var(--white) !important; }
 
 /* ── TRADE GROUPS ── */
 .trade-group { margin-bottom: 10px; }
@@ -857,7 +897,7 @@ body {
 .btn-primary {
   background: var(--navy);
   color: var(--white);
-  border: none;
+  border: 1.5px solid transparent;
   border-radius: var(--r);
   padding: 13px 16px;
   min-height: 44px;
@@ -914,7 +954,8 @@ body {
   min-height: 44px;
 }
 .btn-secondary:hover { border-color: var(--steel); }
-.btn-row { display: flex; gap: 8px; margin-top: 8px; }
+.btn-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.btn-row > .btn-primary, .btn-row > .btn-secondary, .btn-row > .btn-ghost { margin-top: 0; }
 
 /* ── FORMS ── */
 .upload-btn {
@@ -937,6 +978,13 @@ body {
 }
 .upload-btn:hover, .upload-btn.has-files { border-color: var(--navy); color: var(--navy); }
 .upload-btn:active { background: var(--bg); }   /* tap feedback */
+.upload-btn-icon {
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-2px); /* visual correction for emoji baseline alignment */
+}
 
 /* Ghost button — used on photo-tag review screen for non-primary actions.
    Previously had no CSS rule at all (fell through to browser default).

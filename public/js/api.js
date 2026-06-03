@@ -149,7 +149,7 @@ const API = {
   // Auth
   login:          (u, p)    => API.call('POST', '/auth/login', { username: u, password: p }),
   logout:         ()        => API.call('POST', '/auth/logout'),
-  me:             ()        => API.call('GET',  '/auth/me'),
+  me:             ()        => API.call('GET',  `/auth/me?_cb=${Date.now()}`),
   changePassword: (c, n)    => API.call('POST', '/auth/change-password', { current_password: c, new_password: n }),
   resetPassword:  (uid, p)  => API.call('POST', '/auth/reset-password', { user_id: uid, new_password: p }),
 
@@ -162,6 +162,8 @@ const API = {
   // Schedule
   getSchedule:    (pid, d)  => API.call('GET',  `/schedule/${pid}?date=${d||''}`),
   getLookahead:   (pid, days)     => API.call('GET',  `/schedule/${pid}/lookahead${days?`?days=${days}`:''}`),
+  getLookaheadWorkspace: (pid) => API.call('GET', `/schedule/${pid}/lookahead/workspace?_cb=${Date.now()}`),
+  createTask:     (pid, data) => API.call('POST', `/schedule/${pid}/tasks`, data),
   getVersions:    (pid)     => API.call('GET',  `/schedule/${pid}/versions`),
   updateTask:     (pid, d)  => API.call('POST', `/schedule/${pid}/update`, d),
   validateTask:   (pid, d)  => API.call('POST', `/schedule/${pid}/validate`, d),

@@ -467,6 +467,134 @@ router.patch('/:project_id/tasks/:task_id/progress', requireAuth, requireProject
     });
   }));
 
+// GET /api/schedule/:project_id/lookahead/workspace — planning workspace data
+router.get('/:project_id/lookahead/workspace', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const { project_id } = req.params;
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+    // Calculate this week's boundaries (Monday to Sunday)
+    const today = new Date(todayStr + 'T00:00:00');
+    const dayOfWeek = today.getDay();
+    const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const startOfWeek = new Date(today.getTime() + diffToMon * 86400000);
+    const endOfWeek = new Date(startOfWeek.getTime() + 6 * 86400000);
+    const startOfWeekStr = startOfWeek.toLocaleDateString('en-CA');
+    const endOfWeekStr = endOfWeek.toLocaleDateString('en-CA');
+
+    const [[version]] = await db.query(
+      'SELECT * FROM schedule_versions WHERE project_id = ? AND is_current = 1',
+      [project_id]
+    );
+
+    if (!version) {
+      return res.json({ version: null, tasks: [], assignees: [], metrics: { upcoming: 0, dueThisWeek: 0, overdue: 0, completedThisWeek: 0 } });
+    }
+
+    // Get all tasks with latest completion progress
+    const [tasks] = await db.query(
+      `SELECT st.id, st.task_name, st.trade,
+              DATE_FORMAT(st.start_date, '%Y-%m-%d') AS start_date,
+              DATE_FORMAT(st.end_date, '%Y-%m-%d') AS end_date,
+              st.priority, st.description, st.assignee_id,
+              u.full_name AS assignee_name,
+              COALESCE(tu.pct_complete, 0) AS pct_complete
+       FROM schedule_tasks st
+       LEFT JOIN users u ON u.id = st.assignee_id
+       LEFT JOIN (
+         SELECT tu1.task_id, tu1.pct_complete
+         FROM task_updates tu1
+         INNER JOIN (
+           SELECT task_id, MAX(report_date) AS max_date
+           FROM task_updates
+           GROUP BY task_id
+         ) tu2 ON tu1.task_id = tu2.task_id AND tu1.report_date = tu2.max_date
+       ) tu ON tu.task_id = st.id
+       WHERE st.schedule_version_id = ?
+       ORDER BY st.start_date ASC, st.display_order ASC`,
+      [version.id]
+    );
+
+    // Calculate metrics
+    const upcoming = tasks.filter(t => t.start_date > todayStr).length;
+    const dueThisWeek = tasks.filter(t => t.end_date >= startOfWeekStr && t.end_date <= endOfWeekStr && t.pct_complete < 100).length;
+    const overdue = tasks.filter(t => t.end_date < todayStr && t.pct_complete < 100).length;
+
+    const [[completedThisWeekRes]] = await db.query(
+      `SELECT COUNT(DISTINCT task_id) AS c FROM task_updates
+       WHERE project_id = ? AND pct_complete = 100 AND report_date >= ? AND report_date <= ?`,
+      [project_id, startOfWeekStr, endOfWeekStr]
+    );
+    const completedThisWeek = completedThisWeekRes?.c || 0;
+
+    // Get active project team members for Assignee selector
+    const [assignees] = await db.query(
+      `SELECT u.id, u.full_name, u.role FROM users u
+       INNER JOIN project_assignments pa ON pa.user_id = u.id
+       WHERE pa.project_id = ? AND pa.is_active = 1
+       ORDER BY u.full_name ASC`,
+      [project_id]
+    );
+
+    res.json({
+      version,
+      tasks,
+      assignees,
+      metrics: { upcoming, dueThisWeek, overdue, completedThisWeek }
+    });
+}));
+
+// POST /api/schedule/:project_id/tasks — create planning task
+router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const { project_id } = req.params;
+    const me = req.session.user;
+    const canSchedule = ['site_manager','senior_site_manager','pmc_head','principal','design_principal','coordinator'].includes(me.role);
+    if (!canSchedule) return res.status(403).json({ error: 'Not authorised to schedule tasks' });
+
+    const { task_name, description, assignee_id, priority, planned_date, trade } = req.body;
+    if (!task_name || !planned_date) {
+      return res.status(400).json({ error: 'Task name and planned date are required' });
+    }
+
+    let [[version]] = await db.query(
+      'SELECT * FROM schedule_versions WHERE project_id = ? AND is_current = 1',
+      [project_id]
+    );
+
+    if (!version) {
+      // Create version 1 baseline automatically if none exists
+      const [r] = await db.query(
+        `INSERT INTO schedule_versions (project_id, version_number, label, end_date, status, uploaded_by, is_current)
+         VALUES (?, 1, 'v1', ?, 'approved', ?, 1)`,
+        [project_id, planned_date, me.id]
+      );
+      version = { id: r.insertId };
+    }
+
+    // Get next display order
+    const [[maxOrder]] = await db.query(
+      'SELECT COALESCE(MAX(display_order), 0) AS max_ord FROM schedule_tasks WHERE schedule_version_id = ?',
+      [version.id]
+    );
+    const nextOrder = (maxOrder?.max_ord || 0) + 1;
+
+    const [r] = await db.query(
+      `INSERT INTO schedule_tasks (project_id, schedule_version_id, trade, task_name, start_date, end_date, description, assignee_id, priority, display_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [project_id, version.id, trade || 'General', task_name, planned_date, planned_date, description || null, assignee_id ? parseInt(assignee_id) : null, priority || 'medium', nextOrder]
+    );
+
+    audit.log({
+      userId: me.id,
+      action: 'schedule_task.create',
+      entityType: 'schedule_tasks',
+      entityId: r.insertId,
+      details: { project_id: parseInt(project_id), task_name, planned_date, priority },
+      req
+    });
+
+    res.json({ success: true, task_id: r.insertId });
+}));
+
 module.exports = router;
 
 // POST /api/schedule/:project_id/vendor-signoff — send schedule to vendor for commitment poll

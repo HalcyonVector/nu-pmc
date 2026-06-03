@@ -340,10 +340,14 @@ CREATE TABLE schedule_tasks (
   milestone_type      ENUM('schedule','payment','both','none') NOT NULL DEFAULT 'none',
   milestone_label     VARCHAR(200) NULL,                   -- short name shown in report
   display_order       INT UNSIGNED NOT NULL DEFAULT 0,
+  description         TEXT NULL,
+  assignee_id         INT UNSIGNED NULL,
+  priority            ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
   created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id),
   FOREIGN KEY (schedule_version_id) REFERENCES schedule_versions(id),
   FOREIGN KEY (depends_on_task_id) REFERENCES schedule_tasks(id) ON DELETE SET NULL,
+  FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_st_dates CHECK (end_date >= start_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
