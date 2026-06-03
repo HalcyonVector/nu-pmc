@@ -25,7 +25,7 @@
   }
 
   /* App container becomes a CSS grid: sidebar | topbar+content */
-  #app-container, #app, body > div.app, .app-shell {
+  #app-container, #app.is-visible, body > div.app, .app-shell {
     display: grid;
     grid-template-columns: 240px 1fr;
     min-height: 100vh;
@@ -50,6 +50,28 @@
   .topbar *, #topbar * { color: inherit; }
   .topbar .tb-brand, .topbar .tb-ctx { color: #1A2332 !important; }
   .topbar .tb-ctx { color: var(--steel) !important; }
+  .tb-right {
+    background: rgba(29, 61, 98, 0.05) !important;
+    border-color: rgba(29, 61, 98, 0.08) !important;
+  }
+  .tb-role {
+    background-color: transparent !important;
+    border: none !important;
+    color: #1A2332 !important;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%231A2332' stroke-width='1.6'><path d='M1 1l5 5 5-5'/></svg>") !important;
+  }
+  .tb-role.is-impersonating {
+    background-color: #B07D1A !important;
+    color: #FFFFFF !important;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='white' stroke-width='1.6'><path d='M1 1l5 5 5-5'/></svg>") !important;
+  }
+  .tb-notif {
+    background: transparent !important;
+    color: #1A2332 !important;
+  }
+  .tb-notif:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
   .tb-logout {
     color: var(--text2) !important;
     border: none !important;
@@ -151,17 +173,17 @@
     background: transparent !important;
     border-top: none !important;
     border-bottom: 1px solid #16304f !important;
-    padding: 8px 10px 10px !important;
+    padding: 8px 6px 10px !important;
     z-index: 51;                   /* above .tabs (50) so chips are clickable */
     display: flex !important;
     flex-direction: row !important;
-    gap: 4px !important;
+    gap: 2px !important;
     justify-content: space-between !important;
   }
   .bottom-nav .bb-item, #bottom-nav .bb-item {
-    flex: 1 1 auto !important;
+    flex: 1 1 0px !important;
     min-height: 44px !important;    /* touch target — iPad / hybrid laptops */
-    padding: 6px 4px !important;
+    padding: 6px 1px !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
@@ -185,10 +207,10 @@
     width: 16px !important; height: 16px !important;
   }
   .bottom-nav .bb-label, #bottom-nav .bb-label {
-    font-size: var(--text-sm) !important;
+    font-size: 11px !important;
     font-weight: 600 !important;
     text-transform: uppercase;
-    letter-spacing: .04em;
+    letter-spacing: 0.01em !important;
     margin-top: 2px;
   }
   .bottom-nav .bb-icon-rupee, #bottom-nav .bb-icon-rupee {
@@ -205,10 +227,9 @@
 
   /* Content wrapper shifts to account for sidebar */
   .content, #content-area {
-    margin-left: 240px !important;
+    grid-column: 2;
     max-width: none !important;
-    padding: 24px 32px !important;
-    padding-bottom: 48px !important;
+    padding: 16px 32px 48px !important;
   }
 
   /* Content inner max-width for readability on very wide screens */
@@ -216,13 +237,13 @@
   #content-area > * { max-width: 1400px; margin-left: auto; margin-right: auto; }
 
   /* Topbar also shifts */
-  .topbar, #topbar, header.topbar { margin-left: 240px; }
+  .topbar, #topbar, header.topbar { grid-column: 2; }
 
   /* Hide sync-banner styling adjustments for desktop */
-  .sync-banner { margin-left: 240px; }
+  .sync-banner { grid-column: 2; }
 
   /* work-pinned must shift right of sidebar, same as .content */
-  .work-pinned { margin-left: 240px !important; padding: 12px 32px 0 !important; }
+  .work-pinned { grid-column: 2; padding: 12px 32px 0 !important; }
 
   /* Footer out of the way on desktop */
   .footer { display: none !important; }
@@ -398,8 +419,11 @@
 
 /* XL desktop tweaks */
 @media (min-width: 1440px) {
+  #app-container, #app.is-visible, body > div.app, .app-shell {
+    grid-template-columns: 260px 1fr !important;
+  }
   .tabs, #tabs-bar { width: 260px !important; }
-  .topbar, #topbar, header.topbar, .content, #content-area, .sync-banner { margin-left: 260px !important; }
+  .bottom-nav, #bottom-nav { width: 260px !important; }
   #content-area > * { max-width: 1600px; }
 }
 

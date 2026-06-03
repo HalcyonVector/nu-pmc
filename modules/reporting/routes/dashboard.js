@@ -176,7 +176,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       ? "WHERE p.status = 'active'"
       : "WHERE p.status = 'active' AND p.id IN (?)";
     const [projects] = await db.query(
-      `SELECT p.id, p.code, p.name, p.status, p.r0_end_date,
+      `SELECT p.id, p.code, p.name, p.status, p.r0_end_date, p.client, p.location,
          COUNT(DISTINCT dq.id) AS open_queries,
          COUNT(DISTINCT tu.id) AS open_flags,
          COUNT(DISTINCT cn.id) AS open_changes,

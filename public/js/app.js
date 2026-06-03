@@ -200,7 +200,7 @@ const APP = {
 
   showLogin() {
     document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
+    document.getElementById('app').classList.remove('is-visible');
   },
 
   showApp() {
@@ -210,7 +210,7 @@ const APP = {
       return;
     }
     document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
+    document.getElementById('app').classList.add('is-visible');
 
     // AUDIT MODE — read-only banner, shown on every screen until logout
     const existing = document.getElementById('audit-banner');
@@ -695,7 +695,7 @@ const APP = {
           ? `<div style="font-size:11px;color:var(--red);margin-top:4px">Flag: ${UI.escapeText(t.flag_reason)}</div>`
           : '';
         todayCard = `<div class="wp-card" style="border-left-color:var(--amber)">
-          <div class="wp-label">📋 Today's Report</div>
+          <div class="wp-label"><span class="wp-symbol">📋</span>Today's Report</div>
           <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
             <span class="wp-row-label">${UI.escapeText(t.date || '')}</span>
             ${statusBadge}
@@ -729,7 +729,7 @@ const APP = {
       }).join('');
 
       needsYouCard = `<div class="wp-card">
-        <div class="wp-label">⚡ Needs You</div>
+        <div class="wp-label"><span class="wp-symbol">⚡</span>Needs You</div>
         ${rows}
       </div>`;
     }
@@ -1572,7 +1572,7 @@ Tomorrow: start formwork on next bay."
     const canUpload = ['detailing_head','team_lead','jr_architect','detailing','services_engineer',
                        'design_head','services_head','principal','design_principal'].includes(role);
 
-    let html = '';
+    let html = '<div class="drawings-page">';
 
     if (canUpload) {
       html += `<div style="margin-bottom:16px;background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px">
@@ -1647,6 +1647,7 @@ Tomorrow: start formwork on next bay."
       html += APP._sortToggleHTML('drawings', ['default','age']);
       filtered.forEach(d => { html += APP.drawingCard(d, role, pid); });
     }
+    html += '</div>';
 
     el.innerHTML = html;
   },
@@ -1846,6 +1847,7 @@ Tomorrow: start formwork on next bay."
     const servicesRows = rows.filter(r => r.stream === 'services');
 
     let html = `
+      <div class="drawings-page">
       <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Drawing Register</div>
         <div style="font-size:13px;color:#666;line-height:1.5">Master list of every main drawing expected on this project. Uploaded at project initiation by Rajani (design) and Srinath (services). Only drawings on the register can be uploaded as <strong>main</strong>.</div>
@@ -1924,6 +1926,7 @@ Tomorrow: start formwork on next bay."
 
     html += renderSection('Design stream',   designRows,   'design');
     html += renderSection('Services stream', servicesRows, 'services');
+    html += '</div>';
 
     el.innerHTML = html;
   },
@@ -4036,7 +4039,7 @@ Tomorrow: start formwork on next bay."
 // ── FORCE PASSWORD CHANGE (first login)
 APP.showForceChangePassword = function() {
   document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'none';
+  document.getElementById('app').classList.remove('is-visible');
   document.getElementById('change-password-screen').style.display = 'flex';
   document.getElementById('cp-username').textContent = APP.user.full_name;
 };
@@ -7863,36 +7866,53 @@ APP.renderProjectDetail = async function() {
 
   if (buttons.length) {
     html += `<div class="sec-label">Actions</div>`;
+    html += `<div class="action-nav-group">`;
     html += buttons.map(b => {
       if (b.key === 'approvals') {
-        // Approvals — collapsible, opens inline category strip
-        return `<button class="card ps-btn" style="min-height:44px;margin-bottom:8px;cursor:pointer"
-                 "APP._togglePsApprovals()">
-          <div style="display:flex;align-items:center;gap:10px">
+        // Approvals tab button
+        return `<div class="card ps-btn approvals-card" style="cursor:pointer" onclick="APP._togglePsApprovals()">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px">
             <div style="font-weight:600;font-size:14px;color:var(--navy)">Approvals</div>
-            ${countPill(b.count)}
-            <span id="ps-appr-caret" style="color:var(--muted);margin-left:6px">▾</span>
-          </div>
-          <div id="ps-appr-categories" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
-            ${(b.categories||[]).map(c => `
-              <button class="ps-cat-row" style="min-height:44px;display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bg);cursor:pointer"
-                  "event.stopPropagation(); APP._psApprovalsJump('${c.key}')">
-                <span style="font-size:13px;color:var(--text)">${c.label}</span>
-                ${countPill(c.count)}
-              </div>`).join('')}
+            <div style="display:flex;align-items:center;gap:6px">
+              ${countPill(b.count)}
+              <span id="ps-appr-caret" style="color:var(--muted)">▾</span>
+            </div>
           </div>
         </div>`;
       }
       // Regular button — tap to switch to the target tab
       const target = BUTTON_TARGET[b.key];
       const onclick = target ? `APP.switchTab('${target}')` : '';
-      return `<button class="card ps-btn" style="min-height:44px;margin-bottom:8px;cursor:pointer" onclick="${onclick}">
-        <div style="display:flex;align-items:center;gap:10px">
+      return `<button class="card ps-btn" style="cursor:pointer" onclick="${onclick}">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">
           <div style="font-weight:600;font-size:14px;color:var(--navy)">${b.label}</div>
           ${countPill(b.count)}
         </div>
       </button>`;
     }).join('');
+    html += `</div>`;
+
+    // Render the sub-categories outside the action-nav-group to allow split layout spanning full width
+    const approvalsBtn = buttons.find(b => b.key === 'approvals');
+    if (approvalsBtn) {
+      html += `<div id="ps-appr-categories" style="display:none;margin-top:12px;width:100%">
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;width:100%">
+          <!-- Columns 1, 2 & 3: Empty -->
+          <div></div>
+          <div></div>
+          <div></div>
+          <!-- Column 4: Drawings, Payments, Budget, MOMs, Other stacked together -->
+          <div style="grid-column: 4; display: flex; flex-direction: column; align-items: stretch; gap: 0;">
+            ${(approvalsBtn.categories||[]).map(c => `
+              <button class="ps-cat-row" style="min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #767676;border-bottom:1px solid var(--bg);cursor:pointer;background:#efefef;margin-bottom:-1px;justify-content:space-between"
+                  onclick="event.stopPropagation(); APP._psApprovalsJump('${c.key}')">
+                <span style="font-size:13px;color:var(--text)">${c.label}</span>
+                ${countPill(c.count)}
+              </button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
   }
 
   // ── SLA Settings card — principal/design_principal only (Item 12)
@@ -9574,4 +9594,11 @@ APP.submitEditClientBOQItem = async function(pid, itemId) {
   if (failed) UI.toast(failed);
   else if (anyChanged) { UI.closeModal(); UI.toast('Updated ✓'); APP.renderClientBOQ(); }
   else UI.toast('Nothing to save');
+};
+
+APP.toggleHeaderMenu = function() {
+  const actions = document.getElementById('tb-actions');
+  if (actions) {
+    actions.classList.toggle('show');
+  }
 };
