@@ -337,3 +337,79 @@ describe('GET /api/dashboard', () => {
     expect(res.body.summary).toBeDefined();
   });
 });
+
+// ── PROJECT SETUP CHECKLIST
+describe('GET /api/project-setup/:id/checklist', () => {
+  test('returns checklist, resolves legacy mapping, and blocks arbitrary SQL', async () => {
+    const app = makeApp('principal', [['/api/project-setup', require('../modules/onboarding/routes/project-setup')]]);
+    
+    db.query.mockImplementation(async (sql, params) => {
+      if (sql.includes('SELECT p.id, p.name, p.setup_template_id')) {
+        return [[{ id: 1, name: 'Project Alpha', setup_template_id: 2, template_name: 'Standard' }]];
+      }
+      if (sql.includes('setup_checklist_items')) {
+        return [[
+          {
+            id: 101,
+            task_name: 'Legacy Project Team Assigned',
+            task_category: 'core',
+            owner_role: 'principal',
+            is_mandatory: 1,
+            validation_type: 'sql_query',
+            validation_config: JSON.stringify({
+              query: "SELECT COUNT(DISTINCT role) FROM project_assignments WHERE project_id = ? AND is_active = 1 AND role IN ('pmc_head','design_head','services_head','site_manager')"
+            })
+          },
+          {
+            id: 102,
+            task_name: 'Malicious SQL check',
+            task_category: 'core',
+            owner_role: 'principal',
+            is_mandatory: 1,
+            validation_type: 'sql_query',
+            validation_config: JSON.stringify({
+              query: "DELETE FROM projects WHERE id = ?"
+            })
+          },
+          {
+            id: 103,
+            task_name: 'Registry Rule check',
+            task_category: 'core',
+            owner_role: 'principal',
+            is_mandatory: 1,
+            validation_type: 'sql_query',
+            validation_config: JSON.stringify({
+              rule: "r0_schedule_baselined"
+            })
+          }
+        ]];
+      }
+      if (sql.includes('SELECT COUNT(DISTINCT role) FROM project_assignments') || sql.includes('role IN (\'pmc_head\'')) {
+        return [[{ cnt: 1 }]];
+      }
+      if (sql.includes('SELECT COUNT(*) as cnt FROM schedule_versions')) {
+        return [[{ cnt: 0 }]];
+      }
+      if (sql.includes('INSERT INTO project_setup_tracking')) {
+        return [{}];
+      }
+      return [[]];
+    });
+
+    const res = await request(app).get('/api/project-setup/1/checklist');
+    expect(res.status).toBe(200);
+    expect(res.body.items).toBeDefined();
+    
+    // Legacy mapping item 101 should run the project_team_assigned rule and succeed
+    const item101 = res.body.items.find(i => i.id === 101);
+    expect(item101.is_complete).toBe(true);
+
+    // Malicious item 102 should be rejected/ignored and remain incomplete (not executed)
+    const item102 = res.body.items.find(i => i.id === 102);
+    expect(item102.is_complete).toBe(false);
+
+    // Registry rule item 103 should run r0_schedule_baselined and return false (cnt: 0)
+    const item103 = res.body.items.find(i => i.id === 103);
+    expect(item103.is_complete).toBe(false);
+  });
+});

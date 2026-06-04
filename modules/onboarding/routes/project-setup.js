@@ -180,83 +180,158 @@ const ROLE_VISIBILITY = {
   site_manager: ['schedule', 'vendors'], // operational readiness
 };
 
+// Predefined validation registry using named validation identifiers mapped to safe handlers
+const VALIDATION_REGISTRY = {
+  project_team_assigned: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(DISTINCT role) AS cnt 
+       FROM project_assignments 
+       WHERE project_id = ? AND is_active = 1 
+         AND role IN ('pmc_head', 'design_head', 'services_head', 'site_manager')`,
+      [projectId]
+    );
+    return (rows[0]?.cnt || 0) > 0;
+  },
+  client_details_complete: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT c.gstin, c.pan_number, c.bank_account, c.bank_ifsc 
+       FROM clients c 
+       JOIN projects p ON c.id = p.client_id 
+       WHERE p.id = ?`,
+      [projectId]
+    );
+    if (rows.length === 0) return false;
+    return ['gstin', 'pan_number', 'bank_account', 'bank_ifsc'].every(f => rows[0][f] != null && rows[0][f] !== '');
+  },
+  internal_boq_uploaded: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM boq_versions WHERE project_id = ?`,
+      [projectId]
+    );
+    return rows[0].cnt >= 1;
+  },
+  boq_has_items: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM boq_items WHERE project_id = ?`,
+      [projectId]
+    );
+    return rows[0].cnt >= 1;
+  },
+  client_boq_uploaded: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM client_boq_items WHERE project_id = ?`,
+      [projectId]
+    );
+    return rows[0].cnt >= 1;
+  },
+  vendors_cleared: async () => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM vendors WHERE clearance_status = 'approved'`
+    );
+    return rows[0].cnt > 0;
+  },
+  vendor_engagements_approved: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM vendor_engagements WHERE project_id = ? AND approval_status = 'approved'`,
+      [projectId]
+    );
+    return rows[0].cnt > 0;
+  },
+  boq_vendor_mapping_complete: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM vendor_boq_mapping WHERE project_id = ?`,
+      [projectId]
+    );
+    return rows[0].cnt >= 1;
+  },
+  drawing_register_design_initialized: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM drawing_register WHERE project_id = ? AND stream = 'design'`,
+      [projectId]
+    );
+    return rows[0].cnt > 0;
+  },
+  drawing_register_services_initialized: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM drawing_register WHERE project_id = ? AND stream = 'services'`,
+      [projectId]
+    );
+    return rows[0].cnt > 0;
+  },
+  r0_schedule_baselined: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM schedule_versions WHERE project_id = ? AND version_number = 1`,
+      [projectId]
+    );
+    return rows[0].cnt > 0;
+  },
+  schedule_has_tasks: async (projectId) => {
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM schedule_tasks WHERE project_id = ?`,
+      [projectId]
+    );
+    return rows[0].cnt >= 1;
+  }
+};
+
+// Legacy backward-compatibility SQL query structure to rule mapping
+const SQL_QUERY_TO_RULE = {
+  "SELECT COUNT(DISTINCT role) FROM project_assignments WHERE project_id = ? AND is_active = 1 AND role IN ('pmc_head','design_head','services_head','site_manager')": "project_team_assigned",
+  "SELECT COUNT(*) FROM vendors WHERE clearance_status = 'approved'": "vendors_cleared",
+  "SELECT COUNT(*) FROM vendor_engagements WHERE project_id = ? AND approval_status = 'approved'": "vendor_engagements_approved",
+  "SELECT COUNT(*) FROM drawing_register WHERE project_id = ? AND stream = 'design'": "drawing_register_design_initialized",
+  "SELECT COUNT(*) FROM drawing_register WHERE project_id = ? AND stream = 'services'": "drawing_register_services_initialized",
+  "SELECT COUNT(*) FROM schedule_versions WHERE project_id = ? AND version_number = 1": "r0_schedule_baselined"
+};
+
 // Validation helpers
 async function validateItem(item, projectId) {
   const config = item.validation_config ? JSON.parse(item.validation_config) : {};
-  
-  try {
-  switch (item.validation_type) {
-    case 'field_populated': {
-      // Check if specific fields in a table are populated
-      const { table, fields } = config;
-      if (!table || !fields || fields.length === 0) return false;
-      
-      // For projects table, check the project itself
-      if (table === 'projects') {
-        const [rows] = await db.query(
-          `SELECT ${fields.join(', ')} FROM projects WHERE id = ?`,
-          [projectId]
-        );
-        if (rows.length === 0) return false;
-        // All fields must be non-null
-        return fields.every(f => rows[0][f] != null);
+  let ruleKey = config.rule || item.validation_rule_id; // Support explicit rule mapping
+
+  if (!ruleKey) {
+    // Attempt backward compatibility mapping of old config style to validation registry keys
+    if (item.validation_type === 'sql_query' && config.query) {
+      const normSql = config.query.replace(/\s+/g, ' ').trim();
+      for (const [sqlPattern, targetRule] of Object.entries(SQL_QUERY_TO_RULE)) {
+        if (sqlPattern.replace(/\s+/g, ' ').trim() === normSql) {
+          ruleKey = targetRule;
+          break;
+        }
       }
-      
-      // For clients table, check via project's client_id
-      if (table === 'clients') {
-        const [rows] = await db.query(
-          `SELECT c.${fields.join(', c.')} 
-           FROM clients c 
-           JOIN projects p ON c.id = p.client_id 
-           WHERE p.id = ?`,
-          [projectId]
-        );
-        if (rows.length === 0) return false;
-        return fields.every(f => rows[0][f] != null);
+    } else if (item.validation_type === 'field_populated' && config.table && config.fields) {
+      if (config.table === 'clients' && config.fields.includes('gstin')) {
+        ruleKey = 'client_details_complete';
       }
-      
-      return false;
+    } else if (item.validation_type === 'row_count' && config.table) {
+      const tableToRule = {
+        'boq_versions': 'internal_boq_uploaded',
+        'boq_items': 'boq_has_items',
+        'client_boq_items': 'client_boq_uploaded',
+        'vendor_boq_mapping': 'boq_vendor_mapping_complete',
+        'schedule_tasks': 'schedule_has_tasks'
+      };
+      ruleKey = tableToRule[config.table];
     }
-    
-    case 'row_count': {
-      // Check if table has minimum row count for this project
-      const { table, min_count = 1 } = config;
-      if (!table) return false;
-      
-      const [rows] = await db.query(
-        `SELECT COUNT(*) as cnt FROM ${table} WHERE project_id = ?`,
-        [projectId]
-      );
-      return rows[0].cnt >= min_count;
-    }
-    
-    case 'sql_query': {
-      // Execute custom SQL query (must return count)
-      const { query } = config;
-      if (!query) return false;
-      
-      // Replace ? placeholder with project_id
-      const [rows] = await db.query(query, [projectId]);
-      
-      // Query should return a count in first column
-      const count = Object.values(rows[0] || {})[0] || 0;
-      return count > 0;
-    }
-    
-    case 'manual':
-      // Manual validation - check tracking table
-      return false; // Will be checked from tracking table
-    
-    default:
-      return false;
   }
-  } catch (err) {
-    // Validation queries may reference columns that don't exist in this
-    // deployment, or fail for other reasons. Treat any error as "not
-    // validated" rather than crashing the whole checklist endpoint.
-    console.warn('[project-setup validateItem]', item.task_name, '→', err.message);
+
+  if (ruleKey && VALIDATION_REGISTRY[ruleKey]) {
+    try {
+      return await VALIDATION_REGISTRY[ruleKey](projectId);
+    } catch (err) {
+      console.warn('[project-setup validateItem]', item.task_name, '→', err.message);
+      return false;
+    }
+  }
+
+  if (item.validation_type === 'manual') {
     return false;
   }
+
+  // If a rule is configured but not found, or validation type is unrecognized/not matched,
+  // do NOT execute raw SQL. Return false.
+  console.warn('[project-setup validateItem] Unsupported or unmapped validation:', item.task_name, 'type:', item.validation_type, 'rule:', ruleKey);
+  return false;
 }
 
 // GET /api/project-setup/:id/checklist
