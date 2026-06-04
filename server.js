@@ -419,13 +419,6 @@ const clientErrorRoutes = require('./modules/system/routes/client-errors');
 app.use('/api/log/client-error', clientErrorRoutes);
 app.use('/api/client-errors', clientErrorRoutes.readRouter);
 
-// ── PWA — serve index.html for all non-API routes
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  }
-});
-
 // ── AUTHENTICATED FILE SERVING
 app.get('/api/files/:subdir/:filename', require('./middleware/auth').requireAuth, (req, res) => {
   const path2 = require('path');
@@ -438,6 +431,13 @@ app.get('/api/files/:subdir/:filename', require('./middleware/auth').requireAuth
   if (!filePath.startsWith(uploadRoot)) return res.status(403).json({ error: 'Forbidden' });
   if (!fs2.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
   res.sendFile(filePath);
+});
+
+// ── PWA — serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
 });
 
 // ── SCHEDULED TASKS — native Node.js, no cron library
