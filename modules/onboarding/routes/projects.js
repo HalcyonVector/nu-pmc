@@ -31,55 +31,109 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       [rows] = await db.query('SELECT * FROM projects ORDER BY status, name');
     }
 
-    // Attach live stats to each project. Bug B2: previously this used a
-    // single LEFT JOIN across issues + task_updates + material_requests
-    // and SUM(dq.is_overdue), which inflated by the cross-product (each
-    // issue row was multiplied by every joined task_update and
-    // material_request). Now: four separate scalar queries — slower per
-    // project, but actually correct.
-    for (const p of rows) {
-      const [[openQ]]  = await db.query(
-        `SELECT COUNT(*) AS c FROM issues WHERE project_id = ? AND status != 'closed'`,
-        [p.id]
-      );
-      const [[overQ]]  = await db.query(
-        `SELECT COUNT(*) AS c FROM issues WHERE project_id = ? AND status != 'closed' AND is_overdue = 1`,
-        [p.id]
-      );
-      const [[flagT]]  = await db.query(
-        `SELECT COUNT(*) AS c FROM task_updates WHERE project_id = ? AND is_flagged = 1`,
-        [p.id]
-      );
-      const [[overM]]  = await db.query(
-        `SELECT COUNT(*) AS c FROM material_requests WHERE project_id = ? AND is_overdue = 1`,
-        [p.id]
-      );
-      p.stats = {
-        open_queries:       openQ?.c || 0,
-        overdue_queries:    overQ?.c || 0,
-        flagged_tasks:      flagT?.c || 0,
-        overdue_materials:  overM?.c || 0,
-      };
+    if (rows.length > 0) {
+      const pids = rows.map(p => p.id);
 
-      // Schedule progress
-      const [[sched]] = await db.query(
-        `SELECT sv.end_date, sv.drift_days, sv.label AS current_version
-         FROM schedule_versions sv
-         WHERE sv.project_id = ? AND sv.is_current = 1`,
-        [p.id]
+      // 1. Fetch issue counts (open & overdue)
+      const [issueRows] = await db.query(
+        `SELECT project_id, 
+                SUM(CASE WHEN status != 'closed' THEN 1 ELSE 0 END) AS open_queries,
+                SUM(CASE WHEN status != 'closed' AND is_overdue = 1 THEN 1 ELSE 0 END) AS overdue_queries
+         FROM issues 
+         WHERE project_id IN (?)
+         GROUP BY project_id`,
+        [pids]
       );
-      p.schedule = sched || null;
+      const issuesMap = new Map(issueRows.map(r => [r.project_id, r]));
 
-      // Average task completion (via design-services contract)
-      const DS = require('../../design-services/contract');
-      const scheduleSummary = await DS.functions.getCurrentScheduleSummary(p.id);
-      p.avg_pct = Math.round(parseFloat(scheduleSummary?.avg_pct_complete) || 0);
+      // 2. Fetch flagged task counts
+      const [flaggedRows] = await db.query(
+        `SELECT project_id, COUNT(*) AS flagged_tasks
+         FROM task_updates 
+         WHERE project_id IN (?) AND is_flagged = 1
+         GROUP BY project_id`,
+        [pids]
+      );
+      const flaggedMap = new Map(flaggedRows.map(r => [r.project_id, r.flagged_tasks]));
 
-      // Per-trade progress — frontend projectCard renders a bar per trade
-      const tradeRows = await DS.functions.getScheduleProgressByTrade(p.id);
-      p.trades = {};
+      // 3. Fetch overdue material requests
+      const [overdueMaterialRows] = await db.query(
+        `SELECT project_id, COUNT(*) AS overdue_materials
+         FROM material_requests 
+         WHERE project_id IN (?) AND is_overdue = 1
+         GROUP BY project_id`,
+        [pids]
+      );
+      const overdueMaterialsMap = new Map(overdueMaterialRows.map(r => [r.project_id, r.overdue_materials]));
+
+      // 4. Fetch schedule versions
+      const [schedRows] = await db.query(
+        `SELECT project_id, end_date, drift_days, label AS current_version
+         FROM schedule_versions
+         WHERE project_id IN (?) AND is_current = 1`,
+        [pids]
+      );
+      const schedMap = new Map(schedRows.map(r => [r.project_id, r]));
+
+      // 5. Fetch avg task completion (overall progress)
+      const [avgRows] = await db.query(
+        `SELECT st.project_id, COALESCE(AVG(latest_pct.pct), 0) AS avg_pct_complete
+         FROM schedule_tasks st
+         JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+         LEFT JOIN (
+           SELECT tu1.task_id, tu1.pct_complete AS pct
+           FROM task_updates tu1
+           WHERE tu1.id = (
+             SELECT MAX(tu2.id) FROM task_updates tu2 WHERE tu2.task_id = tu1.task_id
+           )
+         ) latest_pct ON latest_pct.task_id = st.id
+         WHERE sv.project_id IN (?)
+         GROUP BY st.project_id`,
+        [pids]
+      );
+      const avgMap = new Map(avgRows.map(r => [r.project_id, r.avg_pct_complete]));
+
+      // 6. Fetch per-trade progress
+      const [tradeRows] = await db.query(
+        `SELECT st.project_id, st.trade, AVG(tu.pct_complete) AS avg_pct
+         FROM schedule_tasks st
+         JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+         LEFT JOIN task_updates tu ON tu.task_id = st.id
+         WHERE st.project_id IN (?)
+         GROUP BY st.project_id, st.trade`,
+        [pids]
+      );
+      const tradesMap = new Map();
       for (const r of tradeRows) {
-        if (r.trade) p.trades[r.trade] = Number(r.avg_pct) || 0;
+        if (!tradesMap.has(r.project_id)) {
+          tradesMap.set(r.project_id, {});
+        }
+        if (r.trade) {
+          tradesMap.get(r.project_id)[r.trade] = Number(r.avg_pct) || 0;
+        }
+      }
+
+      // Map everything back onto the projects
+      for (const p of rows) {
+        const issues = issuesMap.get(p.id) || { open_queries: 0, overdue_queries: 0 };
+        p.stats = {
+          open_queries:      issues.open_queries || 0,
+          overdue_queries:   issues.overdue_queries || 0,
+          flagged_tasks:     flaggedMap.get(p.id) || 0,
+          overdue_materials: overdueMaterialsMap.get(p.id) || 0,
+        };
+
+        const sched = schedMap.get(p.id);
+        p.schedule = sched ? {
+          end_date: sched.end_date,
+          drift_days: sched.drift_days,
+          current_version: sched.current_version
+        } : null;
+
+        const avgPctComplete = avgMap.get(p.id) || 0;
+        p.avg_pct = Math.round(parseFloat(avgPctComplete));
+
+        p.trades = tradesMap.get(p.id) || {};
       }
     }
 

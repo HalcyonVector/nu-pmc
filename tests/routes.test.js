@@ -33,15 +33,19 @@ beforeEach(() => { jest.clearAllMocks(); db.query.mockReset(); db.query.mockReso
 describe('GET /api/projects', () => {
   test('principal sees all projects', async () => {
     const app = makeApp('principal', [['/api/projects', require('../modules/onboarding/routes/projects')]]);
-    db.query.mockResolvedValueOnce([[
-      { id:1, name:'Test Project', client:'ACME', location:'Bengaluru', status:'active',
-        r0_start_date:'2026-01-01', r0_end_date:'2026-12-31',
-        checklist_project_created:1, checklist_design_boq:1, checklist_services_boq:1,
-        checklist_schedule:1, checklist_site_manager:1 }
-    ]])
-    .mockResolvedValue([[{ open_queries:0, overdue_queries:0, flagged_tasks:0, overdue_materials:0 }]])
-    .mockResolvedValue([[null]])
-    .mockResolvedValue([[{ avg_pct: 45 }]]);
+    db.query
+      .mockResolvedValueOnce([[
+        { id:1, name:'Test Project', client:'ACME', location:'Bengaluru', status:'active',
+          r0_start_date:'2026-01-01', r0_end_date:'2026-12-31',
+          checklist_project_created:1, checklist_design_boq:1, checklist_services_boq:1,
+          checklist_schedule:1, checklist_site_manager:1 }
+      ]])
+      .mockResolvedValueOnce([[{ project_id: 1, open_queries: 0, overdue_queries: 0 }]])
+      .mockResolvedValueOnce([[{ project_id: 1, flagged_tasks: 0 }]])
+      .mockResolvedValueOnce([[{ project_id: 1, overdue_materials: 0 }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ project_id: 1, avg_pct_complete: 45 }]])
+      .mockResolvedValueOnce([[]]);
 
     const res = await request(app).get('/api/projects');
     expect(res.status).toBe(200);
@@ -50,12 +54,20 @@ describe('GET /api/projects', () => {
 
   test('site_manager sees only assigned projects', async () => {
     const app = makeApp('site_manager', [['/api/projects', require('../modules/onboarding/routes/projects')]]);
-    // site_manager query returns their projects via JOIN
     db.query
-      .mockResolvedValueOnce([[{ id:1, name:'PV90 Project', client:'TLD', location:'Nelamangala', status:'active', r0_start_date:'2026-01-01', r0_end_date:'2026-12-31', checklist_project_created:1, checklist_design_boq:1, checklist_services_boq:1, checklist_schedule:1, checklist_site_manager:1 }]])
-      .mockResolvedValueOnce([[{ open_queries:0, overdue_queries:0, flagged_tasks:0, overdue_materials:0 }]])
-      .mockResolvedValueOnce([[null]])
-      .mockResolvedValueOnce([[{ avg_pct: 50 }]]);
+      .mockResolvedValueOnce([[
+        { id:1, name:'PV90 Project', client:'TLD', location:'Nelamangala', status:'active',
+          r0_start_date:'2026-01-01', r0_end_date:'2026-12-31',
+          checklist_project_created:1, checklist_design_boq:1, checklist_services_boq:1,
+          checklist_schedule:1, checklist_site_manager:1 }
+      ]])
+      .mockResolvedValueOnce([[{ project_id: 1, open_queries: 0, overdue_queries: 0 }]])
+      .mockResolvedValueOnce([[{ project_id: 1, flagged_tasks: 0 }]])
+      .mockResolvedValueOnce([[{ project_id: 1, overdue_materials: 0 }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ project_id: 1, avg_pct_complete: 50 }]])
+      .mockResolvedValueOnce([[]]);
+
     const res = await request(app).get('/api/projects');
     expect(res.status).toBe(200);
     expect(res.body.projects).toBeDefined();
