@@ -6,6 +6,19 @@ const { validators } = require('../../../middleware/validate');
 const notif   = require('../../../services/notifications');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
+
+// Cross-module contracts — hoisted to module scope (no circular dependencies).
+// Auth: user lookup helpers (getUser, getUsers, getUsersByRole).
+const Auth = require('../../auth/contract');
+// DesignServices: drawing-version count helper used in Approvals summary.
+const DS = require('../../design-services/contract');
+// ReadinessGate: activateIfReady after site-manager assignment.
+const ReadinessGate = require('../../readiness-gate/contract');
+// Site: site-manager leave records.
+const Site = require('../../site/contract');
+// Email service: client notification emails.
+const email = require('../../../services/email');
+
 const router   = express.Router();
 
 // GET /api/projects — list projects visible to this user
@@ -302,9 +315,9 @@ async function buildProjectSummary(me, projectId) {
 
     // 1. Drawings category — drawing_versions pending + submittals under review
     //    + CNs pending approval (role-scoped)
+    // DS is required at module scope — see top of file.
     const allowsDrawingsCat = ['principal','design_principal','pmc_head','design_head','services_head','audit'].includes(role);
     if (allowsDrawingsCat) {
-      const DS = require('../../design-services/contract');
       let stream = null;
       if (role === 'design_head')   stream = 'design';
       if (role === 'services_head') stream = 'services';
@@ -461,7 +474,7 @@ async function buildProjectSummary(me, projectId) {
     [projectId]
   );
   if (pmc) {
-    const Auth = require('../../auth/contract');
+    // Auth is required at module scope — see top of file.
     const users = await Auth.functions.getUsers([pmc.primary_pmc_id, pmc.backup_pmc_id].filter(Boolean));
     pmc.primary_name  = users.get(pmc.primary_pmc_id)?.full_name || null;
     pmc.primary_phone = users.get(pmc.primary_pmc_id)?.phone     || null;
@@ -550,7 +563,7 @@ router.post('/', requireAuth, requirePrincipal, validators.project, async (req, 
     // Notify Udupa about the stub — only after successful commit.
     if (clientStubCreated) {
       try {
-        const Auth = require('../../auth/contract');
+        // Auth is required at module scope — see top of file.
         const fin = await Auth.functions.getUsersByRole('finance_admin');
         if (fin[0]) {
           await notif.notify(fin[0].id, 'client_incomplete',
@@ -600,8 +613,7 @@ router.post('/:id/assign-site-manager', requireAuth, requirePMC, asyncHandler(as
     const project_id  = req.params.id;
 
     // Check user is a site manager — both regular and senior qualify
-    // M1 Auth owns users — go through its contract
-    const Auth = require('../../auth/contract');
+    // M1 Auth owns users — go through its contract (Auth required at module scope).
     const user = await Auth.functions.getUser(user_id);
     if (!user || !['site_manager', 'senior_site_manager'].includes(user.role)) {
       return res.status(400).json({ error: 'User is not a site manager' });
@@ -617,7 +629,7 @@ router.post('/:id/assign-site-manager', requireAuth, requirePMC, asyncHandler(as
     await db.query('UPDATE projects SET checklist_site_manager = 1 WHERE id = ?', [project_id]);
 
     // M3 Readiness Gate — single source of truth for "can project go active"
-    const ReadinessGate = require('../../readiness-gate/contract');
+    // ReadinessGate is required at module scope — see top of file.
     await ReadinessGate.functions.activateIfReady(project_id);
 
     audit.log({ userId: req.session.user.id, action: 'project.assign_site_manager',
@@ -632,8 +644,8 @@ router.post('/:id/assign-site-manager', requireAuth, requirePMC, asyncHandler(as
 router.post('/:id/leave', requireAuth, requirePMC, asyncHandler(async (req, res) => {
     const { user_id, leave_from, leave_to, reason } = req.body;
     if (!user_id || !leave_from || !leave_to) return res.status(400).json({ error: 'User and dates required' });
-    // M4 Site owns site_manager_leave — go through its contract, never direct INSERT
-    const Site = require('../../site/contract');
+    // M4 Site owns site_manager_leave — go through its contract, never direct INSERT.
+    // Site is required at module scope — see top of file.
     await Site.functions.recordSiteManagerLeave({
       userId:    user_id,
       projectId: req.params.id,
@@ -650,8 +662,7 @@ router.post('/:id/leave', requireAuth, requirePMC, asyncHandler(async (req, res)
 
 // GET /api/projects/:id/leave — get leave records
 router.get('/:id/leave', requireAuth, requirePMC, asyncHandler(async (req, res) => {
-    const Site = require('../../site/contract');
-    const Auth = require('../../auth/contract');
+    // Site and Auth are required at module scope — see top of file.
     const leaves = await Site.functions.listManagerLeaveRecords(req.params.id);
     const users = await Auth.functions.getUsers(
       leaves.flatMap(l => [l.user_id, l.marked_by].filter(Boolean))
@@ -692,7 +703,7 @@ Regards,
 nu associates`;
 
     try {
-      const email = require('../../../services/email');
+      // email is required at module scope — see top of file.
       await email.send(proj.contact_email, subject, body);
       audit.log({ userId: req.session.user.id, action: 'project.notify_client',
         entityType: 'projects', entityId: projectId,
