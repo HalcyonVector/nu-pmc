@@ -72,7 +72,7 @@ function main() {
     return 0;
   }
 
-  const allFiles = findJsFiles(ROOT, ['node_modules', '.git', 'uploads', '/public/']);
+  const allFiles = findJsFiles(ROOT, ['node_modules', '.git', 'uploads', '/public/', 'tests']);
   const violations = [];
 
   for (const file of allFiles) {
@@ -97,8 +97,7 @@ function main() {
       if (rest === 'contract.js' || rest === 'contract'
           || rest === 'index.js'   || rest === 'index') continue;
 
-      // Is the importer on the migration-phase allowlist?
-      const relFile = path.relative(ROOT, file);
+      const relFile = path.relative(ROOT, file).replace(/\\/g, '/');
       if (ALLOWED_INTERNAL_CALLERS.has(relFile)) continue;
 
       violations.push({

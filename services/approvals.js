@@ -54,7 +54,7 @@ const db = require('../middleware/db');
 // schedule_change, vendor_payment, claim_invoice, budget_cost_head,
 // handover_closure, weekly_report) include heads + finance + PMC in their
 // signer lists — and those roles legitimately approve across all projects.
-const { PROJECT_SCOPED_ROLES } = require('../modules/auth/middleware/auth');
+const { PROJECT_SCOPED_ROLES } = require('../modules/auth/contract');
 function isFirmWideRole(role) {
   return !PROJECT_SCOPED_ROLES.includes(role);
 }

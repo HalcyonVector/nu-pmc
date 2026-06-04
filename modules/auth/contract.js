@@ -20,6 +20,8 @@ const db = require('../../middleware/db');
 module.exports = {
   version: '1.0.0',
 
+  PROJECT_SCOPED_ROLES: authMW.PROJECT_SCOPED_ROLES,
+
   // ── MIDDLEWARE (other modules use these to protect their routes) ────────
   middleware: {
     requireAuth:         authMW.requireAuth,

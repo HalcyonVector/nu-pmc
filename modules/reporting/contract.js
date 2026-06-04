@@ -49,6 +49,14 @@ module.exports = {
       ).catch(() => [[]]);
       return rows?.[0] || null;
     },
+
+    /**
+     * Triggers AI lessons-learned draft generation for a project retrospective.
+     */
+    async generateAIDraftForProject(projectId) {
+      const lessons = require('./routes/lessons');
+      return lessons.generateAIDraftForProject(projectId);
+    },
   },
 
   routes: {

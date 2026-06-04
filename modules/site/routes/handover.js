@@ -222,12 +222,10 @@ router.post('/:project_id/closure/signoff',
 
     if (allSigned) {
       try {
-        const lessons = require('../../reporting/routes/lessons');
-        if (lessons.generateAIDraftForProject) {
-          lessons.generateAIDraftForProject(projectId).catch(err => {
-            console.error('[closure] AI draft generation failed:', err.message);
-          });
-        }
+        const Reporting = require('../../reporting/contract');
+        Reporting.functions.generateAIDraftForProject(projectId).catch(err => {
+          console.error('[closure] AI draft generation failed:', err.message);
+        });
       } catch { /* fall through */ }
     }
 
