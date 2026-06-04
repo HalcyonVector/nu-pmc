@@ -5496,7 +5496,7 @@ APP.loadHandoverChecklist = async function(projectId) {
         </div>
         <div>
           ${!done && item.is_applicable ? `<button class="btn-sm" onclick="APP.uploadChecklistDoc(${item.id}, ${projectId})">Upload</button>` : ''}
-          ${done ? `<span style="color:#4A8A5A;font-size:18px">✓</span>` : `<span style="color:#ccc;font-size:18px">○</span>`}
+          ${done ? `<a href="${API.fileUrl(item.file_url || item.file_path, 'documents')}" target="_blank" class="btn-sm btn-secondary" style="margin-right:8px;text-decoration:none">View</a><span style="color:#4A8A5A;font-size:18px">✓</span>` : `<span style="color:#ccc;font-size:18px">○</span>`}
         </div>
       </div>`;
     });

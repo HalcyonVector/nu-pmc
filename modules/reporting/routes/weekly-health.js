@@ -11,6 +11,7 @@ const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { UPLOAD_DIR } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const { FINANCE_ROLES } = require('../../../services/roles');
+const fileUrls = require('../../../services/file-url');
 const router   = express.Router();
 
 
@@ -631,7 +632,7 @@ router.get('/report', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(a
 
     res.json({
       success:    true,
-      file_path:  outPath,
+      file_url:   fileUrls.fileUrl(outPath, { defaultSubdir: 'documents' }),
       file_name:  `WeeklyHealthReport_${weekEnd}.pdf`,
       week:       weekLabel,
       projects:   projects.length,

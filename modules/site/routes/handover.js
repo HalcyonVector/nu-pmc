@@ -23,6 +23,9 @@ const { upload } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
 const { determineSignoffSlot } = require('../lib/signoff-helpers');
+// Shared file-URL helper — converts uploads/... paths to authenticated
+// /api/files/:subdir/:filename URLs. Must not expose raw filesystem paths.
+const fileUrls = require('../../../services/file-url');
 
 const router = express.Router();
 
@@ -45,6 +48,14 @@ router.get('/:project_id/checklist',
     const total      = items.filter(i => i.is_applicable).length;
     const submitted  = items.filter(i => i.is_applicable && i.file_path).length;
     const completion_pct = total === 0 ? 0 : Math.round((submitted / total) * 100);
+
+    // Convert raw filesystem paths to authenticated /api/files/ URLs so the
+    // frontend can render download links without ever accessing /uploads directly.
+    items.forEach(item => {
+      item.file_url = fileUrls.fileUrl(item.file_path, { defaultSubdir: 'documents' });
+      // Keep file_path for server-side use only; do not send raw path to client.
+      delete item.file_path;
+    });
 
     res.json({ items, total, submitted, completion_pct });
   })

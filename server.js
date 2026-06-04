@@ -434,8 +434,11 @@ app.get('/api/files/:subdir/:filename', require('./middleware/auth').requireAuth
 });
 
 // ── PWA — serve index.html for all non-API routes
+// Note: /uploads/ is intentionally NOT served statically — all uploaded
+// content is accessible only via the authenticated /api/files/:subdir/:filename
+// route above. There is no express.static() call for the uploads directory.
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+  if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
 });

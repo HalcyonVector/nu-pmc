@@ -8,6 +8,7 @@ const { requireAuth, requirePMC, requireRole, requireProjectScope, requireScopeF
 const { requirePermission } = require('../../../middleware/permissions');
 const { upload } = require('../../../middleware/upload');
 const notif   = require('../../../services/notifications');
+const fileUrls = require('../../../services/file-url');
 const router        = express.Router();
 
 // (waInteractive / waReply imports removed — only the issue-create
@@ -450,7 +451,7 @@ router.get('/rfi/:project_id', requireAuth, requireProjectScope(), asyncHandler(
     const ctx = await DS.functions.getDrawingContextByVersionIds(rows.map(r => r.drawing_version_id));
     rows.forEach(r => {
       const c = ctx.get(r.drawing_version_id);
-      r.drawing_file   = c?.file_path      || null;
+      r.drawing_file   = fileUrls.fileUrl(c?.file_path, { defaultSubdir: 'drawings' }) || null;
       r.drawing_number = c?.drawing_number || null;
       r.drawing_name   = c?.drawing_name   || null;
       r.drawing_stream = c?.stream         || null;
