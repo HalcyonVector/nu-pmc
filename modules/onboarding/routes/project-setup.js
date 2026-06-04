@@ -423,7 +423,13 @@ router.post('/:id/checklist/:item_id/complete',
 
 // POST /api/project-setup/:id/checklist/:item_id/uncomplete
 // Mark an item as incomplete (in case of error)
-router.post('/:id/checklist/:item_id/uncomplete', requireAuth, asyncHandler(async (req, res) => {
+//
+// Enforces project-scoped authorization to ensure users can only
+// modify checklist items belonging to projects within their permitted scope.
+router.post('/:id/checklist/:item_id/uncomplete',
+  requireAuth,
+  requireProjectScope(req => req.params.id),
+  asyncHandler(async (req, res) => {
   const { id: projectId, item_id } = req.params;
   const userRole = req.session.user.role;
   
