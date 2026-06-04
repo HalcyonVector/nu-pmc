@@ -19,7 +19,12 @@ const { upload } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
 const { STREAM_HEADS_OR_PRINCIPAL: STREAM_HEADS } = require('../../../services/roles');
-const router = express.Router();
+// Cross-module contracts — hoisted to module scope (no circular deps).
+// Onboarding: setChecklistFlag after register upload.
+// Auth: user hydration for uploaded_by / signed_off_by fields.
+const Onboarding = require('../../onboarding/contract');
+const Auth = require('../../auth/contract');
+const router = require('express').Router();
 
 
 // GET /api/register/:project_id — list register entries (filtered by stream if given)
@@ -34,7 +39,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
        ORDER BY category, drawing_number`,
       params
     );
-    const Auth = require('../../auth/contract');
+    // Auth is required at module scope — see top of file.
     const users = await Auth.functions.getUsers(
       rows.flatMap(r => [r.uploaded_by, r.signed_off_by].filter(Boolean))
     );
@@ -135,10 +140,10 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
       }
     }
 
-    // Update project checklist for this stream
+    // Update project checklist for this stream.
+    // Onboarding is required at module scope — see top of file.
     if (imported.length) {
       const field = stream === 'design' ? 'checklist_design_register' : 'checklist_services_register';
-      const Onboarding = require('../../onboarding/contract');
       await Onboarding.functions.setChecklistFlag(pid, field);
     }
 

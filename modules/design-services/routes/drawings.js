@@ -11,6 +11,9 @@ const ai = require('../../../services/ai');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const sequence = require('../../../services/sequence');
 const audit = require('../../../services/audit');
+// Onboarding contract — hoisted to module scope (no circular dependency:
+// design-services → onboarding.contract only; onboarding routes → design-services.contract).
+const Onboarding = require('../../onboarding/contract');
 
 // GET /api/drawings/:project_id — list drawings (filtered by role/stream)
 router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
@@ -251,11 +254,15 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
       }
     });
 
-    // If issued by principal/head, mark project BOQ checklist
+    // If issued by principal/head, mark project BOQ checklist.
+    // Business rule: any issued drawing confirms that a BOQ exists for this stream
+    // (design_head/services_head cannot upload without a prior BOQ upload, and
+    // principals uploading directly always have context). The flag is idempotent
+    // (UPDATE SET flag=1) so re-triggering on subsequent revisions is harmless.
     // (Outside the transaction — checklist update is a separate concern; if it
     // fails, the drawing is still correctly saved.)
     if (initStatus === 'issued') {
-      const Onboarding = require('../../onboarding/contract');
+      // Onboarding is required at module scope — see top of file.
       if (stream === 'design') {
         await Onboarding.functions.setChecklistFlag(pid, 'checklist_design_boq');
       } else {
@@ -506,23 +513,21 @@ router.post('/version/:version_id/approve', requireAuth, asyncHandler(async (req
       await approvals.close({ refTable: 'drawing_versions', refId: dv.id, actionedBy: me.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     }
 
-    // Notify on issue
+    // Notify site team when drawing is issued.
     if (newStatus === 'issued') {
       try {
-        const { notifyDrawingIssued } = require('../../../services/notifications');
         const [[drawingInfo]] = await db.query(
           'SELECT d.drawing_number, d.drawing_name FROM drawings d JOIN drawing_versions dv ON dv.drawing_id = d.id WHERE dv.id = ?',
           [dv.id]
         );
-        notifyDrawingIssued(dv.project_id, drawingInfo?.drawing_number||'', drawingInfo?.drawing_name||'', dv.revision||'').catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
-      } catch(e) { console.error('Notify error:', e.message); }
-    }
-    if (newStatus === 'issued') {
-      notifyDrawingIssued(dv.project_id, '', '', '').catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+        notifyDrawingIssued(dv.project_id, drawingInfo?.drawing_number||'', drawingInfo?.drawing_name||'', dv.revision||'')
+          .catch(e => console.warn('[drawings] notifyDrawingIssued swallowed:', e.message));
+      } catch(e) { console.error('[drawings] Notify error:', e.message); }
     }
 
+    // Mark project BOQ checklist for this stream when a drawing is approved+issued.
+    // Onboarding is required at module scope — see top of file.
     if (newStatus === 'issued') {
-      const Onboarding = require('../../onboarding/contract');
       if (dv.stream === 'design') {
         await Onboarding.functions.setChecklistFlag(dv.project_id, 'checklist_design_boq');
       } else {

@@ -28,6 +28,11 @@ const { validators } = require('../../../middleware/validate');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const sequence = require('../../../services/sequence');
 const audit    = require('../../../services/audit');
+// Cross-module contracts — hoisted to module scope (no circular deps).
+// Onboarding: setChecklistFlag used inside BOQ upload transaction.
+const Onboarding = require('../../onboarding/contract');
+// Auth: bulk user hydration for GET /boq/versions uploaded_by field.
+const Auth = require('../../auth/contract');
 const router  = express.Router();
 
 // GET /api/materials/:project_id/boq — get BOQ items for dropdown
@@ -167,8 +172,8 @@ router.post('/:project_id/boq/upload', requireAuth, requireProjectScope(),
         cnt++;
       }
 
-      // Update project checklist inside the same transaction
-      const Onboarding = require('../../onboarding/contract');
+      // Update project checklist inside the same transaction.
+      // Onboarding is required at module scope — see top of file.
       if (boqStream === 'design') {
         await Onboarding.functions.setChecklistFlag(pid, 'checklist_design_boq', conn);
       } else {
@@ -303,7 +308,7 @@ router.get('/:project_id/boq/versions', requireAuth,
        ORDER BY bv.stream, bv.version_number DESC`,
       [req.params.project_id]
     );
-    const Auth = require('../../auth/contract');
+    // Auth is required at module scope — see top of file.
     const users = await Auth.functions.getUsers(versions.map(v => v.uploaded_by).filter(Boolean));
     versions.forEach(v => { v.uploaded_by_name = users.get(v.uploaded_by)?.full_name || null; });
     res.json({ versions });
