@@ -140,7 +140,7 @@ const UI = {
   },
 
   fmtDate(d) {
-    if (!d) return '—';
+    if (!d) return '-';
     let dateStr = '';
     if (d instanceof Date) {
       const year = d.getFullYear();
@@ -149,12 +149,13 @@ const UI = {
       dateStr = `${year}-${month}-${day}`;
     } else {
       const s = String(d).trim();
+      if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined' || s === '0000-00-00') return '-';
       dateStr = s.includes('T') ? s.split('T')[0] : s;
     }
     const parsed = new Date(dateStr + 'T00:00:00');
     if (isNaN(parsed.getTime())) {
       const direct = new Date(d);
-      return isNaN(direct.getTime()) ? '—' : direct.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+      return isNaN(direct.getTime()) ? '-' : direct.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
     }
     return parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
   },
@@ -169,6 +170,7 @@ const UI = {
       dateStr = `${year}-${month}-${day}`;
     } else {
       const s = String(d).trim();
+      if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined' || s === '0000-00-00') return '';
       dateStr = s.includes('T') ? s.split('T')[0] : s;
     }
     const parsed = new Date(dateStr + 'T00:00:00');
