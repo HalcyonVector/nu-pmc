@@ -199,6 +199,13 @@ function requireProjectScope(getProjectId) {
     const me = req.session?.user;
     if (!me) return res.status(401).json({ error: 'Not authenticated' });
 
+    if (me.role === 'it_admin') {
+      return res.status(403).json({
+        error: 'IT Admin has no project access',
+        code:  'PROJECT_SCOPE_DENIED',
+      });
+    }
+
     const pid = parseInt(extract(req), 10);
 
     // Firm-wide roles — no scope check, but still enforce closed-project guard.
@@ -296,6 +303,13 @@ function requireScopeFromEntity(table, idParam = 'id') {
   return async (req, res, next) => {
     const me = req.session?.user;
     if (!me) return res.status(401).json({ error: 'Not authenticated' });
+
+    if (me.role === 'it_admin') {
+      return res.status(403).json({
+        error: 'IT Admin has no project access',
+        code:  'PROJECT_SCOPE_DENIED',
+      });
+    }
 
     const id = parseInt(req.params[idParam], 10);
     if (!id) return res.status(400).json({ error: `${idParam} required` });

@@ -413,3 +413,20 @@ describe('GET /api/project-setup/:id/checklist', () => {
     expect(item103.is_complete).toBe(false);
   });
 });
+
+// ── IT ADMIN PROJECT VISIBILITY RESTRICTIONS
+describe('IT Admin project access restrictions', () => {
+  test('GET /api/projects returns empty project list for it_admin', async () => {
+    const app = makeApp('it_admin', [['/api/projects', require('../modules/onboarding/routes/projects')]]);
+    const res = await request(app).get('/api/projects');
+    expect(res.status).toBe(200);
+    expect(res.body.projects).toEqual([]);
+  });
+
+  test('GET /api/projects/:id returns 403 Access Denied for it_admin', async () => {
+    const app = makeApp('it_admin', [['/api/projects', require('../modules/onboarding/routes/projects')]]);
+    const res = await request(app).get('/api/projects/1');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('IT Admin has no project access');
+  });
+});

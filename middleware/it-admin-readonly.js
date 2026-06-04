@@ -1,8 +1,8 @@
 // middleware/it-admin-readonly.js
 //
-// it_admin is the IT support role. They can VIEW everything to diagnose
-// issues, but they cannot WRITE to project data — drawings, schedules,
-// payments, BOQ, weekly reports, etc.
+// it_admin is the IT support role. They manage system-level operations and
+// user accounts, but they have no project-scoped access or project data visibility
+// (they are excluded from project data queries and receive 403 on project scope).
 //
 // What it_admin CAN write to (system-level only):
 //   - /auth (password reset, change-password)
@@ -11,7 +11,7 @@
 //   - /system (system config endpoints — feature flags, etc.)
 //   - /governance (governance sheet management)
 //
-// Anything else: GET allowed, write blocked with 403.
+// Anything else: GET allowed (for non-project system diagnostic queries), write blocked with 403.
 //
 // Mounted at /api in server.js, so req.path comes in WITHOUT the /api prefix.
 // Paths here are therefore '/payments' not '/api/payments'.

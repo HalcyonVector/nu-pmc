@@ -13,7 +13,10 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
     let rows;
 
-    if (PROJECT_SCOPED_ROLES.includes(me.role)) {
+    if (me.role === 'it_admin') {
+      // IT Admin has no project context/visibility
+      rows = [];
+    } else if (PROJECT_SCOPED_ROLES.includes(me.role)) {
       // Project-scoped roles see only projects they are assigned to,
       // and only those still active. Bug B1: previously this query
       // showed completed projects too, mirroring the session-cache leak
