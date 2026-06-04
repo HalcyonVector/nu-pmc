@@ -8,6 +8,18 @@ function readCookie(name) {
   return m ? decodeURIComponent(m[1]) : '';
 }
 
+function uploadedFileUrl(value, defaultSubdir = '') {
+  if (!value) return '';
+  const raw = String(value).replace(/\\/g, '/');
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('/api/files/')) return raw;
+  const clean = raw.split(/[?#]/)[0];
+  const match = clean.match(/(?:^|\/)uploads\/([^/]+)\/([^/]+)$/i);
+  const subdir = match ? match[1] : defaultSubdir;
+  const filename = match ? match[2] : clean.split('/').pop();
+  if (!subdir || !filename) return raw.startsWith('/') ? raw : '/' + raw;
+  return `/api/files/${encodeURIComponent(subdir)}/${encodeURIComponent(filename)}`;
+}
+
 // Fire-and-forget client-side error reporter. Posts non-2xx responses (and
 // network/parse failures) to /api/log/client-error so a Principal can review
 // what's broken. Rate-limited per (method,path) to one report every 30s
@@ -42,6 +54,8 @@ function reportClientError(info) {
 }
 
 const API = {
+  fileUrl: uploadedFileUrl,
+
   async call(method, path, data, isForm = false, _retried = false) {
     // AUDIT ROLE INTERCEPT — read-only test account. Block non-GET at the client
     // so buttons fail gracefully with a toast rather than a backend 403.

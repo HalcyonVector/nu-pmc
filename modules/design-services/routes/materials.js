@@ -28,6 +28,7 @@ const { validators } = require('../../../middleware/validate');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const sequence = require('../../../services/sequence');
 const audit    = require('../../../services/audit');
+const fileUrls = require('../../../services/file-url');
 // Cross-module contracts — hoisted to module scope (no circular deps).
 // Onboarding: setChecklistFlag used inside BOQ upload transaction.
 const Onboarding = require('../../onboarding/contract');
@@ -310,7 +311,10 @@ router.get('/:project_id/boq/versions', requireAuth,
     );
     // Auth is required at module scope — see top of file.
     const users = await Auth.functions.getUsers(versions.map(v => v.uploaded_by).filter(Boolean));
-    versions.forEach(v => { v.uploaded_by_name = users.get(v.uploaded_by)?.full_name || null; });
+    versions.forEach(v => {
+      v.uploaded_by_name = users.get(v.uploaded_by)?.full_name || null;
+      v.file_url = fileUrls.fileUrl(v.file_path);
+    });
     res.json({ versions });
   }));
 

@@ -15,6 +15,7 @@ const REPORT_READER_ROLES = [
 ];
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
+const fileUrls = require('../../../services/file-url');
 const router  = express.Router();
 
 // GET /api/reports/:project_id — list all weekly reports
@@ -30,6 +31,7 @@ router.get('/:project_id', requireAuth, requireRole(...REPORT_READER_ROLES), asy
     reports.forEach(r => {
       r.drafted_by_name  = users.get(r.drafted_by)?.full_name || null;
       r.approved_by_name = users.get(r.approved_by)?.full_name || null;
+      r.pdf_url = fileUrls.fileUrl(r.pdf_path);
     });
     res.json({ reports });
   }));
@@ -308,6 +310,7 @@ router.get('/:project_id/weekly/documents', requireAuth, requireRole(...REPORT_R
     docs.forEach(d => {
       d.uploaded_by_name  = users.get(d.uploaded_by)?.full_name || null;
       d.generated_by_name = users.get(d.generated_by)?.full_name || null;
+      d.file_url = fileUrls.fileUrl(d.file_path);
     });
     res.json({ documents: docs });
   }));

@@ -7,6 +7,7 @@ const { requireAuth, requireProjectScope } = require('../../../middleware/auth')
 const { upload, compressPhoto, getFileSize } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
+const fileUrls = require('../../../services/file-url');
 const router  = express.Router();
 
 // GET /api/photos/:project_id — get photos for a project/date
@@ -61,7 +62,10 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
     // so the frontend can show "Defect SNAG-0042" alongside the photo.
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(photos.map(p => p.uploaded_by).filter(Boolean));
-    photos.forEach(p => { p.uploaded_by_name = users.get(p.uploaded_by)?.full_name || null; });
+    photos.forEach(p => {
+      p.uploaded_by_name = users.get(p.uploaded_by)?.full_name || null;
+      p.file_url = fileUrls.fileUrl(p.file_path);
+    });
 
     const issueIds = [...new Set(photos
       .filter(p => p.entity_type === 'issue' && p.entity_id)
@@ -204,7 +208,10 @@ router.get('/:project_id/documents', requireAuth, requireProjectScope(), asyncHa
     );
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(docs.map(d => d.uploaded_by).filter(Boolean));
-    docs.forEach(d => { d.uploaded_by_name = users.get(d.uploaded_by)?.full_name || null; });
+    docs.forEach(d => {
+      d.uploaded_by_name = users.get(d.uploaded_by)?.full_name || null;
+      d.file_url = fileUrls.fileUrl(d.file_path);
+    });
     res.json({ documents: docs });
   }));
 

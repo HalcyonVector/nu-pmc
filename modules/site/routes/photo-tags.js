@@ -18,6 +18,7 @@ const { requireAuth } = require('../../../middleware/auth');
 const { canTagPhotos, resolveEffectiveRoles } = require('../../../middleware/delegation');
 const ai      = require('../../../services/ai');
 const asyncHandler = require('../../../middleware/asyncHandler');
+const fileUrls = require('../../../services/file-url');
 const router  = express.Router();
 
 // Helper — fetch photo with current tag
@@ -209,7 +210,10 @@ router.get('/disputes/:project_id', requireAuth, asyncHandler(async (req, res) =
     );
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(rows.map(r => r.human_tagger_id).filter(Boolean));
-    rows.forEach(r => { r.human_tagger = users.get(r.human_tagger_id)?.full_name || null; });
+    rows.forEach(r => {
+      r.human_tagger = users.get(r.human_tagger_id)?.full_name || null;
+      r.file_url = fileUrls.fileUrl(r.file_path);
+    });
     res.json({ disputes: rows });
   }));
 

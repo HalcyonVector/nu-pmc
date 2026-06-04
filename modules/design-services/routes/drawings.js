@@ -11,6 +11,7 @@ const ai = require('../../../services/ai');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const sequence = require('../../../services/sequence');
 const audit = require('../../../services/audit');
+const fileUrls = require('../../../services/file-url');
 // Onboarding contract — hoisted to module scope (no circular dependency:
 // design-services → onboarding.contract only; onboarding routes → design-services.contract).
 const Onboarding = require('../../onboarding/contract');
@@ -694,9 +695,7 @@ router.get('/view/:version_id', requireAuth, asyncHandler(async (req, res) => {
       return res.status(403).json({ error: 'Drawing not yet issued to site' });
     }
 
-    // Extract filename from path
-    const path2    = require('path');
-    const filename = path2.basename(dv.file_path || '');
+    const parts = fileUrls.uploadedFileParts(dv.file_path || '', 'drawings');
 
     res.json({
       drawing_number: dv.drawing_number,
@@ -706,8 +705,8 @@ router.get('/view/:version_id', requireAuth, asyncHandler(async (req, res) => {
       stream:         dv.stream,
       uploaded_by:    dv.uploaded_by_name,
       uploaded_at:    dv.created_at,
-      view_url:       `/api/files/drawings/${filename}`,
-      filename,
+      view_url:       fileUrls.fileUrl(dv.file_path, { defaultSubdir: 'drawings' }),
+      filename:       parts?.filename || null,
     });
   }));
 

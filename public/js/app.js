@@ -2893,7 +2893,7 @@ Tomorrow: start formwork on next bay."
               <div style="font-size:16px;font-weight:600;color:#1A2332">Week ${rep.week_number} — ${rep.project_code}</div>
               <div style="font-size:12px;color:#657B90;margin-top:2px">Ending ${rep.week_ending} · Status: ${rep.status}</div>
             </div>
-            ${rep.pdf_path ? `<a class="btn-secondary" href="/${rep.pdf_path.replace(/^.*uploads\//,'uploads/')}" target="_blank">Download PDF</a>` : ''}
+            ${rep.pdf_url || rep.pdf_path ? `<a class="btn-secondary" href="${API.fileUrl(rep.pdf_url || rep.pdf_path, 'documents')}" target="_blank">Download PDF</a>` : ''}
           </div>
 
           <div class="signoff-chain">
@@ -2979,7 +2979,7 @@ Tomorrow: start formwork on next bay."
     for (const d of disputes) {
       html += `
         <div class="card" style="display:flex;gap:16px;align-items:flex-start">
-          <img src="/${d.file_path.replace(/^.*uploads\//,'uploads/')}"
+          <img src="${API.fileUrl(d.file_url || d.file_path, 'photos')}"
                alt="Drawing ${UI.escapeAttr(d.drawing_number)}: ${UI.escapeAttr(d.name)}"
                style="width:160px;height:120px;object-fit:cover;border-radius:8px;flex-shrink:0"
                onerror="this.style.display='none'">
@@ -3722,7 +3722,7 @@ Tomorrow: start formwork on next bay."
           ? `<div style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:${pipColor};border:2px solid #fff;box-shadow:0 0 2px rgba(0,0,0,0.4)" title="${p.linked_issue?.issue_number||'Defect'}"></div>`
           : '';
         html += `<button style="min-height:44px;position:relative;width:60px;height:60px;cursor:pointer" onclick="APP.openPhotoViewer(${pid}, ${p.id}, ${i})">
-          <img src="/${p.file_path}" alt="Site photo ${i+1}" style="width:60px;height:60px;border-radius:var(--r);object-fit:cover;border:1px solid var(--border)" onerror="this.style.background='var(--bg)'">
+          <img src="${API.fileUrl(p.file_url || p.file_path, 'photos')}" alt="Site photo ${i+1}" style="width:60px;height:60px;border-radius:var(--r);object-fit:cover;border:1px solid var(--border)" onerror="this.style.background='var(--bg)'">
           ${defectPip}
           <div style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.7);font-size:8px;color:#fff;padding:1px 3px;border-radius:2px;font-family:var(--mono)">${i+1}</div>
         </button>`;
@@ -3770,7 +3770,7 @@ Tomorrow: start formwork on next bay."
 
     UI.showModal('Photo', `
       <div style="text-align:center;margin-bottom:12px">
-        <img src="/${photo.file_path}" alt="Site photo" style="max-width:100%;max-height:60vh;border-radius:var(--r2);border:1px solid var(--border)">
+        <img src="${API.fileUrl(photo.file_url || photo.file_path, 'photos')}" alt="Site photo" style="max-width:100%;max-height:60vh;border-radius:var(--r2);border:1px solid var(--border)">
       </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
         Uploaded by ${uploadedBy} · ${dateStr}

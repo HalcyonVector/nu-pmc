@@ -98,7 +98,7 @@ const PDF_VIEWER = (() => {
     zoomOut() { scale = Math.max(scale - 0.25, 0.5); renderPage(pageNum); },
     loadFullRes() {
       const current = window._currentDrawingFullPath;
-      if (current) loadURL('/api/files/drawings/' + current, false);
+      if (current) loadURL(window.API?.fileUrl ? API.fileUrl(current, 'drawings') : current, false);
     },
   };
 })();

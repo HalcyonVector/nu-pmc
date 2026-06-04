@@ -16,6 +16,7 @@ const { hasEffectiveRole, requireGovernanceAuthority } = require('../../../middl
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
 const { PRINCIPALS } = require('../../../services/roles');
+const fileUrls = require('../../../services/file-url');
 const router  = express.Router();
 
 
@@ -43,6 +44,7 @@ router.get('/:report_id', requireAuth, asyncHandler(async (req, res) => {
     report.sig_design_name    = users.get(report.sig_design_by)?.full_name || null;
     report.sig_services_name  = users.get(report.sig_services_by)?.full_name || null;
     report.approved_by_name   = users.get(report.approved_by)?.full_name   || null;
+    report.pdf_url            = fileUrls.fileUrl(report.pdf_path);
 
     // Photos linked to this report
     const [photos] = await db.query(
@@ -55,6 +57,7 @@ router.get('/:report_id', requireAuth, asyncHandler(async (req, res) => {
        ORDER BY pp.photo_date`,
       [req.params.report_id]
     );
+    photos.forEach(p => { p.file_url = fileUrls.fileUrl(p.file_path); });
 
     res.json({ report, photos });
   }));

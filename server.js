@@ -34,7 +34,7 @@ const app = express();
 // Ensure upload directories exist on startup
 const fs = require('fs');
 const pth = require('path');
-['uploads', 'uploads/photos', 'uploads/documents', 'uploads/boq', 'uploads/drawings'].forEach(dir => {
+['uploads', 'uploads/photos', 'uploads/documents', 'uploads/boq', 'uploads/drawings', 'uploads/schedules', 'uploads/daily-reports', 'uploads/urgent-payments'].forEach(dir => {
   const fp = pth.join(__dirname, dir);
   if (!fs.existsSync(fp)) fs.mkdirSync(fp, { recursive: true });
 });
@@ -257,7 +257,7 @@ app.use('/outbox', express.static(OUTBOX_DIR, {
   // Content-Disposition ensures WhatsApp treats as download
   setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
 }));
-// Uploads served via /api/files/:filename — authenticated route only (not static)
+// Uploads served via /api/files/:subdir/:filename — authenticated route only (not static)
 
 // ── TRAINEE GUARD — read-only enforcement
 const { traineeGuard } = require('./middleware/trainee-guard');

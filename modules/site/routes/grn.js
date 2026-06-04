@@ -12,6 +12,7 @@ const notif         = require('../../../services/notifications');
 const sequence      = require('../../../services/sequence');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
+const fileUrls = require('../../../services/file-url');
 
 router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
     const [grns] = await db.query(`
@@ -20,7 +21,11 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
     );
     const Onboarding = require('../../onboarding/contract');
     const engs = await Onboarding.functions.getEngagementsByIds(grns.map(g => g.engagement_id));
-    grns.forEach(g => { g.vendor_name = engs.get(g.engagement_id)?.vendor_name || null; });
+    grns.forEach(g => {
+      g.vendor_name = engs.get(g.engagement_id)?.vendor_name || null;
+      g.delivery_note_url = fileUrls.fileUrl(g.delivery_note_path);
+      g.invoice_url = fileUrls.fileUrl(g.invoice_path);
+    });
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(
       grns.flatMap(g => [g.raised_by, g.approved_by].filter(Boolean))
@@ -100,7 +105,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
       const grnValue      = validQty * validUnitRate;
       const deliveryNotePath = req.files?.delivery_note?.[0]?.path;
       const deliveryNoteUrl = deliveryNotePath
-        ? `${process.env.APP_BASE_URL}/api/files/` + require('path').basename(deliveryNotePath)
+        ? fileUrls.fileUrl(deliveryNotePath, { absolute: true })
         : null;
 
       // v6.02 audit decision: GRN is FYI only — no PMC approval poll.
