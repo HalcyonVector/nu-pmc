@@ -153,22 +153,33 @@ const APP = {
 
   async init() {
     // Register service worker — force update on every load to prevent stale JS
+    const isLocalhost = Boolean(
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '[::1]' ||
+      window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
+    );
     if ('serviceWorker' in navigator) {
-      // Clear ALL caches on boot to prevent stale JS from being served
-      if (window.caches) {
-        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
-      }
-      navigator.serviceWorker.register('/sw.js').then(reg => {
-        // If a new SW is waiting, tell it to activate immediately
-        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
-        reg.addEventListener('updatefound', () => {
-          const nw = reg.installing;
-          if (nw) nw.addEventListener('statechange', () => {
-            if (nw.state === 'activated') location.reload();
+      if (isLocalhost) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) reg.unregister();
+        }).catch(() => {});
+      } else {
+        // Clear ALL caches on boot to prevent stale JS from being served
+        if (window.caches) {
+          caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+        }
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+          // If a new SW is waiting, tell it to activate immediately
+          if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+          reg.addEventListener('updatefound', () => {
+            const nw = reg.installing;
+            if (nw) nw.addEventListener('statechange', () => {
+              if (nw.state === 'activated') location.reload();
+            });
           });
-        });
-        reg.update(); // Force check for new SW
-      }).catch(console.error);
+          reg.update(); // Force check for new SW
+        }).catch(console.error);
+      }
     }
 
     // PWA install prompt — capture and show custom banner
@@ -675,7 +686,7 @@ const APP = {
     const now = Date.now();
     if (!APP._needsYouAt || (now - APP._needsYouAt) > 30000) {
       try {
-        APP._needsYou = await API.get('/needs-you/me');
+        APP._needsYou = await API.get(`/needs-you/me?_cb=${Date.now()}`);
         APP._needsYouAt = now;
       } catch (_e) { APP._needsYou = null; }
     }
@@ -686,7 +697,7 @@ const APP = {
     if (isSiteManager && APP.state.selectedProject) {
       if (!APP._todayReportAt || (now - APP._todayReportAt) > 30000) {
         try {
-          APP._todayReport = await API.get(`/daily-reports/${APP.state.selectedProject}/today`);
+          APP._todayReport = await API.get(`/daily-reports/${APP.state.selectedProject}/today?_cb=${Date.now()}`);
           APP._todayReportAt = now;
         } catch (_e) { APP._todayReport = null; }
       }
