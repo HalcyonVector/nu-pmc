@@ -219,8 +219,8 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
-  // ─── Design Head ───────────────────────────────────────────────────
-  else if (role === 'design_head') {
+  // ─── Design Head / Detailing Head (mirrored baselines) ──────────────
+  else if (role === 'design_head' || role === 'detailing_head') {
     const DS = require('../../design-services/contract');
     const [draws, subs, mats] = await Promise.all([
       DS.functions.countDrawingVersionsMulti(projectIds, ['pending_l2'], 'design'),

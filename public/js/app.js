@@ -234,6 +234,12 @@ const APP = {
   },
 
   showApp() {
+    // Clear cached Needs You and Today's Report data to force fresh fetch on user/role swap
+    APP._needsYou = null;
+    APP._needsYouAt = null;
+    APP._todayReport = null;
+    APP._todayReportAt = null;
+
     // Force password change on first login
     if (APP.user.must_change_password) {
       APP.showForceChangePassword();
@@ -441,7 +447,7 @@ const APP = {
       document.getElementById('tabs-bar').innerHTML =
         `<button class="breadcrumb-bar" style="min-height:44px" onclick="APP.switchBucket('${APP._activeBucket}')">` +
           `<span class="bc-bucket">${bucketLabel}</span>` +
-        `</div>`;
+        `</button>`;
       APP._renderBucketAccordion(APP._activeBucket, bucket);
       return;
     }
@@ -1105,10 +1111,46 @@ Tomorrow: start formwork on next bay."
     if (!Object.values(ac).some(a => a.length))
       html += `<div class="action-item c-green" style="width:100%"><div class="ai-icon">✅</div><div class="ai-body"><div class="ai-title">All clear</div><div class="ai-meta">No urgent actions</div></div></div>`;
 
-    html += `<div class="sec-label">Projects</div>`;
-    html += `<div class="projects-grid">`;
-    (data.projects || []).forEach(p => { html += APP.projectCard(p, true); });
-    html += `</div>`;
+    const projects = data.projects || [];
+    if (!projects.length) {
+      html += `<div class="sec-label">Projects</div>`;
+      html += UI.empty('🏗','No projects yet');
+    } else {
+      const initialising = [];
+      const active = [];
+      const completed = [];
+
+      projects.forEach(p => {
+        const isChecklistComplete = !!(p.checklist_project_created && p.checklist_design_boq &&
+                                       p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager);
+        if (['completed', 'on_hold'].includes(p.status)) {
+          completed.push(p);
+        } else if (p.status === 'initialising' || !isChecklistComplete) {
+          initialising.push(p);
+        } else {
+          active.push(p);
+        }
+      });
+
+      if (active.length) {
+        html += `<div class="sec-label" style="margin-top:16px; margin-bottom:8px">Active Projects (${active.length})</div>`;
+        html += `<div class="projects-grid">`;
+        active.forEach(p => { html += APP.projectCard(p, true); });
+        html += `</div>`;
+      }
+      if (initialising.length) {
+        html += `<div class="sec-label" style="margin-top:24px; margin-bottom:8px">Initialising Projects (${initialising.length})</div>`;
+        html += `<div class="projects-grid">`;
+        initialising.forEach(p => { html += APP.projectCard(p, true); });
+        html += `</div>`;
+      }
+      if (completed.length) {
+        html += `<div class="sec-label" style="margin-top:24px; margin-bottom:8px">Completed & Archived Projects (${completed.length})</div>`;
+        html += `<div class="projects-grid">`;
+        completed.forEach(p => { html += APP.projectCard(p, true); });
+        html += `</div>`;
+      }
+    }
 
     el.innerHTML = html;
   },
@@ -1126,12 +1168,44 @@ Tomorrow: start formwork on next bay."
       ${isPrincipal ? `<button class="btn-primary projects-new-btn" onclick="APP.showCreateProject()">+ New Project</button>` : ''}
     </div>`;
 
-    if (!data.projects?.length) {
+    const projects = data.projects || [];
+    if (!projects.length) {
       html += UI.empty('🏗','No projects yet');
     } else {
-      html += `<div class="projects-grid">`;
-      data.projects.forEach(p => { html += APP.projectCard(p, false); });
-      html += `</div>`;
+      const initialising = [];
+      const active = [];
+      const completed = [];
+
+      projects.forEach(p => {
+        const isChecklistComplete = !!(p.checklist_project_created && p.checklist_design_boq &&
+                                       p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager);
+        if (['completed', 'on_hold'].includes(p.status)) {
+          completed.push(p);
+        } else if (p.status === 'initialising' || !isChecklistComplete) {
+          initialising.push(p);
+        } else {
+          active.push(p);
+        }
+      });
+
+      if (active.length) {
+        html += `<div class="sec-label" style="margin-top:16px; margin-bottom:8px">Active Projects (${active.length})</div>`;
+        html += `<div class="projects-grid">`;
+        active.forEach(p => { html += APP.projectCard(p, false); });
+        html += `</div>`;
+      }
+      if (initialising.length) {
+        html += `<div class="sec-label" style="margin-top:24px; margin-bottom:8px">Initialising Projects (${initialising.length})</div>`;
+        html += `<div class="projects-grid">`;
+        initialising.forEach(p => { html += APP.projectCard(p, false); });
+        html += `</div>`;
+      }
+      if (completed.length) {
+        html += `<div class="sec-label" style="margin-top:24px; margin-bottom:8px">Completed & Archived Projects (${completed.length})</div>`;
+        html += `<div class="projects-grid">`;
+        completed.forEach(p => { html += APP.projectCard(p, false); });
+        html += `</div>`;
+      }
     }
     html += `</div>`;
     el.innerHTML = html;
@@ -3963,40 +4037,86 @@ Tomorrow: start formwork on next bay."
     APP.renderDocuments();
   },
 
+  handleMonthlyProjectSelect(id) {
+    APP.state.selectedMonthlyProject = id;
+    APP.renderMonthly();
+  },
+
   // ── MONTHLY OVERVIEW
   async renderMonthly() {
     const el   = UI.contentEl();
     const data = await API.getProjects();
-    const projects = (data?.projects || []).filter(p => p.status === 'active' || p.status === 'at-risk');
-    let html = '';
-    projects.forEach(p => {
+    const projects = (data?.projects || []).filter(p => p.status !== 'completed' && p.status !== 'on_hold');
+
+    const isPrincipalOrMgmt = ['principal', 'design_principal', 'pmc_head', 'design_head', 'services_head'].includes(APP.user.role);
+    if (!APP.state.selectedMonthlyProject) {
+      APP.state.selectedMonthlyProject = isPrincipalOrMgmt ? 'all' : (APP.state.selectedProject || 'all');
+    }
+
+    // Generate selector dropdown HTML
+    let selectHtml = `
+    <div class="card" style="margin-bottom:16px; display:flex; flex-direction:column; gap:8px">
+      <div style="font-size:11px; font-weight:bold; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px">Select Project View</div>
+      <div style="position:relative; width:100%">
+        <select id="monthly-project-select" style="padding:8px 30px 8px 12px; border-radius:6px; border:1px solid #ddd; font-size:14px; width:100%; color:var(--text); background: #fff; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none" onchange="APP.handleMonthlyProjectSelect(this.value)">
+          <option value="all" ${APP.state.selectedMonthlyProject === 'all' ? 'selected' : ''}>All Projects (Portfolio View)</option>
+          ${projects.map(proj => `<option value="${proj.id}" ${String(proj.id) === String(APP.state.selectedMonthlyProject) ? 'selected' : ''}>${UI.escapeText(proj.name)}</option>`).join('')}
+        </select>
+        <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--muted); font-size:12px">▼</div>
+      </div>
+    </div>
+    `;
+
+    let contentHtml = '';
+    const renderProjectCard = (p) => {
       const trades = Object.entries(p.trades || {});
-      if (!trades.length) return;
-      html += `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px">
+      const tradesHtml = trades.length > 0
+        ? trades.map(([trade, pct]) => {
+            const col = TRADE_COLORS[trade] || '#5a5a5a';
+            return `<div class="prog-row">
+              <div class="prog-label" style="font-size:12px">${trade.split(' ')[0]}</div>
+              <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
+              <div class="prog-pct" style="font-size:12px">${pct}%</div>
+            </div>`;
+          }).join('')
+        : `<div style="font-size:13px; color:var(--muted); margin: 8px 0; font-style: italic">No discipline progress available</div>`;
+
+      return `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
           <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${p.name}</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--mono)">R0 end: ${UI.fmtDate(p.r0_end_date)}</div>
+            <div style="font-size:15px;font-weight:600;color:var(--text)">${p.name}</div>
+            <div style="font-size:13px;color:var(--navy);font-weight:bold;margin-top:4px">Overall Progress: ${p.avg_pct || 0}%</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--mono)">R0 end: ${UI.fmtDate(p.r0_end_date)}</div>
           </div>
           ${UI.statusBadge(p.status)}
         </div>
-        ${trades.map(([trade,pct])=>{
-          const col=TRADE_COLORS[trade]||'#5a5a5a';
-          return `<div class="prog-row">
-            <div class="prog-label">${trade.split(' ')[0]}</div>
-            <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
-            <div class="prog-pct">${pct}%</div>
-          </div>`;
-        }).join('')}
+        ${tradesHtml}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px">
-          <div><span style="font-family:var(--mono);font-size:14px;font-weight:600;color:${(p.stats?.open_queries||0)>0?'#c8a040':'var(--text)'}">${p.stats?.open_queries||0}</span><span style="font-size:10px;color:var(--muted);margin-left:4px">Queries</span></div>
-          <div><span style="font-family:var(--mono);font-size:14px;font-weight:600;color:${(p.stats?.flagged_tasks||0)>0?'#c87060':'var(--text)'}">${p.stats?.flagged_tasks||0}</span><span style="font-size:10px;color:var(--muted);margin-left:4px">Flags</span></div>
-          <div><span style="font-family:var(--mono);font-size:14px;font-weight:600;color:${(p.stats?.overdue_materials||0)>0?'#c87060':'var(--text)'}">${p.stats?.overdue_materials||0}</span><span style="font-size:10px;color:var(--muted);margin-left:4px">Overdue</span></div>
+          <div><span style="font-family:var(--mono);font-size:16px;font-weight:600;color:${(p.stats?.open_queries||0)>0?'#c8a040':'var(--text)'}">${p.stats?.open_queries||0}</span><span style="font-size:12px;color:var(--muted);margin-left:4px">Queries</span></div>
+          <div><span style="font-family:var(--mono);font-size:16px;font-weight:600;color:${(p.stats?.flagged_tasks||0)>0?'#c87060':'var(--text)'}">${p.stats?.flagged_tasks||0}</span><span style="font-size:12px;color:var(--muted);margin-left:4px">Flags</span></div>
+          <div><span style="font-family:var(--mono);font-size:16px;font-weight:600;color:${(p.stats?.overdue_materials||0)>0?'#c87060':'var(--text)'}">${p.stats?.overdue_materials||0}</span><span style="font-size:12px;color:var(--muted);margin-left:4px">Overdue</span></div>
         </div>
       </div>`;
-    });
-    if (!html) html = UI.empty('📊','No active projects');
-    el.innerHTML = html;
+    };
+
+    if (APP.state.selectedMonthlyProject === 'all') {
+      if (projects.length === 0) {
+        contentHtml = UI.empty('📊', 'No active projects');
+      } else {
+        projects.forEach(p => {
+          contentHtml += renderProjectCard(p);
+        });
+      }
+    } else {
+      const selectedProj = projects.find(p => String(p.id) === String(APP.state.selectedMonthlyProject));
+      if (selectedProj) {
+        contentHtml = renderProjectCard(selectedProj);
+      } else {
+        contentHtml = UI.empty('📊', 'Selected project not found');
+      }
+    }
+
+    el.innerHTML = selectHtml + contentHtml;
   },
 
   // ── REPORTS
@@ -6807,9 +6927,11 @@ APP.renderUsers = async function() {
           <div class="card-title">${UI.escapeText(u.full_name)}</div>
           <div class="card-meta">${APP._roleLabel(u.role)} · ${u.email||u.phone||'—'}</div>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-          <span class="badge b-green">Active</span>
-          ${canReset ? `<button class="btn-sm" onclick="APP.resetUserPassword(${u.id},'${UI.escapeText(u.full_name)}')" style="background:var(--bg);color:var(--navy);border:1px solid var(--border)">Reset pw</button>` : ''}
+        <div style="display:flex;gap:12px;flex-shrink:0;align-items:center;justify-content:flex-end;width:182px">
+          <span class="badge b-green" style="height:32px;min-height:32px;width:80px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;margin:0;font-weight:600;font-size:11px;letter-spacing:0.5px">ACTIVE</span>
+          <div style="width:90px;height:32px;display:inline-flex;align-items:center;justify-content:flex-end;flex-shrink:0">
+            ${canReset ? `<button class="btn-sm" onclick="APP.resetUserPassword(${u.id},'${UI.escapeText(u.full_name)}')" style="background:var(--bg);color:var(--navy);border:1px solid var(--border);height:32px;min-height:32px;padding:0;width:100%;font-size:11px;font-weight:600;box-sizing:border-box;margin:0;display:inline-flex;align-items:center;justify-content:center">Reset PW</button>` : ''}
+          </div>
         </div>
       </div>
     </div>`;
@@ -8133,10 +8255,30 @@ APP.runComplianceCheck = async function(pid) {
 // Backend returns `summary.buttons` already filtered + counted per role.
 // Team roster and team-count stat are dropped for all roles.
 // Approvals button opens an inline 5-tab strip with category counts.
+APP.handleProjectSummarySelect = function(id) {
+  APP.state.selectedProject = id;
+  if (APP._updateTopbar) APP._updateTopbar();
+  APP.renderProjectDetail();
+};
+
 APP.renderProjectDetail = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('🏗️','Select a project'); return; }
+
+  const projectsData = await API.getProjects();
+  const projectsList = (projectsData && projectsData.projects) ? projectsData.projects : [];
+
+  if (!projectsList.length) {
+    el.innerHTML = UI.empty('🏗️', 'No projects found');
+    return;
+  }
+
+  let currentPid = APP.state.selectedProject;
+  if (!currentPid || !projectsList.some(proj => String(proj.id) === String(currentPid))) {
+    currentPid = projectsList[0].id;
+    APP.state.selectedProject = currentPid;
+  }
+
+  const pid = currentPid;
 
   const data = await API.get(`/projects/${pid}`);
   if (!data) return;
@@ -8163,6 +8305,16 @@ APP.renderProjectDetail = async function() {
   };
 
   let html = `
+  <div class="card" style="margin-bottom:16px; display:flex; flex-direction:column; gap:8px">
+    <div style="font-size:11px; font-weight:bold; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px">Select Project</div>
+    <div style="position:relative; width:100%">
+      <select id="ps-project-select" style="padding:8px 30px 8px 12px; border-radius:6px; border:1px solid #ddd; font-size:14px; width:100%; color:var(--text); background: #fff; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none" onchange="APP.handleProjectSummarySelect(this.value)">
+        ${projectsList.map(proj => `<option value="${proj.id}" ${String(proj.id) === String(pid) ? 'selected' : ''}>${UI.escapeText(proj.name)} (${proj.code})</option>`).join('')}
+      </select>
+      <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--muted); font-size:12px">▼</div>
+    </div>
+  </div>
+
   <div class="card" style="margin-bottom:16px">
     <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">${p.name||'—'}</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px">${p.client_name||p.client||'—'}</div>
@@ -9070,6 +9222,10 @@ APP.switchActingRole = async function(role) {
   APP._nav = null;
   APP._activeBucket = null;
   APP.currentTab = null;
+  APP._needsYou = null;
+  APP._needsYouAt = null;
+  APP._todayReport = null;
+  APP._todayReportAt = null;
   APP._updateTopbar();
   await APP.buildTabs();
 };

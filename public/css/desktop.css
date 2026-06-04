@@ -290,8 +290,9 @@
   /* ── PROJECT CARDS IN 2-COL GRID ──────────────────────── */
   .projects-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 400px));
+    gap: 24px;
+    justify-content: start;
   }
 
   /* ── CARDS ────────────────────────────────────────────── */

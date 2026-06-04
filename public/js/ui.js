@@ -141,11 +141,42 @@ const UI = {
 
   fmtDate(d) {
     if (!d) return '—';
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+    let dateStr = '';
+    if (d instanceof Date) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dateStr = `${year}-${month}-${day}`;
+    } else {
+      const s = String(d).trim();
+      dateStr = s.includes('T') ? s.split('T')[0] : s;
+    }
+    const parsed = new Date(dateStr + 'T00:00:00');
+    if (isNaN(parsed.getTime())) {
+      const direct = new Date(d);
+      return isNaN(direct.getTime()) ? '—' : direct.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+    }
+    return parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
   },
 
   fmtDay(d) {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' });
+    if (!d) return '';
+    let dateStr = '';
+    if (d instanceof Date) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dateStr = `${year}-${month}-${day}`;
+    } else {
+      const s = String(d).trim();
+      dateStr = s.includes('T') ? s.split('T')[0] : s;
+    }
+    const parsed = new Date(dateStr + 'T00:00:00');
+    if (isNaN(parsed.getTime())) {
+      const direct = new Date(d);
+      return isNaN(direct.getTime()) ? '' : direct.toLocaleDateString('en-IN', { weekday: 'short' });
+    }
+    return parsed.toLocaleDateString('en-IN', { weekday: 'short' });
   },
 
   todayIST() {

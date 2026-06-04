@@ -173,10 +173,11 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
     // Projects summary — also project-scoped for non-principals.
     const projectsFilter = isPrincipal
-      ? "WHERE p.status = 'active'"
-      : "WHERE p.status = 'active' AND p.id IN (?)";
+      ? "WHERE p.status IN ('active', 'initialising', 'on_hold', 'completed')"
+      : "WHERE p.status IN ('active', 'initialising', 'on_hold', 'completed') AND p.id IN (?)";
     const [projects] = await db.query(
       `SELECT p.id, p.code, p.name, p.status, p.r0_end_date, p.client, p.location,
+         p.checklist_project_created, p.checklist_design_boq, p.checklist_services_boq, p.checklist_schedule, p.checklist_site_manager,
          COUNT(DISTINCT dq.id) AS open_queries,
          COUNT(DISTINCT tu.id) AS open_flags,
          COUNT(DISTINCT cn.id) AS open_changes,
@@ -191,6 +192,24 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
        GROUP BY p.id`,
       isPrincipal ? [] : [scopedProjectIds]
     );
+
+    for (const p of projects) {
+      const [overMRows] = await db.query(
+        `SELECT COUNT(*) AS c FROM material_requests WHERE project_id = ? AND is_overdue = 1`,
+        [p.id]
+      );
+      const overM = overMRows[0];
+      const DS = require('../../design-services/contract');
+      const scheduleSummary = await DS.functions.getCurrentScheduleSummary(p.id);
+      const avg_pct = Math.round(parseFloat(scheduleSummary?.avg_pct_complete) || 0);
+
+      p.avg_pct = avg_pct;
+      p.stats = {
+        open_queries: p.open_queries || 0,
+        flagged_tasks: p.open_flags || 0,
+        overdue_materials: overM?.c || 0,
+      };
+    }
 
     res.json({
       action_centre: {

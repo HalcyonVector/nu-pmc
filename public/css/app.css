@@ -777,11 +777,13 @@ body {
 }
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 400px));
+  gap: 24px;
+  justify-content: start;
 }
 .projects-grid .proj-card {
   margin-bottom: 0;
+  width: 100%;
 }
 
 /* ── PROGRESS BARS ── */
@@ -1794,8 +1796,9 @@ a:focus-visible,
   .modal { max-width: 600px !important; }
   .projects-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 400px));
+    gap: 24px;
+    justify-content: start;
   }
   .bottom-nav .bb-item { flex-direction: row; gap: 8px; padding: 10px 8px; }
   .bottom-nav .bb-label { font-size: var(--text-sm); }
