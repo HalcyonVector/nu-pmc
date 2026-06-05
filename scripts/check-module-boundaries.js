@@ -23,11 +23,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const MODULES_DIR = path.join(ROOT, 'modules');
 
-// Files that are allowed to reach into module internals (migration-phase allowlist)
-const ALLOWED_INTERNAL_CALLERS = new Set([
-  'server.js',                          // route mounts
-  'middleware/auth.js',                 // backward-compat shim
-]);
+// Whitelist exceptions are restricted using precise, purpose-specific rules directly in the validation loop.
 
 function isInModule(filePath, moduleName) {
   const rel = path.relative(MODULES_DIR, filePath);
@@ -98,7 +94,14 @@ function main() {
           || rest === 'index.js'   || rest === 'index') continue;
 
       const relFile = path.relative(ROOT, file).replace(/\\/g, '/');
-      if (ALLOWED_INTERNAL_CALLERS.has(relFile)) continue;
+      const normalizedVia = rest.replace(/\\/g, '/');
+
+      // Narrow purpose-specific allowances:
+      // 1. server.js is only allowed to import module routes
+      if (relFile === 'server.js' && normalizedVia.startsWith('routes/')) continue;
+
+      // 2. middleware/auth.js is only allowed to import the auth module middleware
+      if (relFile === 'middleware/auth.js' && moduleName === 'auth' && normalizedVia.startsWith('middleware/auth')) continue;
 
       violations.push({
         file: relFile,
