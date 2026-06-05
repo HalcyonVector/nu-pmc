@@ -154,7 +154,9 @@ body {
 
 .topbar {
   background: var(--navy);
-  min-height: calc(52px + env(safe-area-inset-top, 0));
+  min-height: calc(56px + env(safe-area-inset-top, 0));
+  height: calc(56px + env(safe-area-inset-top, 0));
+  box-sizing: border-box;
   padding: env(safe-area-inset-top, 0) max(16px, calc((100% - 720px) / 2 + 16px)) 0;
   display: flex;
   align-items: center;
@@ -212,59 +214,59 @@ body {
   .tb-actions.show {
     display: flex;
   }
-  .topbar .tb-brand span {
-    display: none;
-  }
 }
 
 /* Small screens styling (<800px) */
 @media (max-width: 799px) {
   .topbar {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: auto auto;
-    gap: 8px 12px;
-    padding: 12px 16px !important;
+    display: flex;
+    flex-direction: row;
     align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px !important;
     min-height: auto !important;
   }
   .tb-left {
-    grid-column: 1;
-    grid-row: 1;
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .tb-sep {
-    display: none;
-  }
+  /* Hide the name/project context — logo left, buttons right is enough */
+  .tb-sep,
   .tb-ctx {
-    grid-column: 1 / span 3;
-    grid-row: 2;
-    max-width: 100%;
-    white-space: normal;
-    font-size: var(--text-xs);
-    color: rgba(255,255,255,0.7);
+    display: none !important;
   }
   .tb-right {
-    grid-column: 2 / span 2;
-    grid-row: 1;
     display: flex;
-    justify-content: flex-end;
     align-items: center;
     gap: 6px;
-    justify-self: end;
   }
 }
 .tb-left { display: flex; align-items: center; gap: 10px; }
 .tb-brand {
   font-family: var(--sans);
+  font-weight: 700;
+  letter-spacing: -.01em;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.tb-brand-name {
   font-size: 0.9375rem;
   font-weight: 700;
   color: var(--white);
-  letter-spacing: -.01em;
+  line-height: 1.1;
 }
-.tb-brand span { opacity: .55; font-weight: 400; }
+.tb-brand-sub {
+  font-family: var(--mono);
+  font-size: 0.625rem;   /* 10px */
+  font-weight: 400;
+  color: rgba(255,255,255,.55);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  line-height: 1;
+}
 .tb-sep { width: 1px; height: 16px; background: rgba(255,255,255,.2); }
 .tb-ctx { font-size: var(--text-sm); color: rgba(255,255,255,.88); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
 .tb-who  { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.95); text-overflow: ellipsis; overflow: hidden; }
@@ -349,40 +351,47 @@ body {
 
 .tabs {
   background: var(--white);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   overflow-x: auto;
   scrollbar-width: none;
+  position: -webkit-sticky;
   position: sticky;
-  top: calc(52px + env(safe-area-inset-top, 0));
+  top: calc(56px + env(safe-area-inset-top, 0));
   z-index: 199;
-  padding: 0;
+  padding: 8px 16px;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
   /* Fade right edge to signal "more tabs scrollable to the right".
      When content fits, the fade falls on empty whitespace and is invisible.
      When content overflows, the last tab visibly fades into transparency. */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-          mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+          mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
 }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
-  padding: 13px 16px;
-  min-height: 44px;          /* iOS HIG / Android Material touch target */
+  padding: 6px 14px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   font-family: var(--sans);
-  font-size: var(--text-sm);
+  font-size: 13px;
   font-weight: 500;
-  color: var(--muted);
-  cursor: pointer;
+  color: var(--text2);
   white-space: nowrap;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  letter-spacing: .01em;
-  transition: color .15s;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  transition: background .15s, color .15s, border-color .15s;
+  cursor: pointer;
   flex-shrink: 0;
 }
-.tab.active { color: var(--navy); border-bottom-color: var(--navy); }
-.tab:hover:not(.active) { color: var(--text2); }
+.tab.active {
+  background: var(--navy);
+  color: var(--white);
+  font-weight: 600;
+}
 
 /* ── BREADCRUMB BAR — replaces tab strip when accordion bucket is active.
    Shows "BucketName" at bucket level, "← BucketName / Section" when drilled in.
@@ -513,6 +522,113 @@ body {
   font-weight: 700;
   flex-shrink: 0;
 }
+
+/* ── PENDING ACTIONS HORIZONTAL STRIP ─────────────────────────────────────
+   A single horizontal row showing "Pending Actions (N)" title + pill chips,
+   one per approval category. Mobile stacks chips to full-width rows.
+   ── */
+.pa-strip {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--navy);
+  border-radius: var(--r);
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.pa-strip-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pa-strip-title {
+  font-family: var(--mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.pa-total-badge {
+  background: var(--navy);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-family: var(--mono);
+}
+.pa-strip-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pa-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--r);
+  cursor: pointer;
+  min-height: 44px;
+  font-family: var(--sans);
+  transition: border-color .15s, background .15s;
+  text-align: left;
+  width: 100%;
+}
+.pa-chip:hover { border-color: var(--navy); background: var(--white); }
+.pa-chip-label { font-size: var(--text-sm); font-weight: 500; color: var(--text); }
+.pa-chip-count {
+  background: var(--navy);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+
+/* ── SECTION HEADER ROW — title + action button ────────────────────────────
+   Desktop: title left, button right in the same row.
+   Mobile: .sec-hdr-row shows only the title; .sec-action-mobile shows the
+   button as a full-width block below it.
+   ── */
+.sec-hdr-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  margin-bottom: 10px;
+}
+.sec-hdr-row .sec-label { margin: 0 !important; }
+/* Desktop button — hidden on mobile */
+.sec-hdr-btn {
+  display: none;
+  width: auto !important;
+  min-width: 0;
+  padding: 6px 14px !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  font-size: var(--text-sm) !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* Mobile button — full-width, shown only on mobile */
+.sec-action-mobile {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px !important;
+  margin-top: 0 !important;
+}
+
 /* ── BOTTOM NAV — 4-column Segmented Navigation ── */
 .bottom-nav {
   position: fixed;
@@ -777,13 +893,11 @@ body {
 }
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 400px));
-  gap: 24px;
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
 }
 .projects-grid .proj-card {
   margin-bottom: 0;
-  width: 100%;
 }
 
 /* ── PROGRESS BARS ── */
@@ -1066,7 +1180,7 @@ body {
 .btn-ghost:hover  { border-color: var(--text2); }
 .btn-ghost:active { background: var(--bg); transform: scale(0.98); }
 
-.field-row { margin-bottom: 10px; }
+.field-row { margin-bottom: 10px; display: block; width: 100%; }
 .field-label {
   font-family: var(--mono);
   font-size: var(--text-sm);
@@ -1075,6 +1189,7 @@ body {
   color: var(--muted);
   margin-bottom: 6px;
   display: block;
+  width: 100%;
 }
 select, input[type=text], input[type=date], input[type=number], input[type=email], input[type=password], input[type=tel], input[type=month], input[type=search], input[type=url], textarea {
   width: 100%;
@@ -1186,6 +1301,7 @@ textarea { resize: none; }
   max-width: 520px;
   max-height: calc(88vh - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
   overflow-y: auto;
+  display: block;
   animation: slideUp .25s ease;
 }
 .modal-title {
@@ -1368,7 +1484,7 @@ textarea { resize: none; }
 .pay-meta   { font-family: var(--mono); font-size: var(--text-sm); color: var(--muted); margin-top: 4px; }
 
 /* ── FOOTER ── */
-.footer { text-align: center; padding: 24px 16px 36px; border-top: 1px solid var(--border); margin-top: 28px; }
+.footer { text-align: center; padding: 24px 16px calc(100px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--border); margin-top: 28px; }
 .footer-brand { font-family: var(--sans); font-size: var(--text-sm); color: var(--steel); font-weight: 500; }
 .footer-tag   { font-size: var(--text-sm); color: var(--muted2); letter-spacing: .12em; text-transform: uppercase; margin-top: 3px; }
 
@@ -1796,9 +1912,8 @@ a:focus-visible,
   .modal { max-width: 600px !important; }
   .projects-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 400px));
-    gap: 24px;
-    justify-content: start;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
   }
   .bottom-nav .bb-item { flex-direction: row; gap: 8px; padding: 10px 8px; }
   .bottom-nav .bb-label { font-size: var(--text-sm); }
@@ -1810,12 +1925,40 @@ a:focus-visible,
     padding-left: 0 !important;
     padding-right: 0 !important;
   }
+  /* Tablet: chips are natural width too, horizontal scroll works */
+  .tab {
+    flex: 0 0 auto !important;
+  }
 }
 
 @media (max-width: 1023px) {
   .tab {
-    flex: 1 1 0% !important;
-    justify-content: center !important;
+    /* Do NOT stretch chips — let them be natural width so horizontal scroll works */
+    flex: 0 0 auto !important;
+  }
+}
+
+/* ── MOBILE TAB STRIP — ensure first/last chips have breathing room ── */
+@media (max-width: 767px) {
+  .tabs {
+    /* Pad start so first chip isn't flush against the edge */
+    padding-left: 12px !important;
+    /* Extend right padding further so the fade mask doesn't eat the last chip */
+    padding-right: 40px !important;
+    gap: 8px !important;
+  }
+  /* Active chip: stronger contrast so it's obvious which module is selected */
+  .tab.active {
+    background: var(--navy) !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    border-color: transparent !important;
+  }
+  /* Inactive chips: subtle tinted background, clear border */
+  .tab:not(.active) {
+    background: rgba(29, 61, 98, 0.06) !important;
+    color: var(--text2) !important;
+    border: 1px solid var(--border) !important;
   }
 }
 
@@ -1846,9 +1989,7 @@ a:focus-visible,
     font-size: 11px !important;
     padding: 0 20px 0 6px !important;
   }
-  .tb-brand span {
-    display: none !important;
-  }
+}
 }
 @media (max-width: 480px) {
   .tb-ctx, .tb-sep {

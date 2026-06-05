@@ -50,6 +50,9 @@
   .topbar *, #topbar * { color: inherit; }
   .topbar .tb-brand, .topbar .tb-ctx { color: #1A2332 !important; }
   .topbar .tb-ctx { color: var(--steel) !important; }
+  /* On desktop topbar, brand-name is dark and sub is softer */
+  .topbar .tb-brand-name { color: #1A2332 !important; }
+  .topbar .tb-brand-sub  { color: #657B90 !important; }
   .tb-right {
     background: rgba(29, 61, 98, 0.05) !important;
     border-color: rgba(29, 61, 98, 0.08) !important;
@@ -134,9 +137,14 @@
   /* Individual nav items restyled */
   .tabs .tab, #tabs-bar .tab {
     padding: 10px 14px !important;
-    min-height: 44px !important;     /* touch target — iPad / touch laptops */
+    min-height: 44px !important;
     display: flex !important;
     align-items: center !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    box-sizing: border-box !important;
     border-radius: 6px !important;
     color: rgba(255,255,255,.72) !important;
     font-size: var(--text-sm) !important;
@@ -246,7 +254,7 @@
 
   /* Content inner max-width for readability on very wide screens */
   #content-area { min-height: calc(100vh - 56px); }
-  #content-area > * { max-width: 1400px; margin-left: auto; margin-right: auto; }
+  #content-area > * { max-width: 1400px; margin-left: 0; margin-right: 0; }
 
   /* Topbar also shifts */
   .topbar, #topbar, header.topbar { grid-column: 2; }
@@ -256,6 +264,35 @@
 
   /* work-pinned must shift right of sidebar, same as .content */
   .work-pinned { grid-column: 2; padding: 12px 32px 0 !important; }
+
+  /* ── PENDING ACTIONS — HORIZONTAL STRIP ON DESKTOP ──────────────────────
+     Switch from mobile stacked chips to a single horizontal row.
+     Title left, chips inline to the right, wraps gracefully on narrow widths.
+     ── */
+  .pa-strip-inner {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .pa-strip-chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pa-chip {
+    width: auto !important;
+    min-height: 32px !important;
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    justify-content: center;
+    gap: 6px;
+  }
+  .pa-chip-label { font-size: var(--text-sm); }
+
+  /* ── SECTION HEADER ROW — show inline button on desktop ──────────────── */
+  .sec-hdr-btn   { display: inline-flex !important; }
+  .sec-action-mobile { display: none !important; }
 
   /* Footer out of the way on desktop */
   .footer { display: none !important; }
@@ -290,9 +327,8 @@
   /* ── PROJECT CARDS IN 2-COL GRID ──────────────────────── */
   .projects-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 400px));
-    gap: 24px;
-    justify-content: start;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
   }
 
   /* ── CARDS ────────────────────────────────────────────── */
@@ -330,6 +366,7 @@
     width: 90% !important;
     max-height: 85vh;
     overflow-y: auto;
+    display: block !important;
     border-radius: var(--r2) !important;
     animation: fadeIn .2s ease !important;
   }
@@ -438,6 +475,6 @@
   }
   .tabs, #tabs-bar { width: 260px !important; }
   .bottom-nav, #bottom-nav { width: 260px !important; }
-  #content-area > * { max-width: 1600px; }
+  #content-area > * { max-width: 1600px; margin-left: 0; margin-right: 0; }
 }
 

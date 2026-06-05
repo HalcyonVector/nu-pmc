@@ -161,7 +161,9 @@ body {
 
 .topbar {
   background: var(--navy);
-  min-height: calc(52px + env(safe-area-inset-top, 0));
+  min-height: calc(56px + env(safe-area-inset-top, 0));
+  height: calc(56px + env(safe-area-inset-top, 0));
+  box-sizing: border-box;
   padding: env(safe-area-inset-top, 0) max(16px, calc((100% - 720px) / 2 + 16px)) 0;
   display: flex;
   align-items: center;
@@ -356,40 +358,47 @@ body {
 
 .tabs {
   background: var(--white);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   overflow-x: auto;
   scrollbar-width: none;
+  position: -webkit-sticky;
   position: sticky;
-  top: calc(52px + env(safe-area-inset-top, 0));
+  top: calc(56px + env(safe-area-inset-top, 0));
   z-index: 199;
-  padding: 0;
+  padding: 8px 16px;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
   /* Fade right edge to signal "more tabs scrollable to the right".
      When content fits, the fade falls on empty whitespace and is invisible.
      When content overflows, the last tab visibly fades into transparency. */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-          mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+          mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
 }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
-  padding: 13px 16px;
-  min-height: 44px;          /* iOS HIG / Android Material touch target */
+  padding: 6px 14px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   font-family: var(--sans);
-  font-size: var(--text-sm);
+  font-size: 13px;
   font-weight: 500;
-  color: var(--muted);
-  cursor: pointer;
+  color: var(--text2);
   white-space: nowrap;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  letter-spacing: .01em;
-  transition: color .15s;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  transition: background .15s, color .15s, border-color .15s;
+  cursor: pointer;
   flex-shrink: 0;
 }
-.tab.active { color: var(--navy); border-bottom-color: var(--navy); }
-.tab:hover:not(.active) { color: var(--text2); }
+.tab.active {
+  background: var(--navy);
+  color: var(--white);
+  font-weight: 600;
+}
 
 /* ── BREADCRUMB BAR — replaces tab strip when accordion bucket is active.
    Shows "BucketName" at bucket level, "← BucketName / Section" when drilled in.
@@ -1372,7 +1381,7 @@ textarea { resize: none; }
 .pay-meta   { font-family: var(--mono); font-size: var(--text-sm); color: var(--muted); margin-top: 4px; }
 
 /* ── FOOTER ── */
-.footer { text-align: center; padding: 24px 16px 36px; border-top: 1px solid var(--border); margin-top: 28px; }
+.footer { text-align: center; padding: 24px 16px calc(100px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--border); margin-top: 28px; }
 .footer-brand { font-family: var(--sans); font-size: var(--text-sm); color: var(--steel); font-weight: 500; }
 .footer-tag   { font-size: var(--text-sm); color: var(--muted2); letter-spacing: .12em; text-transform: uppercase; margin-top: 3px; }
 

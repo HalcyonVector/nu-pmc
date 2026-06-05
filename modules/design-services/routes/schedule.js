@@ -26,7 +26,24 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       [project_id]
     );
 
-    if (!version) return res.json({ version: null, tasks: [] });
+    if (!version) {
+      // No schedule yet — still return counts so dashboard stats are accurate
+      const [[issuesRow]] = await db.query(
+        `SELECT COUNT(*) c FROM issues WHERE project_id=? AND status IN ('open','in_progress')`,
+        [project_id]
+      );
+      const [[grnRow]] = await db.query(
+        `SELECT COUNT(*) c FROM grns WHERE project_id=? AND status='pending'`,
+        [project_id]
+      );
+      return res.json({
+        version: null,
+        tasks: [],
+        open_issues: issuesRow?.c || 0,
+        pending_grns: grnRow?.c || 0,
+        active_tasks_count: 0
+      });
+    }
 
     // Get tasks for today
     const [tasks] = await db.query(
@@ -41,7 +58,43 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       [today, req.session.user.id, version.id, today, today]
     );
 
-    res.json({ version, tasks, date: today });
+    // Get open issues count
+    const [[issuesRow]] = await db.query(
+      `SELECT COUNT(*) c FROM issues WHERE project_id=? AND status IN ('open','in_progress')`,
+      [project_id]
+    );
+
+    // Get pending GRNs count
+    const [[grnRow]] = await db.query(
+      `SELECT COUNT(*) c FROM grns WHERE project_id=? AND status='pending'`,
+      [project_id]
+    );
+
+    // Get active tasks count (incomplete and start_date <= today)
+    const [[activeTasksRow]] = await db.query(
+      `SELECT COUNT(*) AS c
+       FROM schedule_tasks st
+       LEFT JOIN (
+         SELECT tu1.task_id, tu1.pct_complete
+         FROM task_updates tu1
+         INNER JOIN (
+           SELECT task_id, MAX(report_date) AS max_date
+           FROM task_updates
+           GROUP BY task_id
+         ) tu2 ON tu1.task_id = tu2.task_id AND tu1.report_date = tu2.max_date
+       ) tu ON tu.task_id = st.id
+       WHERE st.schedule_version_id = ? AND st.start_date <= ? AND COALESCE(tu.pct_complete, 0) < 100`,
+      [version.id, today]
+    );
+
+    res.json({
+      version,
+      tasks,
+      date: today,
+      open_issues: issuesRow?.c || 0,
+      pending_grns: grnRow?.c || 0,
+      active_tasks_count: activeTasksRow?.c || 0
+    });
 
   }));
 

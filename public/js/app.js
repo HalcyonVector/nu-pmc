@@ -429,10 +429,12 @@ const APP = {
   },
 
   // Render the current bucket's sub-tabs in the top tabs-bar
-  // Buckets with >5 tabs render as accordion instead of tab strip.
+  // Buckets with >ACCORDION_THRESHOLD tabs render as accordion instead of tab strip.
+  // Set high (99) so mobile always uses the scrollable chip strip — accordion
+  // was hiding modules from users who didn't know to tap the bucket label.
   _renderBucketTabs() {
     const bucket = APP._nav.buckets[APP._activeBucket] || [];
-    const ACCORDION_THRESHOLD = 5;
+    const ACCORDION_THRESHOLD = 99; // effectively disabled — use horizontal scroll instead
 
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
     const isTablet  = window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches;
@@ -746,27 +748,28 @@ const APP = {
     const nyData = APP._needsYou;
     let needsYouCard = '';
     if (nyData && nyData.items && nyData.items.length) {
-      const rows = nyData.items.map(it => {
-        if (it.kind === 'radar') {
-          // Radar row — amber chevron, taps to tab (with optional project+item)
-          const onclick = it.project
-            ? `APP._radarTap('${it.tab}',${it.project},${it.item || 'null'})`
-            : `APP.switchTab('${it.tab}')`;
-          return `<button class="wp-row" style="min-height:44px" onclick="${onclick}">
-            <span class="wp-row-label" style="color:var(--amber)">⚠ ${UI.escapeText(it.label)}</span>
-            <span class="wp-row-chevron">→</span>
-          </button>`;
-        }
-        // Approval row — navy count badge
-        return `<button class="wp-row" style="min-height:44px" onclick="APP.switchTab('${it.tab}')">
-          <span class="wp-row-label">${UI.escapeText(it.label)}</span>
-          <span class="wp-row-count">${it.count}</span>
+      // Total count (approval rows only, radar items don't have a numeric count)
+      const totalCount = nyData.items
+        .filter(it => it.kind !== 'radar')
+        .reduce((acc, it) => acc + (it.count || 0), 0);
+
+      const chips = nyData.items.map(it => {
+        const onclick = it.kind === 'radar'
+          ? (it.project ? `APP._radarTap('${it.tab}',${it.project},${it.item || 'null'})` : `APP.switchTab('${it.tab}')`)
+          : `APP.switchTab('${it.tab}')`;
+        const badge = it.kind === 'radar' ? '⚠' : it.count;
+        return `<button class="pa-chip" onclick="${onclick}">
+          <span class="pa-chip-label">${UI.escapeText(it.label)}</span>
+          <span class="pa-chip-count">${badge}</span>
         </button>`;
       }).join('');
 
-      needsYouCard = `<div class="wp-card">
-        <div class="wp-label"><span class="wp-symbol">⚡</span>Needs You</div>
-        ${rows}
+      const countStr = totalCount > 99 ? '99+' : totalCount;
+      needsYouCard = `<div class="pa-strip" aria-label="Pending actions">
+        <div class="pa-strip-inner">
+          <span class="pa-strip-title">Pending Actions <span class="pa-total-badge" aria-label="${countStr} pending actions">${countStr}</span></span>
+          <div class="pa-strip-chips">${chips}</div>
+        </div>
       </div>`;
     }
 
@@ -987,14 +990,12 @@ Tomorrow: start formwork on next bay."
         APP._renderBucketTabs();
       }
 
-      // If the active bucket is an accordion bucket (>5 tabs) on mobile,
-      // promote the breadcrumb from "BucketName" to "← BucketName / SectionName"
-      // so the user always knows where they are and can tap back to the accordion.
-      // On desktop the sidebar shows all tabs as a vertical list — no breadcrumb needed.
+      // Accordion breadcrumb only applies when accordion is actually active (threshold > 99 disables it)
+      const ACCORDION_THRESHOLD = 99;
       const activeBucket = APP._nav.buckets[APP._activeBucket] || [];
       const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
       const isTablet  = window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches;
-      if (activeBucket.length > 5 && !isDesktop && !isTablet) {
+      if (activeBucket.length > ACCORDION_THRESHOLD && !isDesktop && !isTablet) {
         const bucketLabel  = APP._bucketLabel(APP._activeBucket);
         const sectionLabel = TAB_LABELS[id] || id;
         document.getElementById('tabs-bar').innerHTML =
@@ -5794,7 +5795,9 @@ APP.renderDailyReports = async function() {
     html += UI.empty('✅','All reports approved — nothing pending');
   }
 
-  html += `<div class="sec-label">Recent Reports</div>`;
+  html += `<div class="sec-hdr-row">
+    <div class="sec-label" style="margin:0;flex:1">Recent Reports</div>
+  </div>`;
   reports.filter(r => r.status === 'approved').slice(0,8).forEach(r => {
     html += `<div class="report-card">
       <div class="rc-header">
@@ -5849,10 +5852,6 @@ APP.renderGRN = async function() {
 
   let html = '';
 
-  if (canRaise) {
-    html += `<button class="btn-primary" onclick="APP.showGRNForm()" style="margin-bottom:16px">+ Raise GRN</button>`;
-  }
-
   if (pending.length && canApprove) {
     html += `<div class="sec-label">Pending Approval (${pending.length})</div>`;
     pending.forEach(g => {
@@ -5873,7 +5872,11 @@ APP.renderGRN = async function() {
     });
   }
 
-  html += `<div class="sec-label">Recent GRNs</div>`;
+  html += `<div class="sec-hdr-row">
+    <div class="sec-label" style="margin:0;flex:1">Recent GRNs</div>
+    ${canRaise ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showGRNForm()">+ Raise GRN</button>` : ''}
+  </div>
+  ${canRaise ? `<button class="btn-primary sec-action-mobile" onclick="APP.showGRNForm()">+ Raise GRN</button>` : ''}`;
   html += APP._sortToggleHTML('grn', ['default','age']);
   let recentGrns = grns.filter(g => g.status !== 'pending');
   recentGrns = APP._applySort(recentGrns, APP._getSortMode('grn'), { ageField:'delivery_date' });
@@ -5908,17 +5911,15 @@ APP.rejectGRN = async function(id) {
   if (res?.success) { UI.toast('GRN rejected'); APP.renderGRN(); }
 };
 APP.showGRNForm = function() {
-  document.getElementById('modal-overlay').classList.add('open');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-title">Raise GRN <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
+  UI.openModal('Raise GRN', `
     <div class="field-row"><label class="field-label" for="grn-vendor">Vendor</label>
       <div style="display:flex;gap:8px">
         <input type="text" id="grn-vendor" placeholder="Vendor name" style="flex:1" readonly>
-        <button class="btn-secondary" onclick="APP.showVendorPicker(v=>{document.getElementById('grn-vendor').value=v.vendor_name;APP.state.selectedGRNVendor=v;})" style="white-space:nowrap">Pick</button>
+        <button class="btn-secondary" onclick="APP.showVendorPicker(v=>{document.getElementById('grn-vendor').value=v.vendor_name;APP.state.selectedGRNVendor=v;})" style="white-space:nowrap;width:auto;min-width:0">Pick</button>
       </div></div>
     <div class="field-row"><label class="field-label" for="grn-material">Material</label>
       <input type="text" id="grn-material" placeholder="Material description"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="field-row"><label class="field-label" for="grn-qty">Quantity</label>
         <input type="number" id="grn-qty" placeholder="0"></div>
       <div class="field-row"><label class="field-label" for="grn-unit">Unit</label>
@@ -5928,7 +5929,8 @@ APP.showGRNForm = function() {
       <input type="number" id="grn-rate" placeholder="0"></div>
     <div class="field-row"><label class="field-label" for="grn-date">Delivery Date</label>
       <input type="date" id="grn-date" value="${UI.todayIST()}"></div>
-    <button class="btn-primary" onclick="APP.submitGRN()">Submit GRN</button>`;
+    <button class="btn-primary" onclick="APP.submitGRN()">Submit GRN</button>
+  `);
 };
 APP.submitGRN = async function() {
   const pid = APP.state.selectedProject;
@@ -5965,9 +5967,6 @@ APP.renderIssues = async function() {
   const canConfirm = ['pmc_head','design_head','services_head','principal','design_principal'].includes(role);
 
   let html = '';
-  if (canRaise) {
-    html += `<button class="btn-primary" onclick="APP.showIssueForm()" style="margin-bottom:16px">+ Raise Issue</button>`;
-  }
 
   const needsConfirm = issues.filter(i => i.status === 'draft' && canConfirm);
   if (needsConfirm.length) {
@@ -5992,7 +5991,11 @@ APP.renderIssues = async function() {
 
   const typeFilters = ['all','safety','quality','design','rfi','compliance'];
   const cur = APP.state.issueFilter || 'all';
-  html += `<div class="sec-label">Issues Register</div>
+  html += `<div class="sec-hdr-row">
+    <div class="sec-label" style="margin:0;flex:1">Issues Register</div>
+    ${canRaise ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
+  </div>
+  ${canRaise ? `<button class="btn-primary sec-action-mobile" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
   ${APP._sortToggleHTML('issues', ['default','urgency','age'])}
   <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px">
     ${typeFilters.map(f => `<button style="min-height:44px;flex-shrink:0;padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;border:1px solid ${f===cur?'var(--navy)':'var(--border)'};background:${f===cur?'var(--navy)':'var(--white)'};color:${f===cur?'var(--white)':'var(--muted)'}" onclick="APP.state.issueFilter='${f}';APP.renderIssues()">${f}</button>`).join('')}
@@ -6143,9 +6146,7 @@ APP.dismissIssue = async function(id) {
   if (res?.success) { UI.toast('Dismissed'); APP.renderIssues(); }
 };
 APP.showIssueForm = function() {
-  document.getElementById('modal-overlay').classList.add('open');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-title">Raise Issue <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
+  UI.openModal('Raise Issue', `
     <div class="field-row"><label class="field-label" for="iss-type">Type</label>
       <select id="iss-type">
         <option value="safety">Safety</option>
@@ -6160,7 +6161,8 @@ APP.showIssueForm = function() {
       <textarea id="iss-desc" rows="3" placeholder="Describe the issue..."></textarea></div>
     <div class="field-row"><label class="field-label" for="iss-due">Due Date</label>
       <input type="date" id="iss-due"></div>
-    <button class="btn-primary" onclick="APP.submitIssue()">Raise Issue</button>`;
+    <button class="btn-primary" onclick="APP.submitIssue()">Raise Issue</button>
+  `);
 };
 APP.submitIssue = async function() {
   const pid = APP.state.selectedProject;
@@ -6193,9 +6195,6 @@ APP.renderMOMs = async function() {
   const canCreate = ['pmc_head','principal','design_principal'].includes(role);
 
   let html = '';
-  if (canCreate) {
-    html += `<button class="btn-primary" onclick="APP.showMOMForm()" style="margin-bottom:16px">+ New MOM</button>`;
-  }
 
   // Pending action items across all MOMs
   const allActions = moms.flatMap(m => (m.action_items||[]).filter(a => !a.completed && a.due_date));
@@ -6214,7 +6213,11 @@ APP.renderMOMs = async function() {
     });
   }
 
-  html += `<div class="sec-label">MOMs (${moms.length})</div>`;
+  html += `<div class="sec-hdr-row">
+    <div class="sec-label" style="margin:0;flex:1">MOMs (${moms.length})</div>
+    ${canCreate ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showMOMForm()">+ New MOM</button>` : ''}
+  </div>
+  ${canCreate ? `<button class="btn-primary sec-action-mobile" onclick="APP.showMOMForm()">+ New MOM</button>` : ''}`;
   if (!moms.length) { html += UI.empty('📋','No MOMs yet'); }
   else moms.slice(0,15).forEach(m => {
     const statusBadge = m.status === 'approved' ? 'b-green' : m.status === 'issued' ? 'b-navy' : 'b-amber';
@@ -6261,16 +6264,15 @@ APP.doneAction = async function(id) {
   if (res?.success) UI.toast('Marked done ✓');
 };
 APP.showMOMForm = function() {
-  document.getElementById('modal-overlay').classList.add('open');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-title">New MOM <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
+  UI.openModal('New MOM', `
     <div class="field-row"><label class="field-label" for="mom-title">Title / Purpose</label>
       <input type="text" id="mom-title" placeholder="e.g. Site coordination meeting"></div>
     <div class="field-row"><label class="field-label" for="mom-date">Meeting Date</label>
       <input type="date" id="mom-date" value="${UI.todayIST()}"></div>
     <div class="field-row"><label class="field-label" for="mom-attendees">Attendees</label>
       <input type="text" id="mom-attendees" placeholder="Names separated by commas"></div>
-    <button class="btn-primary" onclick="APP.submitMOM()">Create MOM</button>`;
+    <button class="btn-primary" onclick="APP.submitMOM()">Create MOM</button>
+  `);
 };
 APP.submitMOM = async function() {
   const pid = APP.state.selectedProject;
@@ -6299,9 +6301,6 @@ APP.renderLabour = async function() {
   const canValidate = ['pmc_head','principal','design_principal'].includes(role);
 
   let html = '';
-  if (canEnter) {
-    html += `<button class="btn-primary" onclick="APP.showLabourForm()" style="margin-bottom:16px">+ Log Headcount</button>`;
-  }
 
   const unvalidated = entries.filter(e => !e.validated_by);
   if (canValidate && unvalidated.length) {
@@ -6316,7 +6315,11 @@ APP.renderLabour = async function() {
     </div>`;
   }
 
-  html += `<div class="sec-label">Labour Register</div>`;
+  html += `<div class="sec-hdr-row">
+    <div class="sec-label" style="margin:0;flex:1">Labour Register</div>
+    ${canEnter ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showLabourForm()">+ Log Headcount</button>` : ''}
+  </div>
+  ${canEnter ? `<button class="btn-primary sec-action-mobile" onclick="APP.showLabourForm()">+ Log Headcount</button>` : ''}`;
   if (!entries.length) { html += UI.empty('👷','No labour entries yet'); }
   else entries.slice(0,14).forEach(e => {
     html += `<div class="card">
@@ -6344,9 +6347,7 @@ APP.validateAllLabour = async function(pid) {
   if (res?.success) { UI.toast(`${res.validated} entr${res.validated>1?'ies':'y'} validated ✓`); APP.renderLabour(); }
 };
 APP.showLabourForm = async function() {
-  document.getElementById('modal-overlay').classList.add('open');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-title">Log Headcount <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
+  UI.openModal('Log Headcount', `
     <div class="field-row"><label class="field-label" for="lab-engagement">Subcontractor</label>
       <select id="lab-engagement"><option value="">Loading…</option></select></div>
     <div class="field-row"><label class="field-label" for="lab-trade">Trade</label>
@@ -6361,7 +6362,8 @@ APP.showLabourForm = async function() {
       <input type="date" id="lab-date" value="${UI.todayIST()}"></div>
     <div class="field-row"><label class="field-label" for="lab-notes">Notes (optional)</label>
       <textarea id="lab-notes" rows="2" placeholder="Any notes..."></textarea></div>
-    <button class="btn-primary" onclick="APP.submitLabour()">Save</button>`;
+    <button class="btn-primary" onclick="APP.submitLabour()">Save</button>
+  `);
 
   // Load engagements for this project. Each engagement = one subcontractor's
   // contract on this site. BOCW + Karnataka muster-roll requirements: every
@@ -8976,8 +8978,30 @@ APP.renderSiteDashboard = async function() {
   const pid = APP.state.selectedProject;
   if (!pid) { el.innerHTML = UI.empty('🏗️','No project assigned'); return; }
 
-  const data = await API.get(`/schedule/${pid}?date=${APP.state.serverToday || UI.todayIST()}`);
   const today = APP.state.serverToday || UI.todayIST();
+
+  // Fetch all three in parallel — schedule for tasks, dedicated endpoints for
+  // issues/GRNs so counts are accurate even when no schedule version exists
+  const [scheduleData, issuesData, grnsData] = await Promise.all([
+    API.get(`/schedule/${pid}?date=${today}`).catch(() => null),
+    API.get(`/issues/${pid}`).catch(() => null),
+    API.get(`/grn/${pid}`).catch(() => null),
+  ]);
+
+  // Active tasks: tasks in today's schedule that are not yet 100%
+  const activeTasks = scheduleData?.active_tasks_count
+    ?? scheduleData?.tasks?.filter(t => (t.pct_complete ?? 0) < 100).length
+    ?? 0;
+
+  // Issues: open + in_progress from the issues register
+  const openIssues = issuesData?.issues
+    ? issuesData.issues.filter(i => i.status === 'open' || i.status === 'in_progress').length
+    : (scheduleData?.open_issues ?? 0);
+
+  // GRNs: pending from the GRN list
+  const pendingGRNs = grnsData?.grns
+    ? grnsData.grns.filter(g => g.status === 'pending').length
+    : (scheduleData?.pending_grns ?? 0);
 
   let html = `
   <div class="card" style="margin-bottom:16px;background:var(--navy);border:none">
@@ -8987,15 +9011,15 @@ APP.renderSiteDashboard = async function() {
 
   <div class="stat-row">
     <button class="stat-card" onclick="APP.switchTab('tasks')">
-      <span class="stat-val">${data?.tasks?.filter(t=>t.pct_complete<100&&new Date(t.end_date)>=new Date()).length||0}</span>
+      <span class="stat-val">${activeTasks}</span>
       <span class="stat-lbl">Active Tasks</span>
     </button>
     <button class="stat-card" onclick="APP.switchTab('issues')">
-      <span class="stat-val">${data?.open_issues||0}</span>
+      <span class="stat-val">${openIssues}</span>
       <span class="stat-lbl">Issues</span>
     </button>
     <button class="stat-card" onclick="APP.switchTab('grn')">
-      <span class="stat-val">${data?.pending_grns||0}</span>
+      <span class="stat-val">${pendingGRNs}</span>
       <span class="stat-lbl">GRNs</span>
     </button>
   </div>
@@ -9014,7 +9038,7 @@ APP.renderSiteDashboard = async function() {
       <span style="font-size:24px;margin-bottom:6px">⚠️</span>
       <span style="font-size:13px;font-weight:600">Raise Issue</span>
     </button>
-    <button class="action-card" onclick="APP.switchTab('queries_site')">
+    <button class="action-card" onclick="APP.switchTab('issues_site')">
       <span style="font-size:24px;margin-bottom:6px">📐</span>
       <span style="font-size:13px;font-weight:600">Drawing Query</span>
     </button>
