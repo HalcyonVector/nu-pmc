@@ -198,24 +198,26 @@ router.post('/:id/tally-xml/:claim_id', requireAuth, asyncHandler(async (req, re
     const total      = subtotal + gstAmount;
     const invDate    = dateUtil.yyyymmddIST();
 
-    // Bug B12: race on invoice_sequence. Two concurrent calls used to
-    // both compute MAX+1 and produce duplicate invoice numbers. Fix:
-    // wrap SELECT MAX → INSERT in sequence.insertWithRetry; the v5.13
-    // UNIQUE constraint on client_claims.invoice_number rejects collisions
-    // and the retry tries again with seq+1.
+    // Ensure sequential, unique, concurrency-safe invoice generation
+    // using transaction-safe row-level locking on the clients table.
     let seq, invNum;
-    await sequence.insertWithRetry(async () => {
-      const [[lastInv]] = await db.query(
-        "SELECT MAX(invoice_sequence) AS max_seq FROM client_claims WHERE invoice_prefix = ?",
-        [client.invoice_prefix]
+    await db.tx(async (conn) => {
+      const [[clientRow]] = await conn.query(
+        "SELECT invoice_sequence, invoice_prefix FROM clients WHERE id = ? FOR UPDATE",
+        [client.id]
       );
-      seq    = (lastInv?.max_seq || 0) + 1;
-      invNum = `${client.invoice_prefix}${String(seq).padStart(3,'0')}`;
-      // Update claim with invoice number INSIDE the retry block — if the
-      // UNIQUE constraint rejects this, insertWithRetry catches ER_DUP_ENTRY
-      // and the next iteration recomputes seq.
-      await db.query(
-        'UPDATE client_claims SET invoice_number = ?, invoice_sequence = ? WHERE id = ?',
+      seq = (clientRow?.invoice_sequence || 0) + 1;
+      invNum = `${clientRow?.invoice_prefix || client.invoice_prefix}${String(seq).padStart(3, '0')}`;
+
+      // Increment client table's sequence
+      await conn.query(
+        "UPDATE clients SET invoice_sequence = ? WHERE id = ?",
+        [seq, client.id]
+      );
+
+      // Update the client claim with the generated sequence and number
+      await conn.query(
+        "UPDATE client_claims SET invoice_number = ?, invoice_sequence = ? WHERE id = ?",
         [invNum, seq, claim.id]
       );
     });

@@ -625,14 +625,14 @@ describe('Concurrency — atomic operations', () => {
     expect(upsertCount).toBeGreaterThanOrEqual(3);
   });
 
-  test('invoice sequence note — sequential generation risk documented', () => {
+  test('invoice sequence generation is concurrency safe via FOR UPDATE locking', () => {
     // Post-V5: clients route is under modules/onboarding/
     const clientRoute = fs.readFileSync(
       path.join(__dirname, '../modules/onboarding/routes/clients.js'), 'utf8'
     );
-    // Invoice sequence uses MAX()+1 pattern — not atomic
+    // Invoice sequence uses FOR UPDATE on client record
     expect(clientRoute).toContain('invoice_sequence');
-    expect(clientRoute).toContain('max_seq');
+    expect(clientRoute).toContain('FOR UPDATE');
   });
 
   test('UNIQUE KEY constraints prevent duplicate entries', () => {
