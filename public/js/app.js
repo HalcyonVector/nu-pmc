@@ -8886,10 +8886,7 @@ APP.showActionTriage = function(key) {
 const _origRenderDashboard = APP.renderDashboard;
 APP.renderDashboard = async function() {
   const role = APP.user?.role;
-  if (role === 'pmc_head' || role === 'senior_site_manager') {
-    return APP.renderPMCDashboard();
-  }
-  if (role === 'site_manager') {
+  if (role === 'site_manager' || role === 'senior_site_manager') {
     return APP.renderSiteDashboard();
   }
   if (role === 'finance_admin') {
@@ -9141,8 +9138,8 @@ APP.renderFinanceDashboard = async function() {
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
-// TEAM LEAD / COORDINATOR / JR ARCHITECT / SERVICES ENGINEER DASHBOARD
-// Project-scoped roles: shows their assigned active projects + drawing queries.
+// TEAM LEAD / COORDINATOR / JR ARCHITECT / SERVICES ENGINEER / DETAILING HEAD DASHBOARD
+// Project-scoped roles: shows their assigned active projects + relevant action items.
 APP.renderTeamDashboard = async function() {
   const el = UI.contentEl();
   el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)">Loading…</div>';
@@ -9150,6 +9147,7 @@ APP.renderTeamDashboard = async function() {
   const data = await API.get('/dashboard');
   if (!data) return;
 
+  const role = APP.user?.role;
   const ac = data.action_centre || {};
   const projects = (data.projects || []).filter(p => p.status === 'active');
   const overdueQ = ac.overdue_queries || [];
@@ -9158,11 +9156,35 @@ APP.renderTeamDashboard = async function() {
 
   let html = '';
 
+  // Coordinator: their main job is meetings, tasks, GRN — show quick-action shortcuts
+  if (role === 'coordinator') {
+    html += `<div class="sec-label">Quick Actions</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      <button class="action-card" onclick="APP.switchTab('meetings')">
+        <span style="font-size:24px;margin-bottom:6px">🗓️</span>
+        <span style="font-size:13px;font-weight:600">Meetings</span>
+      </button>
+      <button class="action-card" onclick="APP.switchTab('tasks')">
+        <span style="font-size:24px;margin-bottom:6px">📋</span>
+        <span style="font-size:13px;font-weight:600">Tasks</span>
+      </button>
+      <button class="action-card" onclick="APP.switchTab('issues')">
+        <span style="font-size:24px;margin-bottom:6px">⚠️</span>
+        <span style="font-size:13px;font-weight:600">Issues</span>
+      </button>
+      <button class="action-card" onclick="APP.switchTab('grn')">
+        <span style="font-size:24px;margin-bottom:6px">📦</span>
+        <span style="font-size:13px;font-weight:600">GRN</span>
+      </button>
+    </div>`;
+  }
+
+  // All team roles: show drawing queries if any
   if (allQ.length) {
     html += `<div class="sec-label">Drawing Queries</div>`;
     allQ.slice(0, 6).forEach(q => {
       const isOverdue = (q.days_open || 0) >= 3;
-      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('queries')">
+      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('issues')">
         <div class="ai-icon">${isOverdue?'⚠️':'💬'}</div>
         <div class="ai-body">
           <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
@@ -9171,13 +9193,14 @@ APP.renderTeamDashboard = async function() {
         <span class="badge b-${isOverdue?'red':'amber'}">${isOverdue?'Overdue':'Open'}</span>
       </button>`;
     });
-  } else {
+  } else if (role !== 'coordinator') {
     html += `<div class="card" style="text-align:center;padding:16px;margin-bottom:12px">
       <div style="font-size:22px;margin-bottom:6px">✅</div>
       <div style="font-size:13px;font-weight:600;color:var(--navy)">No open queries</div>
     </div>`;
   }
 
+  // Active projects assigned
   if (projects.length) {
     html += `<div class="sec-label" style="margin-top:16px">Active Projects (${projects.length})</div>`;
     html += `<div class="projects-grid">`;
