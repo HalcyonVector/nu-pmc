@@ -482,6 +482,15 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
     const { cycle_id } = req.body;
     if (!file || !cycle_id) return res.status(400).json({ error: 'File and cycle_id required' });
 
+    // Validate uploaded file extension (defense-in-depth)
+    const ext = require('path').extname(file.originalname).toLowerCase();
+    if (ext !== '.xlsx' && ext !== '.xls') {
+      // Clean up uploaded file since it is invalid
+      const fs = require('fs');
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      return res.status(400).json({ error: 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed.' });
+    }
+
     const confirmations = pf.parseConfirmationExcel(file.path);
     const [cyclePayments] = await db.query(`
       SELECT * FROM vendor_payments WHERE payment_cycle_id = ?`, [cycle_id]
@@ -523,7 +532,22 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
     const failCount = rows.length - successCount;
     const totalToNotify = rows.filter(r => r.will_notify_vendor).length;
 
-    // Save preview file path for subsequent apply call — don't re-upload
+    // Generate secure cryptographically random token
+    const crypto = require('crypto');
+    const fileToken = crypto.randomBytes(16).toString('hex');
+
+    if (!req.session.icici_previews) {
+      req.session.icici_previews = {};
+    }
+    req.session.icici_previews[fileToken] = {
+      path: file.path,
+      originalName: file.originalname,
+      userId: req.session.user.id,
+      projectId: req.params.project_id,
+      cycleId: parseInt(cycle_id),
+      createdAt: Date.now()
+    };
+
     res.json({
       preview: rows,
       summary: {
@@ -532,130 +556,192 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
         will_require_manual: failCount,
         will_notify_vendors: totalToNotify,
       },
-      file_path: file.path,
+      file_token: fileToken,
       cycle_id: parseInt(cycle_id),
       warning: `If confirmed: ${successCount} payments will be marked paid, ${totalToNotify} vendors will receive WhatsApp with UTR details. ${failCount} rows will need manual follow-up.`,
     });
   }));
 
 // POST /api/payments/:project_id/icici/confirm — APPLY the confirmation
-// Body MUST include: { confirmation: 'CONFIRM_PAID', file_path: '<from-preview>', cycle_id, expected_success_count }
+// Body MUST include: { confirmation: 'CONFIRM_PAID', file_token: '<from-preview>', cycle_id, expected_success_count }
 // Marks matched payments as paid, sends WhatsApp to vendors with UTR.
 router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
-    const { confirmation, file_path, cycle_id, expected_success_count } = req.body;
-    if (!file_path || !cycle_id) return res.status(400).json({ error: 'file_path and cycle_id required (call /preview first)' });
+    const { confirmation, file_token, cycle_id, expected_success_count } = req.body;
+    if (!file_token || !cycle_id) return res.status(400).json({ error: 'file_token and cycle_id required (call /preview first)' });
     if (confirmation !== 'CONFIRM_PAID') {
       return res.status(400).json({
-        error: "Must pass { confirmation: 'CONFIRM_PAID', file_path, cycle_id, expected_success_count }",
+        error: "Must pass { confirmation: 'CONFIRM_PAID', file_token, cycle_id, expected_success_count }",
         code: 'CONFIRMATION_MISSING'
       });
     }
 
-    // Re-parse the same file
-    const confirmations = pf.parseConfirmationExcel(file_path);
-    const [cyclePayments] = await db.query(`
-      SELECT * FROM vendor_payments WHERE payment_cycle_id = ?`, [cycle_id]
-    );
-    const Onboarding2 = require('../../onboarding/contract');
-    const cpEngs2 = await Onboarding2.functions.getEngagementsByIds(cyclePayments.map(p => p.engagement_id));
-    cyclePayments.forEach(p => {
-      const eng = cpEngs2.get(p.engagement_id);
-      p.vendor_name  = eng?.vendor_name   || null;
-      p.bank_account = eng?.bank_account  || null;
-      p.phone        = eng?.vendor_phone  || null;
-      p.scope        = eng?.scope         || null;
-    });
+    // Retrieve file preview info from session
+    const preview = req.session.icici_previews?.[file_token];
+    if (!preview) {
+      return res.status(400).json({ error: 'Invalid or expired confirmation preview token' });
+    }
 
-    const matched = pf.matchConfirmationsToVendors(confirmations, cyclePayments.map(p=>({
-      vendor: { id:p.vendor_id, vendor_name:p.vendor_name, bank_account:p.bank_account },
-      engagement: { id:p.engagement_id },
-      payment: { id:p.id },
-    })));
+    // Validate ownership and session context
+    if (preview.userId !== req.session.user.id) {
+      return res.status(403).json({ error: 'Unauthorised. Upload session owner mismatch.' });
+    }
+    if (preview.projectId !== req.params.project_id) {
+      return res.status(400).json({ error: 'Project mismatch for this confirmation token' });
+    }
+    if (preview.cycleId !== parseInt(cycle_id)) {
+      return res.status(400).json({ error: 'Cycle ID mismatch for this confirmation token' });
+    }
 
-    // Count successes again — compare with expected from preview
-    const willSucceed = matched.filter(c => c.status?.toLowerCase().includes('success') && c.utr).length;
-    if (expected_success_count !== undefined && parseInt(expected_success_count) !== willSucceed) {
-      return res.status(409).json({
-        error: `Preview showed ${expected_success_count} would succeed, now ${willSucceed}. Re-preview and confirm.`,
-        code: 'COUNT_MISMATCH',
-        expected: parseInt(expected_success_count),
-        actual: willSucceed,
+    // Validate token expiry (15 minutes = 900,000 ms)
+    if (Date.now() - preview.createdAt > 900000) {
+      const fs = require('fs');
+      if (fs.existsSync(preview.path)) fs.unlinkSync(preview.path);
+      delete req.session.icici_previews[file_token];
+      return res.status(400).json({ error: 'Confirmation token has expired (15 minute limit)' });
+    }
+
+    // Validate file type again (defense-in-depth)
+    const ext = require('path').extname(preview.originalName).toLowerCase();
+    if (ext !== '.xlsx' && ext !== '.xls') {
+      const fs = require('fs');
+      if (fs.existsSync(preview.path)) fs.unlinkSync(preview.path);
+      delete req.session.icici_previews[file_token];
+      return res.status(400).json({ error: 'Invalid file type on token metadata' });
+    }
+
+    // Verify file still exists on disk
+    const fs = require('fs');
+    if (!fs.existsSync(preview.path)) {
+      delete req.session.icici_previews[file_token];
+      return res.status(400).json({ error: 'Confirmation file not found on server' });
+    }
+
+    const file_path = preview.path;
+
+    try {
+      // Re-parse the same file
+      const confirmations = pf.parseConfirmationExcel(file_path);
+      const [cyclePayments] = await db.query(`
+        SELECT * FROM vendor_payments WHERE payment_cycle_id = ?`, [cycle_id]
+      );
+      const Onboarding2 = require('../../onboarding/contract');
+      const cpEngs2 = await Onboarding2.functions.getEngagementsByIds(cyclePayments.map(p => p.engagement_id));
+      cyclePayments.forEach(p => {
+        const eng = cpEngs2.get(p.engagement_id);
+        p.vendor_name  = eng?.vendor_name   || null;
+        p.bank_account = eng?.bank_account  || null;
+        p.phone        = eng?.vendor_phone  || null;
+        p.scope        = eng?.scope         || null;
       });
-    }
 
-    // Audit BEFORE any state change
-    audit.log({
-      userId: req.session.user.id,
-      action: 'icici_confirmation_applied',
-      entityType: 'vendor_payment_cycles',
-      entityId: cycle_id,
-      details: { file_path, will_mark_paid: willSucceed, total_rows: matched.length },
-      req
-    });
+      const matched = pf.matchConfirmationsToVendors(confirmations, cyclePayments.map(p=>({
+        vendor: { id:p.vendor_id, vendor_name:p.vendor_name, bank_account:p.bank_account },
+        engagement: { id:p.engagement_id },
+        payment: { id:p.id },
+      })));
 
-    let successCount = 0, failCount = 0;
-    const notifyTargets = [];
-    const sm = require('../../../services/state-machines').vendorPayment;
-    for (const conf of matched) {
-      if (conf.status?.toLowerCase().includes('success') && conf.utr) {
-        try {
-          await sm.transition({
-            id: conf.payment_id, from: 'processed', to: 'paid',
-            extraCols: {
-              utr_number: conf.utr,
-              payment_date: conf.payment_date || dateUtil.todayIST(),
-            },
-          });
-        } catch (err) {
-          // If a row isn't in 'processed' state, skip — it's been previously paid
-          // or rolled back. Don't fail the whole batch.
-          console.warn('[payments] paid transition skipped for', conf.payment_id, err.message);
+      // Count successes again — compare with expected from preview
+      const willSucceed = matched.filter(c => c.status?.toLowerCase().includes('success') && c.utr).length;
+      if (expected_success_count !== undefined && parseInt(expected_success_count) !== willSucceed) {
+        return res.status(409).json({
+          error: `Preview showed ${expected_success_count} would succeed, now ${willSucceed}. Re-preview and confirm.`,
+          code: 'COUNT_MISMATCH',
+          expected: parseInt(expected_success_count),
+          actual: willSucceed,
+        });
+      }
+
+      // Audit BEFORE any state change
+      audit.log({
+        userId: req.session.user.id,
+        action: 'icici_confirmation_applied',
+        entityType: 'vendor_payment_cycles',
+        entityId: cycle_id,
+        details: { will_mark_paid: willSucceed, total_rows: matched.length },
+        req
+      });
+
+      let successCount = 0, failCount = 0;
+      const notifyTargets = [];
+      const sm = require('../../../services/state-machines').vendorPayment;
+      for (const conf of matched) {
+        if (conf.status?.toLowerCase().includes('success') && conf.utr) {
+          try {
+            await sm.transition({
+              id: conf.payment_id, from: 'processed', to: 'paid',
+              extraCols: {
+                utr_number: conf.utr,
+                payment_date: conf.payment_date || dateUtil.todayIST(),
+              },
+            });
+          } catch (err) {
+            // If a row isn't in 'processed' state, skip — it's been previously paid
+            // or rolled back. Don't fail the whole batch.
+            console.warn('[payments] paid transition skipped for', conf.payment_id, err.message);
+            failCount++;
+            continue;
+          }
+          const payment = cyclePayments.find(p => p.id === conf.payment_id);
+          if (payment?.phone) {
+            notifyTargets.push({ payment, conf });
+          }
+          successCount++;
+        } else {
           failCount++;
-          continue;
         }
-        const payment = cyclePayments.find(p => p.id === conf.payment_id);
-        if (payment?.phone) {
-          notifyTargets.push({ payment, conf });
+      }
+
+      // Send WhatsApp to vendors — outside the loop so status updates are done first
+      const sendResults = [];
+      for (const { payment, conf } of notifyTargets) {
+        try {
+          await notif.notifyPaymentConfirmed(
+            payment.phone, payment.vendor_name,
+            conf.amount, conf.utr,
+            conf.payment_date || new Date().toLocaleDateString('en-IN')
+          );
+          sendResults.push({ vendor: payment.vendor_name, sent: true });
+        } catch (e) {
+          sendResults.push({ vendor: payment.vendor_name, sent: false, error: e.message });
         }
-        successCount++;
-      } else {
-        failCount++;
+      }
+
+      // Notify the finance user who completed the batch via Matrix DM.
+      const me = req.session.user;
+      if (me.matrix_room_id) {
+        const matrixAdapter = require('../../../services/matrix-adapter');
+        await matrixAdapter.sendText({
+          roomId: me.matrix_room_id,
+          body: `✅ ICICI confirmation applied — ${successCount} paid, ${failCount} failed. ${sendResults.filter(r=>r.sent).length} vendors notified.`,
+          recipientUid: me.id,
+        }).catch(e => console.warn('[payments.confirm-batch] Matrix DM failed:', e.message));
+      }
+
+      res.json({
+        success: true,
+        successCount,
+        failCount,
+        notification_results: sendResults,
+        message: `${successCount} payments marked paid. ${sendResults.filter(r=>r.sent).length} vendor notifications sent.${failCount ? ' ' + failCount + ' require manual follow-up.' : ''}`,
+      });
+
+    } finally {
+      // Ensure session entry is deleted and file is cleaned up under both success and failure
+      if (fs.existsSync(file_path)) {
+        try {
+          fs.unlinkSync(file_path);
+        } catch (err) {
+          console.warn('[payments] Temp file cleanup failed:', err.message);
+        }
+      }
+      if (req.session.icici_previews) {
+        delete req.session.icici_previews[file_token];
+      }
+      // Force saving the session since this finally block runs after res.json()
+      if (typeof req.session.save === 'function') {
+        req.session.save();
       }
     }
-
-    // Send WhatsApp to vendors — outside the loop so status updates are done first
-    const sendResults = [];
-    for (const { payment, conf } of notifyTargets) {
-      try {
-        await notif.notifyPaymentConfirmed(
-          payment.phone, payment.vendor_name,
-          conf.amount, conf.utr,
-          conf.payment_date || new Date().toLocaleDateString('en-IN')
-        );
-        sendResults.push({ vendor: payment.vendor_name, sent: true });
-      } catch (e) {
-        sendResults.push({ vendor: payment.vendor_name, sent: false, error: e.message });
-      }
-    }
-
-    // Notify the finance user who completed the batch via Matrix DM.
-    const me = req.session.user;
-    if (me.matrix_room_id) {
-      const matrixAdapter = require('../../../services/matrix-adapter');
-      await matrixAdapter.sendText({
-        roomId: me.matrix_room_id,
-        body: `✅ ICICI confirmation applied — ${successCount} paid, ${failCount} failed. ${sendResults.filter(r=>r.sent).length} vendors notified.`,
-        recipientUid: me.id,
-      }).catch(e => console.warn('[payments.confirm-batch] Matrix DM failed:', e.message));
-    }
-
-    res.json({
-      success: true,
-      successCount,
-      failCount,
-      notification_results: sendResults,
-      message: `${successCount} payments marked paid. ${sendResults.filter(r=>r.sent).length} vendor notifications sent.${failCount ? ' ' + failCount + ' require manual follow-up.' : ''}`,
-    });
   }));
 
 // ── GET payment history for a project
