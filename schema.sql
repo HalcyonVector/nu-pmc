@@ -1854,7 +1854,6 @@ CREATE TABLE wa_pending_actions (
   rejection_note  TEXT NULL,
   raised_by       INT UNSIGNED NULL,
   raised_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  actioned_by     INT UNSIGNED NULL,
   actioned_at     DATETIME NULL,
   -- WhatsApp-channel fields (confirmations, acks, replies)
   action_type     ENUM('anomaly_ack','grn_approve','report_update','issue_confirm',
@@ -1877,7 +1876,6 @@ CREATE TABLE wa_pending_actions (
   auto_accept_at  DATETIME NULL,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (raised_by) REFERENCES users(id) ON DELETE SET NULL,
-  FOREIGN KEY (actioned_by) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

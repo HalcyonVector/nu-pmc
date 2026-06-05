@@ -76,7 +76,7 @@ describe('GET /api/approvals — merged list', () => {
     // SELECT wa_pending_actions
     db.query.mockResolvedValueOnce([[
       { id: 100, action_type: 'cn_legacy', title: 'CN-100', project_id: 7,
-        user_id: 10, actioned_by: null, raised_at: new Date('2026-04-10'),
+        user_id: 10, raised_at: new Date('2026-04-10'),
         status: 'pending', channel: 'app' },
     ]]);
 

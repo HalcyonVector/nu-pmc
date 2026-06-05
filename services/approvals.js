@@ -120,7 +120,7 @@ async function close({ refTable, refId, actionedBy, rejectionNote = null }) {
   const newStatus = rejectionNote ? 'rejected' : 'approved';
   await db.query(
     `UPDATE wa_pending_actions
-        SET status = ?, actioned_by = ?, actioned_at = NOW(), rejection_note = ?
+        SET status = ?, user_id = ?, actioned_at = NOW(), rejection_note = ?
       WHERE ref_table = ? AND ref_id = ? AND status = 'pending'`,
     [newStatus, actionedBy || null, rejectionNote, refTable, refId]
   );

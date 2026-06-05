@@ -52,11 +52,11 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     });
     const Auth = require('../../auth/contract');
     const userMap = await Auth.functions.getUsers(
-      legacyRows.flatMap(a => [a.user_id, a.actioned_by, a.raised_by].filter(Boolean))
+      legacyRows.flatMap(a => [a.user_id, a.raised_by].filter(Boolean))
     );
     legacyRows.forEach(a => {
       a.user_id_name      = userMap.get(a.raised_by)?.full_name     || null;
-      a.actioned_by_name  = userMap.get(a.actioned_by)?.full_name || null;
+      a.actioned_by_name  = ['approved','rejected','acted'].includes(a.status) ? (userMap.get(a.user_id)?.full_name || null) : null;
     });
 
     // ── UNIFIED: approvals (build-commit lock #7) ───────────────────────
@@ -174,7 +174,7 @@ router.post('/:id/approve', requireAuth, requirePrincipal, asyncHandler(async (r
     let weeklyReportData = null;
     await db.tx(async (conn) => {
       await conn.query(
-        'UPDATE wa_pending_actions SET status = ?, actioned_by = ?, actioned_at = NOW() WHERE id = ?',
+        'UPDATE wa_pending_actions SET status = ?, user_id = ?, actioned_at = NOW() WHERE id = ?',
         ['approved', req.session.user.id, req.params.id]
       );
 
@@ -233,7 +233,7 @@ router.post('/:id/reject', requireAuth, requirePrincipal, asyncHandler(async (re
     }
 
     await db.query(
-      'UPDATE wa_pending_actions SET status = ?, actioned_by = ?, actioned_at = NOW(), rejection_note = ? WHERE id = ?',
+      'UPDATE wa_pending_actions SET status = ?, user_id = ?, actioned_at = NOW(), rejection_note = ? WHERE id = ?',
       ['rejected', req.session.user.id, rejection_note || 'No reason given', req.params.id]
     );
     audit.log({ userId: req.session.user.id, action: 'approval.reject',
