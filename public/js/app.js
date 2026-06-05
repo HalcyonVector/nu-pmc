@@ -8898,6 +8898,9 @@ APP.renderDashboard = async function() {
   if (role === 'design_head' || role === 'services_head') {
     return APP.renderDesignDashboard();
   }
+  if (['team_lead','detailing_head','coordinator','jr_architect','services_engineer'].includes(role)) {
+    return APP.renderTeamDashboard();
+  }
   // principal / design_principal — original dashboard
   return _origRenderDashboard.call(APP);
 };
@@ -9031,7 +9034,7 @@ APP.renderSiteDashboard = async function() {
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
-// DESIGN HEAD DASHBOARD
+// DESIGN HEAD / SERVICES HEAD DASHBOARD
 APP.renderDesignDashboard = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
@@ -9042,18 +9045,19 @@ APP.renderDesignDashboard = async function() {
   if (!data) return;
 
   const role = APP.user.role;
-  const stream = role === 'design_head' ? 'design' : 'services';
   const streamLabel = role === 'design_head' ? 'Design' : 'Services';
+  const ac = data.action_centre || {};
 
-  let html = setupBanner; // Add setup banner if project selected
-  
+  let html = setupBanner;
   html += `
   <div class="sec-label">Pending — ${streamLabel} Stream</div>`;
 
-  const pending = data.pending_approvals || [];
-  const queries = data.pending_queries || [];
+  // Read correct keys from action_centre
+  const pending = (ac.pending_approvals || []).slice(0, 5);
+  const queries = [...(ac.overdue_queries || []), ...(ac.fresh_queries || [])].slice(0, 5);
+  const pendingChanges = (ac.pending_changes || []).slice(0, 5);
 
-  if (!pending.length && !queries.length) {
+  if (!pending.length && !queries.length && !pendingChanges.length) {
     html += `<div class="card" style="text-align:center;padding:20px">
       <div style="font-size:24px;margin-bottom:8px">✅</div>
       <div style="font-size:13px;font-weight:600;color:var(--navy)">Nothing pending</div>
@@ -9061,25 +9065,50 @@ APP.renderDesignDashboard = async function() {
   }
 
   if (pending.length) {
-    html += pending.slice(0,5).map(p => `
+    html += pending.map(p => `
     <button class="action-item c-navy" style="min-height:44px" onclick="APP.switchTab('drawings')">
       <div class="ai-icon">📐</div>
       <div class="ai-body">
-        <div class="ai-title">${p.drawing_number||'Drawing'} — ${p.drawing_name||''}</div>
-        <div class="ai-meta">Rev ${p.revision} · ${p.project_name||'—'}</div>
+        <div class="ai-title">${p.drawing_number||p.title||'Drawing'} — ${p.drawing_name||p.request_type||''}</div>
+        <div class="ai-meta">${p.project_name||'—'}</div>
       </div>
       <span class="badge b-amber">Approve</span>
-    </div>`).join('');
+    </button>`).join('');
   }
 
   if (queries.length) {
     html += `<div class="sec-label">Drawing Queries</div>`;
-    html += queries.slice(0,5).map(q => `
-    <button class="query-item fresh" style="min-height:44px" onclick="APP.switchTab('queries')">
-      <div class="qi-drawing">${q.drawing_number||'—'}</div>
-      <div class="qi-question">${q.question||'—'}</div>
-      <div class="qi-meta">${q.raised_by_name||'—'} · ${UI.fmtDate(q.created_at)}</div>
-    </div>`).join('');
+    html += queries.map(q => `
+    <button class="action-item c-${q.days_open>=3?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('queries')">
+      <div class="ai-icon">${q.days_open>=3?'⚠️':'💬'}</div>
+      <div class="ai-body">
+        <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
+        <div class="ai-meta">${q.project_name||'—'} · ${q.days_open||0}d open</div>
+      </div>
+      <span class="badge b-${q.days_open>=3?'red':'amber'}">${q.days_open>=3?'Overdue':'Open'}</span>
+    </button>`).join('');
+  }
+
+  if (pendingChanges.length) {
+    html += `<div class="sec-label">Change Notices</div>`;
+    html += pendingChanges.map(cn => `
+    <button class="action-item c-blue" style="min-height:44px" onclick="APP.switchTab('changes')">
+      <div class="ai-icon">📝</div>
+      <div class="ai-body">
+        <div class="ai-title">${cn.cn_number||'—'} — ${cn.title||''}</div>
+        <div class="ai-meta">${cn.project_name||'—'}</div>
+      </div>
+      <span class="badge b-blue">Sign</span>
+    </button>`).join('');
+  }
+
+  // Active projects for this head
+  const projects = (data.projects || []).filter(p => p.status === 'active');
+  if (projects.length) {
+    html += `<div class="sec-label" style="margin-top:16px">Active Projects (${projects.length})</div>`;
+    html += `<div class="projects-grid">`;
+    projects.forEach(p => { html += APP.projectCard(p, true); });
+    html += `</div>`;
   }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -9125,6 +9154,56 @@ APP.renderFinanceDashboard = async function() {
       📤<div style="font-size:12px;margin-top:4px">Tally Export</div>
     </button>
   </div>`;
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+// TEAM LEAD / COORDINATOR / JR ARCHITECT / SERVICES ENGINEER DASHBOARD
+// Project-scoped roles: shows their assigned active projects + drawing queries.
+APP.renderTeamDashboard = async function() {
+  const el = UI.contentEl();
+  el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)">Loading…</div>';
+
+  const data = await API.get('/dashboard');
+  if (!data) return;
+
+  const ac = data.action_centre || {};
+  const projects = (data.projects || []).filter(p => p.status === 'active');
+  const overdueQ = ac.overdue_queries || [];
+  const freshQ   = ac.fresh_queries   || [];
+  const allQ     = [...overdueQ, ...freshQ];
+
+  let html = '';
+
+  if (allQ.length) {
+    html += `<div class="sec-label">Drawing Queries</div>`;
+    allQ.slice(0, 6).forEach(q => {
+      const isOverdue = (q.days_open || 0) >= 3;
+      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('queries')">
+        <div class="ai-icon">${isOverdue?'⚠️':'💬'}</div>
+        <div class="ai-body">
+          <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
+          <div class="ai-meta">${q.project_name||'—'} · ${q.days_open||0}d open</div>
+        </div>
+        <span class="badge b-${isOverdue?'red':'amber'}">${isOverdue?'Overdue':'Open'}</span>
+      </button>`;
+    });
+  } else {
+    html += `<div class="card" style="text-align:center;padding:16px;margin-bottom:12px">
+      <div style="font-size:22px;margin-bottom:6px">✅</div>
+      <div style="font-size:13px;font-weight:600;color:var(--navy)">No open queries</div>
+    </div>`;
+  }
+
+  if (projects.length) {
+    html += `<div class="sec-label" style="margin-top:16px">Active Projects (${projects.length})</div>`;
+    html += `<div class="projects-grid">`;
+    projects.forEach(p => { html += APP.projectCard(p, true); });
+    html += `</div>`;
+  } else {
+    html += `<div class="sec-label" style="margin-top:16px">Projects</div>`;
+    html += UI.empty('🏗️','No active projects assigned');
+  }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };

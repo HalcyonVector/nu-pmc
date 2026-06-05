@@ -30,12 +30,14 @@ const ROLE_CATEGORIES = {
 // Each role sees only the categories they can actually act on.
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const isPrincipal = PRINCIPALS.includes(me.role);
+    const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
+    const isProjectScoped = PROJECT_SCOPED_ROLES.includes(me.role);
+    const isFirmWide = !isProjectScoped;
     const wants = ROLE_CATEGORIES[me.role] || [];
 
-    // Resolve project scope. Principals → all active. Others → their assignments.
+    // Resolve project scope. Firm-wide roles → all active. Project-scoped roles → their assignments.
     let scopedProjectIds = null;
-    if (!isPrincipal) {
+    if (isProjectScoped) {
       const [rows] = await db.query(
         `SELECT pa.project_id
          FROM project_assignments pa
@@ -61,10 +63,9 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       }
     }
 
-    // Build the project filter clause + params for non-principals.
-    // Principals: empty clause (no filter).
-    const projFilter = isPrincipal ? '' : ' AND project_id IN (?)';
-    const projParams = isPrincipal ? []  : [scopedProjectIds];
+    // Build the project filter clause + params for project-scoped roles.
+    const projFilter = isFirmWide ? '' : ' AND project_id IN (?)';
+    const projParams = isFirmWide ? []  : [scopedProjectIds];
 
     // Helper that returns [] when the role doesn't get this category,
     // saving the DB hit and keeping the response shape consistent.
@@ -172,7 +173,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     addName(pendingApprovals); addName(overdueMaterials); addName(pendingChanges);
 
     // Projects summary — also project-scoped for non-principals.
-    const projectsFilter = isPrincipal
+    const projectsFilter = isFirmWide
       ? "WHERE p.status IN ('active')"
       : "WHERE p.status IN ('active') AND p.id IN (?)";
     const [projects] = await db.query(
@@ -190,7 +191,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
        LEFT JOIN schedule_versions sv ON sv.project_id = p.id AND sv.is_current = 1
        ${projectsFilter}
        GROUP BY p.id`,
-      isPrincipal ? [] : [scopedProjectIds]
+      isFirmWide ? [] : [scopedProjectIds]
     );
 
     for (const p of projects) {
