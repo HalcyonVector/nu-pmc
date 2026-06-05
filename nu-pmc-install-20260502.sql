@@ -3119,6 +3119,12 @@ INSERT INTO `role_nav` VALUES (110,'team_lead','work','register',2,1,'2026-04-28
 INSERT INTO `role_nav` VALUES (111,'team_lead','work','issues',3,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (112,'team_lead','work','submittals',4,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (113,'team_lead','work','phototags',5,1,'2026-04-28 08:51:54');
+INSERT INTO `role_nav` VALUES (114,'detailing_head','home','dashboard',1,1,'2026-04-28 08:51:54');
+INSERT INTO `role_nav` VALUES (115,'detailing_head','home','project_detail',2,1,'2026-04-28 08:51:54');
+INSERT INTO `role_nav` VALUES (116,'detailing_head','work','drawings',1,1,'2026-04-28 08:51:54');
+INSERT INTO `role_nav` VALUES (117,'detailing_head','work','issues',2,1,'2026-04-28 08:51:54');
+INSERT INTO `role_nav` VALUES (118,'detailing_head','work','register',3,1,'2026-04-28 08:51:54');
+INSERT INTO `role_nav` VALUES (119,'detailing_head','work','submittals',4,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (121,'jr_architect','home','dashboard',1,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (122,'jr_architect','home','project_detail',2,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (123,'jr_architect','work','drawings',1,1,'2026-04-28 08:51:54');
