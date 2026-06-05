@@ -68,6 +68,7 @@ module.exports = {
     needsYou:      require('./routes/needs-you'),
     pending:       require('./routes/pending'),
     gantt:         require('./routes/gantt'),
+    lessons:       require('./routes/lessons'),
   },
 
   tables: [

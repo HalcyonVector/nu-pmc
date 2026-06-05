@@ -401,6 +401,7 @@ module.exports = {
     register:  require('./routes/register'),
     schedule:  require('./routes/schedule'),
     materials: require('./routes/materials'),
+    scheduleQuick: require('./routes/schedule-quick'),
   },
 
   tables: [

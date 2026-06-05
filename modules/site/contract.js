@@ -392,6 +392,7 @@ module.exports = {
     handover:     require('./routes/handover'),
     labour:       require('./routes/labour'),
     forms:        require('./routes/forms'),
+    labourQuick:  require('./routes/labour-quick'),
   },
 
   // ── TABLES OWNED BY THIS MODULE ─────────────────────────────────────────

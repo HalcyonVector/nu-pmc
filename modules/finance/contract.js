@@ -121,6 +121,7 @@ module.exports = {
     piGenerator:      require('./routes/pi-generator'),
     urgentPayments:   require('./routes/urgent-payments'),
     boqMapping:       require('./routes/boq-mapping'),
+    vendorDocuments:  require('./routes/vendor-documents'),
   },
 
   // ── TABLES OWNED BY THIS MODULE ─────────────────────────────────────────

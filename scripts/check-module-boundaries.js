@@ -97,10 +97,7 @@ function main() {
       const normalizedVia = rest.replace(/\\/g, '/');
 
       // Narrow purpose-specific allowances:
-      // 1. server.js is only allowed to import module routes
-      if (relFile === 'server.js' && normalizedVia.startsWith('routes/')) continue;
-
-      // 2. middleware/auth.js is only allowed to import the auth module middleware
+      // 1. middleware/auth.js is only allowed to import the auth module middleware
       if (relFile === 'middleware/auth.js' && moduleName === 'auth' && normalizedVia.startsWith('middleware/auth')) continue;
 
       violations.push({

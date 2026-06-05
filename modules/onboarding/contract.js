@@ -248,6 +248,7 @@ module.exports = {
     clientBOQ:     require('./routes/client-boq'),
     vendors:       require('./routes/vendors'),
     documents:     require('./routes/documents'),
+    vendorPublic:  require('./routes/vendor-public'),
   },
 
   // ── TABLES OWNED BY THIS MODULE ─────────────────────────────────────────

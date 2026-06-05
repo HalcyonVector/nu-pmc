@@ -50,6 +50,9 @@ module.exports = {
     aiTriggers:      require('./routes/ai-triggers'),
     pmcAssignments:  require('./routes/pmc-assignments'),
     lookup:          require('./routes/lookup'),
+    companyEntities: require('./routes/company-entities'),
+    clientErrors:    require('./routes/client-errors'),
+    clientErrorsRead: require('./routes/client-errors').readRouter,
   },
 
   tables: [

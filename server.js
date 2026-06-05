@@ -330,32 +330,42 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// ── API ROUTES
-app.use('/api/auth', require('./modules/auth/routes/auth'));
-app.use('/api/nav', require('./modules/system/routes/nav'));
-app.use('/api/nav-admin', require('./modules/system/routes/nav-admin'));
-app.use('/api/needs-you', require('./modules/reporting/routes/needs-you'));
-app.use('/api/needs-you', require('./modules/reporting/routes/acc-summary'));
-app.use('/api/pending', require('./modules/reporting/routes/pending'));
-app.use('/api/project-slas', require('./modules/system/routes/project-slas'));
-app.use('/api/daily-reports', require('./modules/site/routes/daily-reports'));
-app.use('/api/projects', require('./modules/onboarding/routes/projects'));
-app.use('/api/schedule-quick', require('./modules/design-services/routes/schedule-quick'));
-app.use('/api/schedule', require('./modules/design-services/routes/schedule'));
-app.use('/api/drawings', require('./modules/design-services/routes/drawings'));
-app.use('/api/register', require('./modules/design-services/routes/register'));
-app.use('/api/photo-tags', require('./modules/site/routes/photo-tags'));
-app.use('/api/delegations', require('./modules/system/routes/delegations'));
-app.use('/api/weekly-signoff', require('./modules/reporting/routes/weekly-signoff'));
-app.use('/api/materials', require('./modules/design-services/routes/materials'));
-app.use('/api/approvals', require('./modules/workflow/routes/approvals'));
-app.use('/api/changes', require('./modules/workflow/routes/changes'));
-app.use('/api/reports', require('./modules/reporting/routes/reports'));
-app.use('/api/photos', require('./modules/site/routes/photos'));
-app.use('/api/documents', require('./modules/onboarding/routes/documents'));   // V5 Fix 3 — document library
-app.use('/api/meetings', require('./modules/workflow/routes/meetings'));
-app.use('/api/whatsapp', require('./modules/system/routes/whatsapp').router);
-app.use('/api/vendors', require('./modules/onboarding/routes/vendors'));
+// ── CONTRACT-BASED API ROUTE MOUNTING (M1-M8 contracts)
+const authContract = require('./modules/auth/contract');
+const systemContract = require('./modules/system/contract');
+const siteContract = require('./modules/site/contract');
+const designServicesContract = require('./modules/design-services/contract');
+const financeContract = require('./modules/finance/contract');
+const workflowContract = require('./modules/workflow/contract');
+const onboardingContract = require('./modules/onboarding/contract');
+const reportingContract = require('./modules/reporting/contract');
+
+app.use('/api/auth', authContract.routes.auth);
+app.use('/api/nav', systemContract.routes.nav);
+app.use('/api/nav-admin', systemContract.routes.navAdmin);
+app.use('/api/needs-you', reportingContract.routes.needsYou);
+app.use('/api/needs-you', reportingContract.routes.accSummary);
+app.use('/api/pending', reportingContract.routes.pending);
+app.use('/api/project-slas', systemContract.routes.projectSlas);
+app.use('/api/daily-reports', siteContract.routes.dailyReports);
+app.use('/api/projects', onboardingContract.routes.projects);
+app.use('/api/schedule-quick', designServicesContract.routes.scheduleQuick);
+app.use('/api/schedule', designServicesContract.routes.schedule);
+app.use('/api/drawings', designServicesContract.routes.drawings);
+app.use('/api/register', designServicesContract.routes.register);
+app.use('/api/photo-tags', siteContract.routes.photoTags);
+app.use('/api/delegations', systemContract.routes.delegations);
+app.use('/api/weekly-signoff', reportingContract.routes.weeklySignoff);
+app.use('/api/materials', designServicesContract.routes.materials);
+app.use('/api/approvals', workflowContract.routes.approvals);
+app.use('/api/changes', workflowContract.routes.changes);
+app.use('/api/reports', reportingContract.routes.reports);
+app.use('/api/photos', siteContract.routes.photos);
+app.use('/api/documents', onboardingContract.routes.documents);
+app.use('/api/meetings', workflowContract.routes.meetings);
+app.use('/api/whatsapp', systemContract.routes.whatsapp);
+app.use('/api/vendors', onboardingContract.routes.vendors);
+
 // PUBLIC vendor onboarding routes — mounted OUTSIDE /api so they bypass
 // CSRF, session auth, and the trainee/audit guards. Token-gated; see
 // modules/onboarding/routes/vendor-public.js for the security model.
@@ -372,52 +382,51 @@ if (process.env.DISABLE_API_RATE_LIMIT !== '1') {
   });
   app.use('/vendor-onboard', vendorOnboardLimiter);
 }
-app.use('/vendor-onboard', require('./modules/onboarding/routes/vendor-public'));
-app.use('/api/notifications', require('./modules/system/routes/notifications'));
-app.use('/api/client-boq', require('./modules/onboarding/routes/client-boq'));
-app.use('/api/clients', require('./modules/onboarding/routes/clients'));
-app.use('/api/weekly-health', require('./modules/reporting/routes/weekly-health'));
+app.use('/vendor-onboard', onboardingContract.routes.vendorPublic);
+app.use('/api/notifications', systemContract.routes.notifications);
+app.use('/api/client-boq', onboardingContract.routes.clientBOQ);
+app.use('/api/clients', onboardingContract.routes.clients);
+app.use('/api/weekly-health', reportingContract.routes.weeklyHealth);
 // Legacy /api/snags removed in v5.9 — snag tracking unified in /api/issues
 // with issue_type='snag'. See migrations/v5.9-collapse-legacy-snags.sql.
-app.use('/api/comms', require('./modules/system/routes/comms'));
-app.use('/api/measurements', require('./modules/workflow/routes/measurements'));
-app.use('/api/claims', require('./modules/finance/routes/claims'));
-app.use('/api/gantt', require('./modules/reporting/routes/gantt'));
-app.use('/api/users', require('./modules/auth/routes/users'));
-app.use('/api/invoices', require('./modules/finance/routes/invoices'));
-app.use('/api/project-setup', require('./modules/onboarding/routes/project-setup'));
-app.use('/api/finance', require('./modules/finance/routes/finance'));
-app.use('/api/user-management', require('./modules/auth/routes/user-management'));
-app.use('/api/admin-reset', require('./modules/auth/routes/admin-reset'));
-app.use('/api/lookup', require('./modules/system/routes/lookup'));
-app.use('/api/ai', require('./modules/system/routes/ai-triggers'));
-app.use('/api/payment-requests', require('./modules/finance/routes/payment-requests'));
-app.use('/api/payments', require('./modules/finance/routes/payments'));
-app.use('/api/pi-generator', require('./modules/finance/routes/pi-generator'));
-app.use('/api/vendor-documents', require('./modules/finance/routes/vendor-documents'));
-app.use('/api/dashboard', require('./modules/reporting/routes/dashboard'));
-app.use('/api/issues', require('./modules/site/routes/issues'));
-app.use('/api/submittals', require('./modules/workflow/routes/submittals'));
-app.use('/api/forms', require('./modules/site/routes/forms'));
-app.use('/api/labour-quick', require('./modules/site/routes/labour-quick'));
-app.use('/api/labour', require('./modules/site/routes/labour'));
-app.use('/api/grn', require('./modules/site/routes/grn'));
-app.use('/api/budget', require('./modules/finance/routes/budget'));
-app.use('/api/boq-mapping', require('./modules/finance/routes/boq-mapping'));
-app.use('/api/gst-statement', require('./modules/finance/routes/gst-statement'));
-app.use('/api/urgent-payments', require('./modules/finance/routes/urgent-payments'));
-app.use('/api/pmc-assignments', require('./modules/system/routes/pmc-assignments'));
-app.use('/api/governance', require('./modules/system/routes/governance'));
-app.use('/api/company-entities', require('./modules/system/routes/company-entities'));
-app.use('/api/handover', require('./modules/site/routes/handover'));
-app.use('/api/lessons', require('./modules/reporting/routes/lessons'));
+app.use('/api/comms', systemContract.routes.comms);
+app.use('/api/measurements', workflowContract.routes.measurements);
+app.use('/api/claims', financeContract.routes.claims);
+app.use('/api/gantt', reportingContract.routes.gantt);
+app.use('/api/users', authContract.routes.users);
+app.use('/api/invoices', financeContract.routes.invoices);
+app.use('/api/project-setup', onboardingContract.routes.projectSetup);
+app.use('/api/finance', financeContract.routes.finance);
+app.use('/api/user-management', authContract.routes.userManagement);
+app.use('/api/admin-reset', authContract.routes.adminReset);
+app.use('/api/lookup', systemContract.routes.lookup);
+app.use('/api/ai', systemContract.routes.aiTriggers);
+app.use('/api/payment-requests', financeContract.routes.paymentRequests);
+app.use('/api/payments', financeContract.routes.payments);
+app.use('/api/pi-generator', financeContract.routes.piGenerator);
+app.use('/api/vendor-documents', financeContract.routes.vendorDocuments);
+app.use('/api/dashboard', reportingContract.routes.dashboard);
+app.use('/api/issues', siteContract.routes.issues);
+app.use('/api/submittals', workflowContract.routes.submittals);
+app.use('/api/forms', siteContract.routes.forms);
+app.use('/api/labour-quick', siteContract.routes.labourQuick);
+app.use('/api/labour', siteContract.routes.labour);
+app.use('/api/grn', siteContract.routes.grn);
+app.use('/api/budget', financeContract.routes.budget);
+app.use('/api/boq-mapping', financeContract.routes.boqMapping);
+app.use('/api/gst-statement', financeContract.routes.gstStatement);
+app.use('/api/urgent-payments', financeContract.routes.urgentPayments);
+app.use('/api/pmc-assignments', systemContract.routes.pmcAssignments);
+app.use('/api/governance', systemContract.routes.governance);
+app.use('/api/company-entities', systemContract.routes.companyEntities);
+app.use('/api/handover', siteContract.routes.handover);
+app.use('/api/lessons', reportingContract.routes.lessons);
 
 // Client-side error reporting — see modules/system/routes/client-errors.js.
 // POST /api/log/client-error captures any non-2xx response from the API
 // wrapper. GET/PATCH on /api/client-errors are Principal-only triage tools.
-const clientErrorRoutes = require('./modules/system/routes/client-errors');
-app.use('/api/log/client-error', clientErrorRoutes);
-app.use('/api/client-errors', clientErrorRoutes.readRouter);
+app.use('/api/log/client-error', systemContract.routes.clientErrors);
+app.use('/api/client-errors', systemContract.routes.clientErrorsRead);
 
 // ── AUTHENTICATED FILE SERVING
 app.get('/api/files/:subdir/:filename', require('./middleware/auth').requireAuth, (req, res) => {
