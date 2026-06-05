@@ -9037,19 +9037,14 @@ APP.renderSiteDashboard = async function() {
 // DESIGN HEAD / SERVICES HEAD DASHBOARD
 APP.renderDesignDashboard = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
-  const [data, setupBanner] = await Promise.all([
-    API.get('/dashboard'),
-    pid ? APP.renderSetupBanner(pid) : Promise.resolve(''),
-  ]);
+  const data = await API.get('/dashboard');
   if (!data) return;
 
   const role = APP.user.role;
   const streamLabel = role === 'design_head' ? 'Design' : 'Services';
   const ac = data.action_centre || {};
 
-  let html = setupBanner;
-  html += `
+  let html = `
   <div class="sec-label">Pending — ${streamLabel} Stream</div>`;
 
   // Read correct keys from action_centre
