@@ -52,10 +52,10 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     });
     const Auth = require('../../auth/contract');
     const userMap = await Auth.functions.getUsers(
-      legacyRows.flatMap(a => [a.user_id, a.actioned_by].filter(Boolean))
+      legacyRows.flatMap(a => [a.user_id, a.actioned_by, a.raised_by].filter(Boolean))
     );
     legacyRows.forEach(a => {
-      a.user_id_name      = userMap.get(a.user_id)?.full_name     || null;
+      a.user_id_name      = userMap.get(a.raised_by)?.full_name     || null;
       a.actioned_by_name  = userMap.get(a.actioned_by)?.full_name || null;
     });
 
@@ -132,8 +132,8 @@ router.post('/', requireAuth, requireRole(...APPROVAL_RAISERS), asyncHandler(asy
     if (!project_id || !action_type || !message_sent) return res.status(400).json({ error: 'Missing required fields' });
 
     const [result] = await db.query(
-      'INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, user_id, message_sent, expires_at, channel) VALUES (?,?,?,?,?,?,DATE_ADD(NOW(), INTERVAL 7 DAY),?)',
-      [action_type, 0, 'general', '', req.session.user.id, message_sent, 'app']
+      'INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, user_id, raised_by, message_sent, expires_at, channel) VALUES (?,?,?,?,?,?,?,DATE_ADD(NOW(), INTERVAL 7 DAY),?)',
+      [action_type, 0, 'general', '', null, req.session.user.id, message_sent, 'app']
     );
 
     audit.log({ userId: req.session.user.id, action: 'approval.create',

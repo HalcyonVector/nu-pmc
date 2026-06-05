@@ -54,9 +54,9 @@ async function sendPendingAction(db, wa, opts) {
 
   const [result] = await db.query(
     `INSERT INTO wa_pending_actions
-     (action_type, ref_id, ref_table, phone, user_id, message_sent, expires_at, auto_accept_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-    [actionType, refId, refTable, phone, userId||null, message, expiresAt, autoAcceptAt]
+     (action_type, ref_id, ref_table, phone, user_id, raised_by, message_sent, expires_at, auto_accept_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [actionType, refId, refTable, phone, userId||null, opts.raisedBy||null, message, expiresAt, autoAcceptAt]
   );
 
   // Append auto-accept notice to eligible action types
@@ -494,9 +494,9 @@ async function registerPendingAction(db, opts) {
     [actionType, refId, phone]
   );
   const [result] = await db.query(
-    `INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, user_id, message_sent, expires_at)
-     VALUES (?,?,?,?,?,?,?)`,
-    [actionType, refId, refTable, phone, userId||null, message||'', expiresAt]
+    `INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, user_id, raised_by, message_sent, expires_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [actionType, refId, refTable, phone, userId||null, opts.raisedBy||null, message||'', expiresAt]
   );
   return result.insertId;
 }
