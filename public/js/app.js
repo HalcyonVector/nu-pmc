@@ -1116,7 +1116,6 @@ Tomorrow: start formwork on next bay."
       html += `<div class="sec-label">Projects</div>`;
       html += UI.empty('🏗','No projects yet');
     } else {
-      const initialising = [];
       const active = [];
       const completed = [];
 
@@ -1126,7 +1125,7 @@ Tomorrow: start formwork on next bay."
         if (['completed', 'on_hold'].includes(p.status)) {
           completed.push(p);
         } else if (p.status === 'initialising' || !isChecklistComplete) {
-          initialising.push(p);
+          // Skip initialising projects on the dashboard as requested
         } else {
           active.push(p);
         }
@@ -1136,12 +1135,6 @@ Tomorrow: start formwork on next bay."
         html += `<div class="sec-label" style="margin-top:16px; margin-bottom:8px">Active Projects (${active.length})</div>`;
         html += `<div class="projects-grid">`;
         active.forEach(p => { html += APP.projectCard(p, true); });
-        html += `</div>`;
-      }
-      if (initialising.length) {
-        html += `<div class="sec-label" style="margin-top:24px; margin-bottom:8px">Initialising Projects (${initialising.length})</div>`;
-        html += `<div class="projects-grid">`;
-        initialising.forEach(p => { html += APP.projectCard(p, true); });
         html += `</div>`;
       }
       if (completed.length) {

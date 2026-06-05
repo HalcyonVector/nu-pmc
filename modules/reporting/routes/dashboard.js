@@ -173,8 +173,8 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
     // Projects summary — also project-scoped for non-principals.
     const projectsFilter = isPrincipal
-      ? "WHERE p.status IN ('active', 'initialising', 'on_hold', 'completed')"
-      : "WHERE p.status IN ('active', 'initialising', 'on_hold', 'completed') AND p.id IN (?)";
+      ? "WHERE p.status IN ('active')"
+      : "WHERE p.status IN ('active') AND p.id IN (?)";
     const [projects] = await db.query(
       `SELECT p.id, p.code, p.name, p.status, p.r0_end_date, p.client, p.location,
          p.checklist_project_created, p.checklist_design_boq, p.checklist_services_boq, p.checklist_schedule, p.checklist_site_manager,
