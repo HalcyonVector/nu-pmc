@@ -394,7 +394,8 @@ nu-pmc/
 
 ---
 
-##
+## Known Issues
+
+- **`detailing_head` missing from `role_nav` in seed SQL** — `nu-pmc-install-20260502.sql` has no `role_nav` rows for the `detailing_head` role. A fresh install will result in a blank nav for Detailing Head users (6 screens expected). Add the missing INSERT rows before deploying to a new environment.
+
 - **`.env` must not be committed** — `.env.example` is the safe template to commit. The actual `.env` is gitignored and must be created manually on each environment with real secrets. Never reuse development credentials in production.
-#   n u - p m c  
- 
