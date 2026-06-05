@@ -321,7 +321,8 @@ async function buildProjectSummary(me, projectId) {
       let stream = null;
       if (role === 'design_head')   stream = 'design';
       if (role === 'services_head') stream = 'services';
-      const drCount = await DS.functions.countDrawingVersions(projectId, ['pending_l1','pending_l2'], stream);
+      const DS_inline = require('../../design-services/contract');
+      const drCount = await DS_inline.functions.countDrawingVersions(projectId, ['pending_l1','pending_l2'], stream);
       const [[subRow]] = await db.query(
         `SELECT COUNT(*) c FROM submittals
           WHERE project_id=? AND status IN ('submitted','under_review')`,

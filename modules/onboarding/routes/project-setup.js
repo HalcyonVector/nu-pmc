@@ -194,14 +194,14 @@ const VALIDATION_REGISTRY = {
   },
   client_details_complete: async (projectId) => {
     const [rows] = await db.query(
-      `SELECT c.gstin, c.pan_number, c.bank_account, c.bank_ifsc 
+      `SELECT c.gstin, c.pan 
        FROM clients c 
        JOIN projects p ON c.id = p.client_id 
        WHERE p.id = ?`,
       [projectId]
     );
     if (rows.length === 0) return false;
-    return ['gstin', 'pan_number', 'bank_account', 'bank_ifsc'].every(f => rows[0][f] != null && rows[0][f] !== '');
+    return ['gstin', 'pan'].every(f => rows[0][f] != null && rows[0][f] !== '');
   },
   internal_boq_uploaded: async (projectId) => {
     const [rows] = await db.query(
