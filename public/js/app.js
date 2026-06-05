@@ -8911,18 +8911,15 @@ APP.renderPMCDashboard = async function() {
   const pid = APP.state.selectedProject;
   if (!pid) { el.innerHTML = UI.empty('🏗️','Select a project first'); return; }
 
-  const [dash, budget, setupBanner] = await Promise.all([
+  const [dash, budget] = await Promise.all([
     API.get(`/dashboard?project_id=${pid}`),
     API.get(`/budget/${pid}/digest`),
-    APP.renderSetupBanner(pid),
   ]);
 
   if (!dash) return;
   const ac = dash.action_centre || {};
 
-  let html = setupBanner; // Add setup banner at top
-  
-  html += `<div class="sec-label">Today's Priorities</div>`;
+  let html = `<div class="sec-label">Today's Priorities</div>`;
 
   const addItem = (icon, title, meta, c, b, badge, tab) =>
     `<button class="action-item c-${c}" style="min-height:44px" onclick="APP.switchTab('${tab}')">
@@ -8982,15 +8979,10 @@ APP.renderSiteDashboard = async function() {
   const pid = APP.state.selectedProject;
   if (!pid) { el.innerHTML = UI.empty('🏗️','No project assigned'); return; }
 
-  const [data, setupBanner] = await Promise.all([
-    API.get(`/schedule/${pid}?date=${APP.state.serverToday || UI.todayIST()}`),
-    APP.renderSetupBanner(pid),
-  ]);
+  const data = await API.get(`/schedule/${pid}?date=${APP.state.serverToday || UI.todayIST()}`);
   const today = APP.state.serverToday || UI.todayIST();
 
-  let html = setupBanner; // Add setup banner at top
-  
-  html += `
+  let html = `
   <div class="card" style="margin-bottom:16px;background:var(--navy);border:none">
     <div style="color:rgba(255,255,255,.7);font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})}</div>
     <div style="color:var(--white);font-size:22px;font-weight:700;margin-top:4px">${APP.user?.project_name||APP.state.projectName||'Site'}</div>
@@ -9113,16 +9105,12 @@ APP.renderDesignDashboard = async function() {
 APP.renderFinanceDashboard = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  const setupBanner = pid ? await APP.renderSetupBanner(pid) : '';
-
   // Check what day it is
   const now = new Date();
   const isSaturday = now.getDay() === 6;
   const hour = now.getHours();
 
-  let html = setupBanner; // Add setup banner if project selected
-  
-  html += `<div class="sec-label">Finance Dashboard</div>`;
+  let html = `<div class="sec-label">Finance Dashboard</div>`;
 
   if (isSaturday && hour >= 17) {
     html += `<button class="action-item c-green" style="min-height:44px" onclick="APP.switchTab('payments_fin')">
