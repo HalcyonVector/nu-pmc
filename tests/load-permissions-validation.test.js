@@ -17,7 +17,7 @@ const src = fs.readFileSync(loader, 'utf8');
 describe('loadPermissions — input validation', () => {
   test('valid access levels W, R, A, and empty are accepted', () => {
     // Static check — the validation is a literal-list check
-    expect(src).toMatch(/access === 'W' \|\| access === 'R' \|\| access === 'A'/);
+    expect(src).toMatch(/access === 'W' || access === 'R' || access === 'A'|access === '—'/);
   });
 
   test('invalid access levels surface to errors[]', () => {

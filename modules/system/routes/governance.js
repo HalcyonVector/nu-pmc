@@ -166,7 +166,7 @@ async function _importPermissions(workbook, conn) {
     'Principal': 'principal', 'Design Principal': 'design_principal',
     'PMC Head': 'pmc_head', 'Design Head': 'design_head',
     'Services Head': 'services_head', 'Team Lead': 'team_lead',
-    'Jr Architect': 'jr_architect', 'Detailing': 'detailing',
+    'Jr Architect': 'jr_architect', 'Detailing': 'detailing_head',
     'Site Manager': 'site_manager', 'Sr Site Manager': 'senior_site_manager',
     'Finance Admin': 'finance_admin', 'Coordinator': 'coordinator',
     'Trainee': 'trainee', 'Audit': 'audit', 'IT Admin': 'it_admin',
@@ -202,7 +202,8 @@ async function _importPermissions(workbook, conn) {
       const actionKey = isRawKey
         ? action
         : `${group.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.${action.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;
-      const level     = ['W','R','A'].includes(access) ? access : '';
+      const cleanAccess = (access === '—' || access === '-' || access === '–') ? '' : access;
+      const level     = ['W','R','A'].includes(cleanAccess) ? cleanAccess : '';
 
       try {
         const [result] = await conn.query(

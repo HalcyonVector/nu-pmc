@@ -31,7 +31,7 @@ const ROLE_SHEET_MAP = {
   'Principal':'principal','Design Principal':'design_principal',
   'PMC Head':'pmc_head','Design Head':'design_head',
   'Services Head':'services_head','Team Lead':'team_lead',
-  'Jr Architect':'jr_architect','Detailing':'detailing',
+  'Jr Architect':'jr_architect','Detailing':'detailing_head',
   'Site Manager':'site_manager','Sr Site Manager':'senior_site_manager',
   'Finance Admin':'finance_admin','Coordinator':'coordinator',
   'Trainee':'trainee','Audit':'audit','IT Admin':'it_admin',
@@ -69,8 +69,8 @@ async function loadPermissions(conn) {
       // rather than silently coerce to ''. Same defensive pattern as Sheet 9 quorum
       // validation: refuse-then-report beats silent-accept.
       let level;
-      if (access === '' || access === 'W' || access === 'R' || access === 'A') {
-        level = access;
+      if (access === '' || access === '—' || access === '-' || access === '–' || access === 'W' || access === 'R' || access === 'A') {
+        level = (access === '—' || access === '-' || access === '–') ? '' : access;
       } else {
         errors.push(`${sheetName} row ${i+1}: invalid access level '${access}' (must be W, R, A, or empty)`);
         continue;
