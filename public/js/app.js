@@ -8493,18 +8493,29 @@ APP.renderProjectDetail = async function() {
     html += `<div class="action-nav-group">`;
     html += buttons.map(b => {
       if (b.key === 'approvals') {
-        // Approvals tab button
-        return `<div class="card ps-btn approvals-card" style="cursor:pointer; width:100% !important; box-sizing:border-box !important; display:flex !important" onclick="APP._togglePsApprovals()">
-          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px">
-            <div style="font-weight:600;font-size:14px;color:var(--navy)">Approvals</div>
+        // Approvals widget — self-contained accordion, categories expand BELOW
+        // the card without affecting sibling cards (position:relative + absolute child)
+        const cats = (b.categories || []).map(c => `
+          <button class="appr-cat-row" onclick="event.stopPropagation(); APP._psApprovalsJump('${c.key}')">
+            <span class="appr-cat-label">${c.label}</span>
+            ${c.count > 0
+              ? `<span class="appr-cat-pill appr-cat-pill--active">${c.count}</span>`
+              : `<span class="appr-cat-pill">${c.count}</span>`}
+          </button>`).join('');
+        return `<div class="ps-btn appr-widget" id="ps-appr-widget">
+          <button class="appr-trigger" onclick="APP._togglePsApprovals()" aria-expanded="false" aria-controls="ps-appr-dropdown">
+            <span class="appr-trigger-label">Approvals</span>
             <div style="display:flex;align-items:center;gap:6px">
               ${countPill(b.count)}
-              <span id="ps-appr-caret" style="color:var(--muted)">▾</span>
+              <span class="appr-caret" id="ps-appr-caret">▾</span>
             </div>
+          </button>
+          <div class="appr-dropdown" id="ps-appr-categories" hidden>
+            ${cats}
           </div>
         </div>`;
       }
-      // Regular button — tap to switch to the target tab
+      // Regular button
       const target = BUTTON_TARGET[b.key];
       const onclick = target ? `APP.switchTab('${target}')` : '';
       return `<div class="card ps-btn" style="cursor:pointer; width:100% !important; box-sizing:border-box !important; display:flex !important" onclick="${onclick}">
@@ -8515,28 +8526,6 @@ APP.renderProjectDetail = async function() {
       </div>`;
     }).join('');
     html += `</div>`;
-
-    // Render the sub-categories outside the action-nav-group to allow split layout spanning full width
-    const approvalsBtn = buttons.find(b => b.key === 'approvals');
-    if (approvalsBtn) {
-      html += `<div id="ps-appr-categories" style="display:none;margin-top:12px;width:100%">
-        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;width:100%">
-          <!-- Columns 1, 2 & 3: Empty -->
-          <div></div>
-          <div></div>
-          <div></div>
-          <!-- Column 4: Drawings, Payments, Budget, MOMs, Other stacked together -->
-          <div style="grid-column: 4; display: flex; flex-direction: column; align-items: stretch; gap: 0;">
-            ${(approvalsBtn.categories||[]).map(c => `
-              <button class="ps-cat-row" style="min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #767676;border-bottom:1px solid var(--bg);cursor:pointer;background:#efefef;margin-bottom:-1px;justify-content:space-between"
-                  onclick="event.stopPropagation(); APP._psApprovalsJump('${c.key}')">
-                <span style="font-size:13px;color:var(--text)">${c.label}</span>
-                ${countPill(c.count)}
-              </button>`).join('')}
-          </div>
-        </div>
-      </div>`;
-    }
   }
 
   // ── SLA Settings card — principal/design_principal only (Item 12)
@@ -8557,14 +8546,16 @@ APP.renderProjectDetail = async function() {
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
-// Toggle Approvals category strip open/closed
+// Toggle Approvals category accordion open/closed
 APP._togglePsApprovals = function() {
-  const el = document.getElementById('ps-appr-categories');
-  const caret = document.getElementById('ps-appr-caret');
-  if (!el) return;
-  const isOpen = el.style.display !== 'none';
-  el.style.display = isOpen ? 'none' : 'block';
-  if (caret) caret.textContent = isOpen ? '▾' : '▴';
+  const dropdown = document.getElementById('ps-appr-categories');
+  const caret    = document.getElementById('ps-appr-caret');
+  const trigger  = document.querySelector('.appr-trigger');
+  if (!dropdown) return;
+  const isOpen = !dropdown.hidden;
+  dropdown.hidden = isOpen;
+  if (caret)   caret.textContent = isOpen ? '▾' : '▴';
+  if (trigger) trigger.setAttribute('aria-expanded', String(!isOpen));
 };
 
 // Jump from an Approvals category pill to the relevant tab
