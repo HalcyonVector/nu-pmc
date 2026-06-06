@@ -6913,7 +6913,12 @@ APP.renderUsers = async function() {
     });
   }
 
-  html += `<div class="sec-label">Active Users</div>`;
+  const isPrincipal = ['principal','design_principal'].includes(APP.user?.role);
+  html += `<div class="sec-hdr-row">
+    <div class="sec-label" style="margin:0;flex:1">Active Users</div>
+    ${isPrincipal ? `<button class="btn-primary sec-hdr-btn" onclick="APP.openAddUserModal()">+ Add User</button>` : ''}
+  </div>
+  ${isPrincipal ? `<button class="btn-primary sec-action-mobile" onclick="APP.openAddUserModal()">+ Add User</button>` : ''}`;
   (all?.users||[]).forEach(u => {
     const canReset = resettableIds.has(u.id);
     html += `<div class="card">
@@ -7506,6 +7511,130 @@ APP.bulkUploadUsers = async function(input) {
     APP.renderUsers();
   } else {
     UI.toast(res?.error || 'Upload failed');
+  }
+};
+
+// ── ADD USER (Principal) ────────────────────────────────────────────────────
+APP.openAddUserModal = function() {
+  const roles = [
+    'principal','design_principal','pmc_head','design_head','services_head',
+    'detailing_head','jr_architect','detailing','services_engineer','team_lead',
+    'coordinator','site_manager','senior_site_manager','finance_admin',
+    'trainee','audit','it_admin'
+  ];
+  const roleOptions = roles.map(r =>
+    `<option value="${r}">${APP._roleLabel(r)}</option>`
+  ).join('');
+
+  UI.openModal('Add New User', `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label class="form-label">Full Name <span style="color:var(--red)">*</span></label>
+        <input id="au-name" class="form-input" type="text" placeholder="e.g. Rahul Sharma" autocomplete="off">
+      </div>
+      <div>
+        <label class="form-label">Username <span style="color:var(--red)">*</span></label>
+        <input id="au-user" class="form-input" type="text" placeholder="e.g. rahul_s" autocomplete="off"
+          oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_.]/g,'')">
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Lowercase letters, numbers, _ and . only — this is the login username</div>
+      </div>
+      <div>
+        <label class="form-label">Role <span style="color:var(--red)">*</span></label>
+        <select id="au-role" class="form-input">
+          <option value="">Select role…</option>
+          ${roleOptions}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Stream</label>
+        <select id="au-stream" class="form-input">
+          <option value="all">All</option>
+          <option value="design">Design</option>
+          <option value="services">Services</option>
+          <option value="pmc">PMC</option>
+          <option value="site">Site</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Phone <span style="font-size:11px;color:var(--muted);font-weight:400">(optional — temp password sent via WhatsApp if provided)</span></label>
+        <input id="au-phone" class="form-input" type="tel" placeholder="10-digit Indian mobile number">
+      </div>
+      <div>
+        <label class="form-label">Email <span style="font-size:11px;color:var(--muted);font-weight:400">(optional)</span></label>
+        <input id="au-email" class="form-input" type="email" placeholder="e.g. rahul@nuassociates.in">
+      </div>
+      <div id="au-error" style="display:none;color:var(--red);font-size:13px;padding:8px;background:var(--red-bg,#fff0f0);border-radius:6px"></div>
+      <button class="btn-primary" style="width:100%;margin-top:4px" id="au-submit-btn" onclick="APP.submitAddUser()">Create User</button>
+      <button class="btn-secondary" style="width:100%" onclick="UI.closeModal()">Cancel</button>
+    </div>
+  `);
+};
+
+APP.submitAddUser = async function() {
+  const name   = document.getElementById('au-name')?.value.trim();
+  const user   = document.getElementById('au-user')?.value.trim();
+  const role   = document.getElementById('au-role')?.value;
+  const stream = document.getElementById('au-stream')?.value || 'all';
+  const phone  = document.getElementById('au-phone')?.value.trim();
+  const email  = document.getElementById('au-email')?.value.trim();
+  const errEl  = document.getElementById('au-error');
+  const btn    = document.getElementById('au-submit-btn');
+
+  const showErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  if (errEl) errEl.style.display = 'none';
+
+  if (!name)  return showErr('Full Name is required.');
+  if (!user)  return showErr('Username is required.');
+  if (!role)  return showErr('Please select a role.');
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+
+  const body = { full_name: name, username: user, role, stream };
+  if (phone) body.phone = phone;
+  if (email) body.email = email;
+
+  const res = await API.post('/users?reveal_password=1', body);
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Create User'; }
+
+  if (!res?.success) {
+    showErr(res?.error || (res?.fields ? res.fields.join('; ') : 'Failed to create user'));
+    return;
+  }
+
+  // Refresh the users list in the background
+  APP.renderUsers();
+
+  // Show outcome — password sent via WhatsApp or show temp password once
+  if (res.temp_password) {
+    const pw = res.temp_password;
+    UI.openModal(`User Created — ${UI.escapeText(name)}`, `
+      <p style="font-size:15px;color:var(--text2);margin-bottom:14px;line-height:1.5">
+        <b>${UI.escapeText(name)}</b> has been created with username <b>${UI.escapeText(user)}</b>.
+        Read this temporary password to them — they must change it on first login.
+      </p>
+      <div class="temp-pw-display">
+        <div class="temp-pw-word" id="tmp-pw-val">${UI.escapeText(pw)}</div>
+        <div class="temp-pw-note">Tap to select · expires after first login</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn-secondary" style="flex:1" onclick="
+          navigator.clipboard?.writeText('${pw}').then(()=>UI.toast('Copied ✓'))
+        ">Copy</button>
+      </div>
+      <button class="btn-secondary" style="width:100%;margin-top:8px" onclick="UI.closeModal()">Done</button>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px;text-align:center">
+        This password is not stored — record it now.
+      </p>
+    `);
+  } else {
+    UI.openModal(`User Created — ${UI.escapeText(name)}`, `
+      <p style="font-size:15px;color:var(--text2);margin-bottom:14px;line-height:1.5">
+        <b>${UI.escapeText(name)}</b> has been created with username <b>${UI.escapeText(user)}</b>.
+      </p>
+      <p style="font-size:14px;color:var(--text2);line-height:1.5">${UI.escapeText(res.message || 'User created.')}</p>
+      <button class="btn-primary" style="width:100%;margin-top:16px" onclick="UI.closeModal()">Done</button>
+    `);
   }
 };
 
