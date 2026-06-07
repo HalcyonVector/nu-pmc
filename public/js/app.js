@@ -8502,7 +8502,7 @@ APP.renderProjectDetail = async function() {
               ? `<span class="appr-cat-pill appr-cat-pill--active">${c.count}</span>`
               : `<span class="appr-cat-pill">${c.count}</span>`}
           </button>`).join('');
-        return `<div class="ps-btn appr-widget" id="ps-appr-widget">
+        return `<div class="card ps-btn appr-widget" id="ps-appr-widget">
           <button class="appr-trigger" onclick="APP._togglePsApprovals()" aria-expanded="false" aria-controls="ps-appr-dropdown">
             <span class="appr-trigger-label">Approvals</span>
             <div style="display:flex;align-items:center;gap:6px">
@@ -8518,12 +8518,12 @@ APP.renderProjectDetail = async function() {
       // Regular button
       const target = BUTTON_TARGET[b.key];
       const onclick = target ? `APP.switchTab('${target}')` : '';
-      return `<div class="card ps-btn" style="cursor:pointer; width:100% !important; box-sizing:border-box !important; display:flex !important" onclick="${onclick}">
-        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;gap:10px">
+      return `<button class="card ps-btn" onclick="${onclick}">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">
           <div style="font-weight:600;font-size:14px;color:var(--navy)">${b.label}</div>
           ${countPill(b.count)}
         </div>
-      </div>`;
+      </button>`;
     }).join('');
     html += `</div>`;
   }
