@@ -4114,19 +4114,161 @@ Tomorrow: start formwork on next bay."
   },
 
   // ── REPORTS
-  // Weekly report — composer for PMC, past-list visible to all readers.
-  // Internal method (object literal). External counterpart renderDailyReports
-  // is defined separately further down. Two distinct surfaces, two tab keys.
+  // Weekly report — list + compose + approve
   async renderWeeklyReports() {
     const el = UI.contentEl();
-    el.innerHTML = UI.empty('🚧', 'Weekly Reports Coming Soon');
+    const pid = APP.state.selectedProject;
+    if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+
+    const role = APP.user?.role;
+    const canDraft   = ['pmc_head','principal','design_principal'].includes(role);
+    const canApprove = ['pmc_head'].includes(role);
+    const canSend    = ['principal','design_principal'].includes(role);
+
+    const data = await API.getReports(pid).catch(() => null);
+    if (!data) { el.innerHTML = UI.empty('⚠️','Could not load reports'); return; }
+    const reports = data.reports || [];
+
+    let html = '';
+
+    // Section header + action button
+    html += `<div class="sec-hdr-row">
+      <div class="sec-label" style="margin:0;flex:1">Weekly Reports</div>
+      ${canDraft ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showWeeklyReportForm(${pid})">+ New Report</button>` : ''}
+    </div>
+    ${canDraft ? `<button class="btn-primary sec-action-mobile" onclick="APP.showWeeklyReportForm(${pid})">+ New Report</button>` : ''}`;
+
+    // Needs approval
+    const pending = reports.filter(r => r.status === 'pending_approval');
+    if (pending.length && canApprove) {
+      html += `<div class="sec-label">Needs Approval (${pending.length})</div>`;
+      pending.forEach(r => {
+        html += `<div class="report-card">
+          <div class="rc-header">
+            <div>
+              <div class="rc-date">Week ${r.week_number} — ending ${UI.fmtDate(r.week_ending)}</div>
+              <div class="rc-who">${r.drafted_by_name||'—'}</div>
+            </div>
+            <span class="badge b-amber">Pending</span>
+          </div>
+          ${r.summary ? `<div class="rc-note">"${r.summary.substring(0,120)}"</div>` : ''}
+          ${r.ai_drag_detected && !r.drag_acknowledged ? `<div class="rc-note" style="color:var(--amber)">⚠ AI drag flag — mitigation required</div>` : ''}
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn-sm approve" onclick="APP.approveWeeklyReport(${r.id})">Approve</button>
+            <button class="btn-sm" onclick="APP.viewWeeklyReport(${r.id})">View</button>
+          </div>
+        </div>`;
+      });
+    }
+
+    // Approved awaiting send
+    const approved = reports.filter(r => r.status === 'approved');
+    if (approved.length && canSend) {
+      html += `<div class="sec-label">Approved — Awaiting Send (${approved.length})</div>`;
+      approved.forEach(r => {
+        html += `<div class="report-card">
+          <div class="rc-header">
+            <div>
+              <div class="rc-date">Week ${r.week_number} — ending ${UI.fmtDate(r.week_ending)}</div>
+              <div class="rc-who">Approved ${UI.fmtDate(r.approved_at)}</div>
+            </div>
+            <span class="badge b-green">Approved</span>
+          </div>
+          <div class="btn-row" style="margin-top:8px">
+            ${r.pdf_url ? `<a class="btn-sm" href="${r.pdf_url}" target="_blank">⬇ PDF</a>` : ''}
+            <button class="btn-sm approve" onclick="APP.markReportSent(${r.id})">Mark Sent</button>
+          </div>
+        </div>`;
+      });
+    }
+
+    // History
+    if (!reports.length) {
+      html += UI.empty('📋','No weekly reports yet — draft the first one');
+    } else {
+      html += `<div class="sec-label">History</div>`;
+      reports.forEach(r => {
+        const bc = r.status === 'sent' || r.status === 'approved' ? 'b-green' : r.status === 'pending_approval' ? 'b-amber' : 'b-silver';
+        html += `<button class="report-card" style="width:100%;text-align:left;cursor:pointer" onclick="APP.viewWeeklyReport(${r.id})">
+          <div class="rc-header">
+            <div>
+              <div class="rc-date">Week ${r.week_number} — ending ${UI.fmtDate(r.week_ending)}</div>
+              <div class="rc-who">${r.drafted_by_name||'—'}</div>
+            </div>
+            <span class="badge ${bc}">${r.status.replace('_',' ')}</span>
+          </div>
+          ${r.summary ? `<div class="rc-note">"${r.summary.substring(0,100)}"</div>` : ''}
+        </button>`;
+      });
+    }
+
+    el.innerHTML = `<div class="fade-in">${html}</div>`;
+  },
+
+  async showWeeklyReportForm(pid) {
+    const cf = await API.carryForward(pid).catch(() => null);
+    const weekEnding = cf?.week_end || UI.todayIST();
+    const weekNum    = cf?.this_week || '';
+    const lastSummary = cf?.last_report?.summary || '';
+
+    UI.openModal('New Weekly Report', `
+      <div class="field-row"><label class="field-label">Week Ending</label>
+        <input type="date" id="rpt-week-ending" value="${weekEnding}"></div>
+      <div class="field-row"><label class="field-label">Week Number</label>
+        <input type="number" id="rpt-week-num" value="${weekNum}" placeholder="e.g. 24" min="1" max="53"></div>
+      <div class="field-row"><label class="field-label">Summary</label>
+        <textarea id="rpt-summary" rows="4" placeholder="Work completed this week, progress highlights…">${UI.escapeText(lastSummary)}</textarea></div>
+      <div class="field-row"><label class="field-label">Issues / Notes for Client</label>
+        <textarea id="rpt-issues" rows="3" placeholder="Blockers, decisions needed, observations…"></textarea></div>
+      ${cf?.carried_items?.length ? `
+        <div style="background:var(--bg);border-radius:var(--r);padding:12px;margin-bottom:12px">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+            ${cf.carried_items.length} open MOM item${cf.carried_items.length>1?'s':''} carried forward
+          </div>
+          ${cf.carried_items.slice(0,3).map(i => `
+            <div style="font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border)">
+              ${UI.escapeText(i.description||'')}
+              <span style="color:var(--muted)"> — ${UI.escapeText(i.responsible||'—')}</span>
+            </div>`).join('')}
+          ${cf.carried_items.length > 3 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">+${cf.carried_items.length-3} more</div>` : ''}
+        </div>` : ''}
+      <button class="btn-primary" onclick="APP.submitReport(${pid}, document.getElementById('rpt-week-num').value, document.getElementById('rpt-week-ending').value)">Submit for Approval</button>
+    `);
+  },
+
+  async viewWeeklyReport(id) {
+    const data = await API.get(`/weekly-signoff/${id}`).catch(() => null);
+    if (!data?.report) { UI.toast('Could not load report'); return; }
+    const r = data.report;
+    const bc = r.status === 'sent' || r.status === 'approved' ? 'b-green' : r.status === 'pending_approval' ? 'b-amber' : 'b-silver';
+    UI.openModal(`Week ${r.week_number} Report`, `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <span class="badge ${bc}">${r.status.replace('_',' ')}</span>
+        <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">Ending ${r.week_ending}</span>
+        ${r.pdf_url ? `<a class="btn-sm" href="${r.pdf_url}" target="_blank" style="margin-left:auto">⬇ PDF</a>` : ''}
+      </div>
+      ${r.summary ? `<div class="field-row"><label class="field-label">Summary</label>
+        <div style="font-size:14px;color:var(--text);line-height:1.5;padding:10px 14px;background:var(--bg);border-radius:var(--r)">${UI.escapeText(r.summary)}</div>
+      </div>` : ''}
+      ${r.issues_for_client ? `<div class="field-row"><label class="field-label">Client Notes</label>
+        <div style="font-size:14px;color:var(--text);line-height:1.5;padding:10px 14px;background:var(--bg);border-radius:var(--r)">${UI.escapeText(r.issues_for_client)}</div>
+      </div>` : ''}
+      <div class="signoff-chain" style="margin-top:16px">
+        ${[['PMC','pmc'],['Design','design'],['Services','services']].map(([lbl,sec]) => `
+          <div class="signoff-slot ${r['sig_'+sec+'_by'] ? 'signed':'pending'}">
+            <div class="label">${lbl}</div>
+            <div class="who">${r['sig_'+sec+'_name']||'Awaiting'}</div>
+            <div class="status">${r['sig_'+sec+'_by'] ? '✓ Signed' : 'Pending'}</div>
+          </div>`).join('')}
+      </div>
+    `);
   },
 
   async submitReport(pid, weekNum, weekEnding) {
     const summary = document.getElementById('rpt-summary')?.value.trim();
     const issues  = document.getElementById('rpt-issues')?.value.trim();
     const res = await API.saveReport(pid, { week_ending: weekEnding, week_number: weekNum, summary, issues_for_client: issues });
-    if (res?.success) { UI.toast('Report submitted for approval ✓'); APP.renderWeeklyReports(); }
+    if (res?.success) { UI.toast('Report submitted for approval ✓'); UI.closeModal(); APP.renderWeeklyReports(); }
     else UI.toast(res?.error || 'Failed');
   },
 
@@ -7187,8 +7329,11 @@ APP.renderGovernance = async function() {
   el.innerHTML = UI.spinner();
 
   // Load status from DB
-  const status = await API.get('/governance/status');
-  if (!status) return;
+  const status = await API.get('/governance/status').catch(() => null);
+  if (!status) {
+    el.innerHTML = UI.empty('⚠️', 'Could not load governance status — check server logs');
+    return;
+  }
 
   const perm = status.permissions;
   const wf   = status.workflows;
