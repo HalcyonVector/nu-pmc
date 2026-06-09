@@ -206,7 +206,8 @@ const UI = {
   },
 
   empty(icon, text) {
-    return `<div class="empty"><div class="empty-icon">${icon}</div><div class="empty-text">${text}</div></div>`;
+    if (icon) return `<div class="empty"><div class="empty-icon">${icon}</div><div class="empty-text">${text}</div></div>`;
+    return `<div class="empty"><div class="empty-text">${text}</div></div>`;
   },
 
   // F10: shorthand for the app's primary content container. Replaces

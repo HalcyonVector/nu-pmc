@@ -280,7 +280,7 @@ const APP = {
     if (['site_manager','senior_site_manager'].includes(APP.user.role)) {
       const projects = APP.user.projects || [];
       if (projects.length === 0) {
-        UI.contentEl().innerHTML = '<div class="empty"><div class="empty-icon">🏗</div><div class="empty-text">No projects assigned yet.<br>Contact your PMC team lead.</div></div>';
+        UI.contentEl().innerHTML = '<div class="empty"><div class="empty-icon"></div><div class="empty-text">No projects assigned yet.<br>Contact your PMC team lead.</div></div>';
         document.getElementById('tabs-bar').innerHTML = '';
         return;
       }
@@ -367,7 +367,7 @@ const APP = {
     if (!el) return;
     el.innerHTML = `
       <div class="empty" style="padding-top:60px">
-        <div class="empty-icon">⚠️</div>
+        <div class="empty-icon"></div>
         <div class="empty-text">
           Couldn't load the app for your account.<br>
           <span style="font-size:var(--text-sm);color:var(--muted)">
@@ -745,7 +745,7 @@ const APP = {
           ? `<div style="font-size:11px;color:var(--red);margin-top:4px">Flag: ${UI.escapeText(t.flag_reason)}</div>`
           : '';
         todayCard = `<div class="wp-card" style="border-left-color:var(--amber)">
-          <div class="wp-label"><span class="wp-symbol">📋</span>Today's Report</div>
+          <div class="wp-label">Today's Report</div>
           <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
             <span class="wp-row-label">${UI.escapeText(t.date || '')}</span>
             ${statusBadge}
@@ -1088,7 +1088,7 @@ Tomorrow: start formwork on next bay."
       errors_log:        () => APP.renderErrorsLog(),
       library:           () => APP.renderKnowledgeLibrary(),
     };
-    (map[id] || (() => el.innerHTML = UI.empty('🚧','Coming soon')))();
+    (map[id] || (() => el.innerHTML = UI.empty('','Coming soon')))();
   },
 
   // ── DASHBOARD
@@ -1110,25 +1110,25 @@ Tomorrow: start formwork on next bay."
 
     // Fix 5: each action item now opens triage list first (not tab direct)
     if (ac.overdue_queries.length)
-      html += addItem('🔴','Drawing queries — overdue',`${ac.overdue_queries.length} unanswered 3+ days`,'red','red','OVERDUE',"APP.showActionTriage('overdue_queries')");
+      html += addItem('','Drawing queries — overdue',`${ac.overdue_queries.length} unanswered 3+ days`,'red','red','OVERDUE',"APP.showActionTriage('overdue_queries')");
     if (ac.open_flags.length)
-      html += addItem('🚩','Site flags open',`${ac.open_flags.length} unresolved flags`,'red','red','OPEN',"APP.showActionTriage('open_flags')");
+      html += addItem('','Site flags open',`${ac.open_flags.length} unresolved flags`,'red','red','OPEN',"APP.showActionTriage('open_flags')");
     if (ac.overdue_materials.length)
-      html += addItem('📦','Materials overdue',`${ac.overdue_materials.length} past needed-by date`,'red','red','OVERDUE',"APP.showActionTriage('overdue_materials')");
+      html += addItem('','Materials overdue',`${ac.overdue_materials.length} past needed-by date`,'red','red','OVERDUE',"APP.showActionTriage('overdue_materials')");
     if (ac.pending_approvals.length)
-      html += addItem('✅','Approvals pending',`${ac.pending_approvals.length} awaiting Naveen / Ajay`,'amber','amber','PENDING',"APP.showActionTriage('pending_approvals')");
+      html += addItem('','Approvals pending',`${ac.pending_approvals.length} awaiting Naveen / Ajay`,'amber','amber','PENDING',"APP.showActionTriage('pending_approvals')");
     if (ac.fresh_queries.length)
-      html += addItem('💬','Drawing queries — open',`${ac.fresh_queries.length} within 3 days`,'amber','amber','OPEN',"APP.showActionTriage('fresh_queries')");
+      html += addItem('','Drawing queries — open',`${ac.fresh_queries.length} within 3 days`,'amber','amber','OPEN',"APP.showActionTriage('fresh_queries')");
     if (ac.pending_changes.length)
-      html += addItem('🔄','Change notices — signatures pending',`${ac.pending_changes.length} need sign-off`,'blue','blue','ACTION',"APP.showActionTriage('pending_changes')");
+      html += addItem('','Change notices — signatures pending',`${ac.pending_changes.length} need sign-off`,'blue','blue','ACTION',"APP.showActionTriage('pending_changes')");
 
     if (!Object.values(ac).some(a => a.length))
-      html += `<div class="action-item c-green" style="width:100%"><div class="ai-icon">✅</div><div class="ai-body"><div class="ai-title">All clear</div><div class="ai-meta">No urgent actions</div></div></div>`;
+      html += `<div class="action-item c-green" style="width:100%"><div class="ai-icon"></div><div class="ai-body"><div class="ai-title">All clear</div><div class="ai-meta">No urgent actions</div></div></div>`;
 
     const projects = data.projects || [];
     if (!projects.length) {
       html += `<div class="sec-label">Projects</div>`;
-      html += UI.empty('🏗','No projects yet');
+      html += UI.empty('','No projects yet');
     } else {
       const active = [];
       const completed = [];
@@ -1177,7 +1177,7 @@ Tomorrow: start formwork on next bay."
 
     const projects = data.projects || [];
     if (!projects.length) {
-      html += UI.empty('🏗','No projects yet');
+      html += UI.empty('','No projects yet');
     } else {
       const initialising = [];
       const active = [];
@@ -1356,7 +1356,7 @@ Tomorrow: start formwork on next bay."
     const sub   = APP.state.scheduleView;
     const pid   = APP.state.selectedProject || APP.user.projects?.[0]?.id;
 
-    if (!pid) { el.innerHTML = UI.empty('📋','No project assigned yet'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','No project assigned yet'); return; }
 
     const subTabs = `<div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
       <button style="min-height:44px;flex:1;text-align:center;padding:10px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);background:${sub==='today'?'var(--navy)':'var(--white)'};color:${sub==='today'?'var(--white)':'var(--muted)'}" onclick="APP.state.scheduleView='today';APP.renderSchedule()">TODAY</button>
@@ -1434,7 +1434,7 @@ Tomorrow: start formwork on next bay."
         onchange="APP.uploadPhotos(${pid},this)">`;
 
     if (!tasks.length) {
-      finalHtml += UI.empty('📅','No tasks scheduled today');
+      finalHtml += UI.empty('','No tasks scheduled today');
     } else {
       const done2 = tasks.filter(t=>(APP.state.taskPct[t.id]??t.pct_complete??0)===100).length;
       finalHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -1462,7 +1462,7 @@ Tomorrow: start formwork on next bay."
                 <div class="pct-val" id="pv-${t.id}">${pct2}%</div>
               </div>
               <div class="task-actions">
-                <button class="btn-sm${t.is_flagged?' flagged':''}" onclick="APP.toggleFlag(${t.id},${pid},'${date}',${t.update_id||'null'})">${t.is_flagged?'🚩 Flagged':'⚑ Flag'}</button>
+                <button class="btn-sm${t.is_flagged?' flagged':''}" onclick="APP.toggleFlag(${t.id},${pid},'${date}',${t.update_id||'null'})">${t.is_flagged?'Flagged':'Flag'}</button>
               </div>
             </div>
           </div>`;
@@ -1522,7 +1522,7 @@ Tomorrow: start formwork on next bay."
   buildAhead(data) {
     const tasks = data?.tasks || [];
     const days  = data?.days  || 7;
-    if (!tasks.length) return UI.empty('📅', `No tasks in next ${days} days`);
+    if (!tasks.length) return UI.empty('', `No tasks in next ${days} days`);
 
     // ── Plan banner: AI plan if present, otherwise deterministic fallback summary
     const byTrade = APP.groupByTrade(tasks);
@@ -1672,7 +1672,7 @@ Tomorrow: start formwork on next bay."
           </div>
           
           <button class="btn-primary" style="display:flex;align-items:center;gap:6px;padding:8px 16px;font-size:12px;" onclick="document.getElementById('task-create-dialog').style.display='flex'">
-            <span>➕</span> Schedule Task
+            Schedule Task
           </button>
         </div>
         
@@ -1743,7 +1743,7 @@ Tomorrow: start formwork on next bay."
       
       // Render Chronological Feed
       if (!sortedDates.length) {
-        html += UI.empty('📅', 'No scheduled future tasks for this month filter');
+        html += UI.empty('', 'No scheduled future tasks for this month filter');
       } else {
         html += `<div style="display:flex;flex-direction:column;gap:16px;">`;
         sortedDates.forEach(date => {
@@ -1754,7 +1754,7 @@ Tomorrow: start formwork on next bay."
           html += `
             <div>
               <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--navy);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;">
-                <span>📅 ${dateLabel}</span>
+                <span>${dateLabel}</span>
                 ${isToday ? `<span class="badge b-blue" style="font-size:9px;padding:1px 6px;">Today</span>` : ''}
               </div>
               <div style="display:flex;flex-direction:column;gap:8px;">
@@ -1778,7 +1778,7 @@ Tomorrow: start formwork on next bay."
                     <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#e8f4fd;color:#0275d8;padding:2px 6px;border-radius:4px;">${t.pct_complete}% Done</span>
                   </div>
                   <div style="font-size:11px;color:var(--muted);">
-                    👤 ${t.assignee_name || 'Unassigned'}
+                    ${t.assignee_name || 'Unassigned'}
                   </div>
                 </div>
               </div>
@@ -1793,7 +1793,7 @@ Tomorrow: start formwork on next bay."
       el.innerHTML = subTabs + html;
     } catch(err) {
       console.error(err);
-      el.innerHTML = subTabs + UI.empty('⚠️', 'Error loading Look Ahead workspace: ' + err.message);
+      el.innerHTML = subTabs + UI.empty('️', 'Error loading Look Ahead workspace: ' + err.message);
     }
   },
 
@@ -1830,7 +1830,7 @@ Tomorrow: start formwork on next bay."
   async renderScheduleView() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getSchedule(pid);
     const ver  = data?.version;
@@ -1849,7 +1849,7 @@ Tomorrow: start formwork on next bay."
     html += `<div class="sec-label">Today — Validate Site Updates</div>`;
 
     if (!tasks.length) {
-      html += UI.empty('📅','No tasks today');
+      html += UI.empty('','No tasks today');
     } else {
       Object.entries(byTrade).forEach(([trade, tlist]) => {
         const col = TRADE_COLORS[trade] || '#5a5a5a';
@@ -1887,7 +1887,7 @@ Tomorrow: start formwork on next bay."
     html += `<div style="margin-top:16px">
       <div class="field-row"><label class="field-label" for="sched-file">Upload Revised Schedule</label></div>
       <input type="file" id="sched-file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadSchedule(${pid},this)">
-      <button class="btn-sm gold" onclick="document.getElementById('sched-file').click()">📅 Upload New Schedule Version</button>
+      <button class="btn-sm gold" onclick="document.getElementById('sched-file').click()">Upload New Schedule Version</button>
     </div>`;
 
     el.innerHTML = html;
@@ -1920,7 +1920,7 @@ Tomorrow: start formwork on next bay."
   async renderDrawings() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject || APP.user.projects?.[0]?.id;
-    if (!pid) { el.innerHTML = UI.empty('📐','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getDrawings(pid);
     const drawings = data?.drawings || [];
@@ -1979,7 +1979,7 @@ Tomorrow: start formwork on next bay."
 
         <div class="field-row"><label class="field-label" for="dwg-notes">Notes</label><textarea id="dwg-notes" rows="2" placeholder="Revision notes…"></textarea></div>
         <input type="file" id="dwg-file" accept=".pdf,.dwg,.dxf" style="display:none" onchange="APP.uploadDrawing(${pid},this)">
-        <button class="btn-sm gold" style="width:100%;padding:10px" onclick="APP.triggerDrawingUpload()">📐 Upload Drawing / PDF</button>
+        <button class="btn-sm gold" style="width:100%;padding:10px" onclick="APP.triggerDrawingUpload()">Upload Drawing / PDF</button>
       </div>`;
     }
 
@@ -1999,7 +1999,7 @@ Tomorrow: start formwork on next bay."
     filtered = APP._applySort(filtered, APP._getSortMode('drawings'), { ageField:'uploaded_at' });
 
     if (!filtered.length) {
-      html += UI.empty('📐','No drawings yet');
+      html += UI.empty('','No drawings yet');
     } else {
       html += APP._sortToggleHTML('drawings', ['default','age']);
       filtered.forEach(d => { html += APP.drawingCard(d, role, pid); });
@@ -2176,7 +2176,7 @@ Tomorrow: start formwork on next bay."
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
     const role = APP.user?.role;
-    if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getRegister(pid);
     if (!data) return;
@@ -2234,11 +2234,11 @@ Tomorrow: start formwork on next bay."
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Upload / Amend Register</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a href="/api/register/${pid}/template" style="flex:1;padding:10px;text-align:center;background:#faf8f3;color:#1a2e44;border:1.5px solid #e8e4dc;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;min-width:140px">
-            ⬇ Download template
+            Download Template
           </a>
-          <button class="btn-sm gold" style="flex:1;padding:10px;min-width:140px" onclick="APP.openRegisterUpload(${pid},'design')">📋 Upload Design</button>
-          <button class="btn-sm gold" style="flex:1;padding:10px;min-width:140px" onclick="APP.openRegisterUpload(${pid},'services')">📋 Upload Services</button>
-          <button class="btn-sm" style="flex:1;padding:10px;min-width:140px;background:#fff;color:#1a2e44;border:1.5px solid #1a2e44" onclick="APP.openAddRegisterEntry(${pid})">➕ Add single entry</button>
+          <button class="btn-sm gold" style="flex:1;padding:10px;min-width:140px" onclick="APP.openRegisterUpload(${pid},'design')">Upload Design</button>
+          <button class="btn-sm gold" style="flex:1;padding:10px;min-width:140px" onclick="APP.openRegisterUpload(${pid},'services')">Upload Services</button>
+          <button class="btn-sm" style="flex:1;padding:10px;min-width:140px;background:#fff;color:#1a2e44;border:1.5px solid #1a2e44" onclick="APP.openAddRegisterEntry(${pid})">+ Add single entry</button>
         </div>
       </div>`;
     }
@@ -2388,7 +2388,7 @@ Tomorrow: start formwork on next bay."
       API.get('/delegations').catch(() => null),
       API.get('/delegations/delegable-users').catch(() => null),
     ]);
-    if (!delegs) { el.innerHTML = UI.empty('⚠','Failed to load delegations'); return; }
+    if (!delegs) { el.innerHTML = UI.empty('','Failed to load delegations'); return; }
 
     const fromMe = delegs.delegations_from_me || [];
     const toMe   = delegs.delegations_to_me   || [];
@@ -2501,7 +2501,7 @@ Tomorrow: start formwork on next bay."
   async renderNavEditor() {
     const el = UI.contentEl();
     if (APP.user.role !== 'it_admin') {
-      el.innerHTML = UI.empty('🔒','Nav Editor is restricted to IT Admin');
+      el.innerHTML = UI.empty('','Nav Editor is restricted to IT Admin');
       return;
     }
 
@@ -2725,7 +2725,7 @@ Tomorrow: start formwork on next bay."
   async renderPending() {
     const el = UI.contentEl();
     const data = await API.get('/pending/me');
-    if (!data) { el.innerHTML = UI.empty('⏳','Failed to load'); return; }
+    if (!data) { el.innerHTML = UI.empty('','Failed to load'); return; }
 
     const blocked  = data.blocked  || [];
     const needsYou = data.needsYou || [];
@@ -2750,7 +2750,7 @@ Tomorrow: start formwork on next bay."
 
     // ── WA failure alert (IT Admin / Principal) — shown FIRST if present
     if (waFails.length) {
-      html += `<div class="sec-label" style="color:var(--red)">⚠ WhatsApp delivery failures</div>`;
+      html += `<div class="sec-label" style="color:var(--red)">WhatsApp delivery failures</div>`;
       waFails.slice(0,5).forEach(f => {
         html += `<div class="wa-fail-card">
           <div class="wa-fail-title">${f.count} messages failed to send${f.oldest ? ` — oldest ${f.oldest}` : ''}</div>
@@ -2808,7 +2808,7 @@ Tomorrow: start formwork on next bay."
 
     // ── Blocked section — items overdue in others' queues
     if (blocked.length) {
-      html += `<div class="sec-label">🔴 Blocked — waiting on others</div>`;
+      html += `<div class="sec-label">Blocked — waiting on others</div>`;
       blocked.forEach(b => {
         const ageStyle = b.age_days >= 7 ? 'color:var(--red)' : b.age_days >= 3 ? 'color:var(--amber)' : 'color:var(--muted)';
         html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer"
@@ -2821,7 +2821,7 @@ Tomorrow: start formwork on next bay."
 
     // ── Needs You section — items routed to you
     if (needsYou.length) {
-      html += `<div class="sec-label" style="margin-top:14px">📋 Needs your action</div>`;
+      html += `<div class="sec-label" style="margin-top:14px">Needs your action</div>`;
       needsYou.forEach(n => {
         html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--navy)"
                      "APP.switchTab('${n.tab}')">
@@ -2832,7 +2832,7 @@ Tomorrow: start formwork on next bay."
     }
 
     if (!pendingTotal) {
-      html += UI.empty('✓','Nothing pending. Inbox zero.');
+      html += UI.empty('','Nothing pending. Inbox zero.');
     }
 
     el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -2854,7 +2854,7 @@ Tomorrow: start formwork on next bay."
   async renderWeeklySignoff() {
     const el = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.get(`/reports/${pid}`).catch(() => null);
     const reports = data?.reports || [];
@@ -2965,7 +2965,7 @@ Tomorrow: start formwork on next bay."
   async renderPhotoTagReview() {
     const el = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📷','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.get(`/photo-tags/disputes/${pid}`).catch(() => null);
     const disputes = data?.disputes || [];
@@ -3062,7 +3062,7 @@ Tomorrow: start formwork on next bay."
   async renderQueries() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('💬','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getQueries(pid);
     const queries = data?.queries || [];
@@ -3074,7 +3074,7 @@ Tomorrow: start formwork on next bay."
     if (overdue.length) { html += `<div class="sec-label">Overdue — 3+ Days</div>`; overdue.forEach(q => { html += APP.queryCard(q, true); }); }
     if (fresh.length)   { html += `<div class="sec-label">Open — Within 3 Days</div>`; fresh.forEach(q => { html += APP.queryCard(q, true); }); }
     if (resolved.length){ html += `<div class="sec-label" style="margin-top:20px">Resolved</div>`; resolved.forEach(q => { html += APP.queryCard(q, false); }); }
-    if (!queries.length) html = UI.empty('💬','No queries');
+    if (!queries.length) html = UI.empty('','No queries');
 
     el.innerHTML = html;
   },
@@ -3082,13 +3082,13 @@ Tomorrow: start formwork on next bay."
   async renderQueriesSite() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('💬','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getQueries(pid);
     const queries = data?.queries || [];
     let html = '';
     queries.forEach(q => { html += APP.queryCard(q, false); });
-    if (!queries.length) html = UI.empty('💬','No queries raised yet');
+    if (!queries.length) html = UI.empty('','No queries raised yet');
     el.innerHTML = html;
   },
 
@@ -3206,7 +3206,7 @@ Tomorrow: start formwork on next bay."
   async renderMaterials() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📦','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const [reqData, boqData, versionData] = await Promise.all([
       API.getRequests(pid),
@@ -3242,7 +3242,7 @@ Tomorrow: start formwork on next bay."
       ${canEditBOQ ? `
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
           <input type="file" id="boq-file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadBOQ(${pid},this)">
-          <button class="btn-sm gold" onclick="document.getElementById('boq-file').click()">📋 Upload New BOQ</button>
+          <button class="btn-sm gold" onclick="document.getElementById('boq-file').click()">Upload New BOQ</button>
           <button class="btn-sm" onclick="APP.showAddBOQItem(${pid})">+ Add Item</button>
         </div>` : ''}
     </div>`;
@@ -3284,7 +3284,7 @@ Tomorrow: start formwork on next bay."
 
     if (overdue.length) { html += `<div class="sec-label">Overdue Requests</div>`; overdue.forEach(r => { html += APP.matCard(r, true); }); }
     if (active.length)  { html += `<div class="sec-label">Active Requests</div>`;  active.forEach(r => { html += APP.matCard(r, false); }); }
-    if (!requests.length) html += UI.empty('📦','No material requests yet');
+    if (!requests.length) html += UI.empty('','No material requests yet');
 
     el.innerHTML = html;
   },
@@ -3292,13 +3292,13 @@ Tomorrow: start formwork on next bay."
   async renderMaterialsSite() {
     const el  = UI.contentEl();
     const pid = APP.user.projects?.[0]?.id;
-    if (!pid) { el.innerHTML = UI.empty('📦','No project assigned'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','No project assigned'); return; }
 
     const [reqData] = await Promise.all([API.getRequests(pid)]);
     const requests = reqData?.requests || [];
     let html = `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">+ New Request</button>`;
     requests.forEach(r => { html += APP.matCard(r, r.is_overdue); });
-    if (!requests.length) html += UI.empty('📦','No material requests yet');
+    if (!requests.length) html += UI.empty('','No material requests yet');
     el.innerHTML = html;
   },
 
@@ -3420,7 +3420,7 @@ Tomorrow: start formwork on next bay."
       html += `<div class="sec-label" style="margin-top:20px">Completed</div>`;
       done.forEach(a => { html += APP.approvalCard(a, false); });
     }
-    if (!approvals.length) html += UI.empty('✅','No approvals');
+    if (!approvals.length) html += UI.empty('','No approvals');
 
     el.innerHTML = html;
   },
@@ -3432,9 +3432,9 @@ Tomorrow: start formwork on next bay."
     const isUnified = a.source === 'unified';
     const typeKey = a.action_type || a.request_type;  // unified uses action_type, legacy uses request_type
     const icons = {
-      schedule_change:'📅', weekly_report:'📊', change_notice:'🔄',
-      cn_approval:'🔄', vendor_payment:'💰', vendor_bank_change:'🏦',
-      claim_invoice:'🧾', budget_cost_head:'💼', handover_closure:'🔑',
+      schedule_change:'', weekly_report:'', change_notice:'',
+      cn_approval:'', vendor_payment:'', vendor_bank_change:'',
+      claim_invoice:'', budget_cost_head:'', handover_closure:'',
     };
     const labelMap = {
       schedule_change:'Schedule Change', weekly_report:'Weekly Report',
@@ -3554,7 +3554,7 @@ Tomorrow: start formwork on next bay."
   async renderChanges() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('🔄','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getChanges(pid);
     const changes = data?.changes || [];
@@ -3563,7 +3563,7 @@ Tomorrow: start formwork on next bay."
     let html = `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseChange(${pid})">+ New Change Notice</button>`;
 
     if (!changes.length) {
-      html += UI.empty('🔄','No change notices');
+      html += UI.empty('','No change notices');
     } else {
       changes.forEach(c => {
         const allSigned = c.sig_design_head && c.sig_services_head && c.sig_pmc;
@@ -3646,7 +3646,7 @@ Tomorrow: start formwork on next bay."
     const pid = APP.user.projects?.[0]?.id;
     const date= APP.state.selectedDate;
     const today = APP.state.serverToday || UI.todayIST();
-    if (!pid) { el.innerHTML = UI.empty('📷','No project assigned'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','No project assigned'); return; }
 
     // Filter: 'all' (progress + defects), 'progress' only, 'defects' only.
     // Default is 'all' so users see everything in one place.
@@ -3739,7 +3739,7 @@ Tomorrow: start formwork on next bay."
       const emptyMsg = filter === 'defects' ? 'No defects raised'
                      : filter === 'progress' ? 'No progress photos'
                      : `No photos for ${date===today?'today':UI.fmtDate(date)}`;
-      html += UI.empty('📸', emptyMsg);
+      html += UI.empty('', emptyMsg);
     }
     el.innerHTML = html;
   },
@@ -3855,7 +3855,7 @@ Tomorrow: start formwork on next bay."
   async renderDocuments() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject || APP.user.projects?.[0]?.id;
-    if (!pid) { el.innerHTML = UI.empty('📄','No project selected'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','No project selected'); return; }
 
     const data = await API.get(`/documents/${pid}`);
     const docs = data?.documents || [];
@@ -3877,7 +3877,7 @@ Tomorrow: start formwork on next bay."
       </button>`;
 
     if (!docs.length) {
-      html += UI.empty('📋','No documents yet. Tap above to upload the first one.');
+      html += UI.empty('','No documents yet. Tap above to upload the first one.');
       el.innerHTML = html;
       return;
     }
@@ -4108,7 +4108,7 @@ Tomorrow: start formwork on next bay."
 
     if (APP.state.selectedMonthlyProject === 'all') {
       if (projects.length === 0) {
-        contentHtml = UI.empty('📊', 'No active projects');
+        contentHtml = UI.empty('', 'No active projects');
       } else {
         projects.forEach(p => {
           contentHtml += renderProjectCard(p);
@@ -4119,7 +4119,7 @@ Tomorrow: start formwork on next bay."
       if (selectedProj) {
         contentHtml = renderProjectCard(selectedProj);
       } else {
-        contentHtml = UI.empty('📊', 'Selected project not found');
+        contentHtml = UI.empty('', 'Selected project not found');
       }
     }
 
@@ -4131,7 +4131,7 @@ Tomorrow: start formwork on next bay."
   async renderWeeklyReports() {
     const el = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const role = APP.user?.role;
     const canDraft   = ['pmc_head','principal','design_principal'].includes(role);
@@ -4139,7 +4139,7 @@ Tomorrow: start formwork on next bay."
     const canSend    = ['principal','design_principal'].includes(role);
 
     const data = await API.getReports(pid).catch(() => null);
-    if (!data) { el.innerHTML = UI.empty('⚠️','Could not load reports'); return; }
+    if (!data) { el.innerHTML = UI.empty('️','Could not load reports'); return; }
     const reports = data.reports || [];
 
     let html = '';
@@ -4197,7 +4197,7 @@ Tomorrow: start formwork on next bay."
 
     // History
     if (!reports.length) {
-      html += UI.empty('📋','No weekly reports yet — draft the first one');
+      html += UI.empty('','No weekly reports yet — draft the first one');
     } else {
       html += `<div class="sec-label">History</div>`;
       reports.forEach(r => {
@@ -4294,12 +4294,12 @@ Tomorrow: start formwork on next bay."
   async renderGantt() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('📅','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
     el.innerHTML = [
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">',
       '<div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Schedule — Gantt View</div>',
       '<div style="display:flex;gap:8px;">',
-      `<a href="/api/gantt/${pid}/xlsx" download><button class="btn-sm">⬇ Download (.xlsx)</button></a>`,
+      `<a href="/api/gantt/${pid}/xlsx" download><button class="btn-sm">Download (.xlsx)</button></a>`,
       '<button class="btn-sm" onclick="APP.renderGantt()">↺ Refresh</button>',
       '</div>',
       '</div>',
@@ -4317,7 +4317,7 @@ Tomorrow: start formwork on next bay."
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
     const me  = APP.user;
-    if (!pid) { el.innerHTML = UI.empty('🏢','Select a project first'); return; }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const canInitiate = ['principal','design_principal','pmc_head','design_head','services_head'].includes(me.role);
     const isPrincipal = ['principal','design_principal'].includes(me.role);
@@ -4336,7 +4336,7 @@ Tomorrow: start formwork on next bay."
     if (canInitiate) {
       html += `<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn-primary" onclick="APP.showEngageVendor(${pid})">+ Engage Vendor</button>
-        <button class="btn-sm" onclick="APP.showEngagementBulkUpload(${pid})">⬆ Bulk Upload</button>
+        <button class="btn-sm" onclick="APP.showEngagementBulkUpload(${pid})">Bulk Upload</button>
       </div>`;
     }
 
@@ -4358,7 +4358,7 @@ Tomorrow: start formwork on next bay."
       html += `<div class="sec-label" style="margin-top:14px;color:#C87060">✗ Rejected (${rejected.length})</div>`;
       rejected.forEach(e => { html += APP._engagementCard(e, 'rejected', pid, showRates, isPrincipal, canInitiate); });
     }
-    if (!engs.length) html += UI.empty('🏢','No vendors engaged on this project yet');
+    if (!engs.length) html += UI.empty('','No vendors engaged on this project yet');
 
     el.innerHTML = html;
   },
@@ -5886,7 +5886,7 @@ APP.readInvoice = async function(fileInput) {
 APP.renderDailyReports = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   // Daily reports endpoint (Sprint 3 Item 10). The earlier /reports/:pid endpoint
   // returned weekly_reports and is reserved for the weekly health/report view.
@@ -5902,7 +5902,7 @@ APP.renderDailyReports = async function() {
   if (pending.length) {
     html += `<div class="sec-label">Pending Approval (${pending.length})</div>
     <div class="action-item c-navy" style="margin-bottom:14px">
-      <div class="ai-icon">✅</div>
+      <div class="ai-icon"></div>
       <div class="ai-body">
         <div class="ai-title">Approve all ${pending.length} reports</div>
         <div class="ai-meta">One tap — batch approve all pending + flagged</div>
@@ -5947,7 +5947,7 @@ APP.renderDailyReports = async function() {
   }
 
   if (!pending.length && !flagged.length) {
-    html += UI.empty('✅','All reports approved — nothing pending');
+    html += UI.empty('','All reports approved — nothing pending');
   }
 
   html += `<div class="sec-hdr-row">
@@ -5994,7 +5994,7 @@ APP.viewReport = function(id) {
 APP.renderGRN = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📦','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/grn/${pid}`);
   if (!data) return;
@@ -6053,7 +6053,7 @@ APP.renderGRN = async function() {
     </div>`;
   });
 
-  if (!grns.length) html = UI.empty('📦','No GRNs yet');
+  if (!grns.length) html = UI.empty('','No GRNs yet');
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
@@ -6111,7 +6111,7 @@ APP.submitGRN = async function() {
 APP.renderIssues = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('⚠️','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('️','Select a project first'); return; }
 
   const data = await API.get(`/issues/${pid}`);
   if (!data) return;
@@ -6158,7 +6158,7 @@ APP.renderIssues = async function() {
 
   let filtered = cur === 'all' ? issues.filter(i => i.status !== 'draft') : issues.filter(i => i.issue_type === cur && i.status !== 'draft');
   filtered = APP._applySort(filtered, APP._getSortMode('issues'), { urgencyField:'issue_type', ageField:'raised_at' });
-  if (!filtered.length) { html += UI.empty('✅','No issues in this category'); }
+  if (!filtered.length) { html += UI.empty('','No issues in this category'); }
   else filtered.slice(0,20).forEach(i => {
     const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
     html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer" onclick="APP.openIssueDetail(${i.id})">
@@ -6340,7 +6340,7 @@ APP.renderMeetings = function() { return APP.renderMOMs(); };
 APP.renderMOMs = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📋','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/meetings/${pid}`);
   if (!data) return;
@@ -6373,7 +6373,7 @@ APP.renderMOMs = async function() {
     ${canCreate ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showMOMForm()">+ New MOM</button>` : ''}
   </div>
   ${canCreate ? `<button class="btn-primary sec-action-mobile" onclick="APP.showMOMForm()">+ New MOM</button>` : ''}`;
-  if (!moms.length) { html += UI.empty('📋','No MOMs yet'); }
+  if (!moms.length) { html += UI.empty('','No MOMs yet'); }
   else moms.slice(0,15).forEach(m => {
     const statusBadge = m.status === 'approved' ? 'b-green' : m.status === 'issued' ? 'b-navy' : 'b-amber';
     const pending = (m.action_items||[]).filter(a => !a.completed).length;
@@ -6410,7 +6410,7 @@ APP.viewMOM = async function(id) {
       <div class="ar-due ${new Date(a.due_date)<new Date()&&!a.completed?'overdue':''}">${UI.fmtDate(a.due_date)}</div>
       ${!a.completed ? `<button class="btn-sm approve" onclick="APP.doneAction(${a.id})">Done</button>` : `<span style="font-size:18px">✅</button>`}
     </div>`).join('')}
-    ${!actions.length ? UI.empty('✅','No action items') : ''}`;
+    ${!actions.length ? UI.empty('','No action items') : ''}`;
   document.getElementById('modal-overlay').classList.add('open');
 };
 
@@ -6445,7 +6445,7 @@ APP.submitMOM = async function() {
 APP.renderLabour = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('👷','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/labour/${pid}`);
   if (!data) return;
@@ -6475,7 +6475,7 @@ APP.renderLabour = async function() {
     ${canEnter ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showLabourForm()">+ Log Headcount</button>` : ''}
   </div>
   ${canEnter ? `<button class="btn-primary sec-action-mobile" onclick="APP.showLabourForm()">+ Log Headcount</button>` : ''}`;
-  if (!entries.length) { html += UI.empty('👷','No labour entries yet'); }
+  if (!entries.length) { html += UI.empty('','No labour entries yet'); }
   else entries.slice(0,14).forEach(e => {
     html += `<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -6563,7 +6563,7 @@ APP.submitLabour = async function() {
 APP.renderVisits = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📍','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/meetings/${pid}`);
   if (!data) return;
@@ -6578,7 +6578,7 @@ APP.renderVisits = async function() {
   }
 
   html += `<div class="sec-label">Site Visits (${visits.length})</div>`;
-  if (!visits.length) { html += UI.empty('📍','No visits logged yet'); }
+  if (!visits.length) { html += UI.empty('','No visits logged yet'); }
   else visits.slice(0,12).forEach(v => {
     html += `<button class="card" style="min-height:44px" onclick="APP.viewVisit(${v.id})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -6647,7 +6647,7 @@ APP.renderBudget = async function() {
   }
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('💰','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/budget/${pid}`);
   if (!data) return;
@@ -6674,7 +6674,7 @@ APP.renderBudget = async function() {
   </div>
   <div class="sec-label">Cost Heads</div>`;
 
-  if (!heads.length) { html += UI.empty('💰','No budget initialised — upload BOQ first'); }
+  if (!heads.length) { html += UI.empty('','No budget initialised — upload BOQ first'); }
   else heads.forEach(h => {
     const pct = parseFloat(h.variance_pct||0);
     const clr = h.status === 'critical' ? 'red' : h.status === 'over' ? 'amber' : h.status === 'watch' ? 'amber' : '';
@@ -6707,7 +6707,7 @@ APP.renderBudget = async function() {
 APP.renderPayments = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('💳','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
   if (!data) return;
@@ -6727,7 +6727,7 @@ APP.renderPayments = async function() {
   if (pending.length) {
     const total = pending.reduce((s,p) => s + parseFloat(p.amount_requested||0), 0);
     html += `<div class="action-item c-navy" style="margin-bottom:16px">
-      <div class="ai-icon">✅</div>
+      <div class="ai-icon"></div>
       <div class="ai-body">
         <div class="ai-title">Approve all — ${Money.formatRupee(total)}</div>
         <div class="ai-meta">${pending.length} vendor${pending.length>1?'s':''} waiting</div>
@@ -6750,7 +6750,7 @@ APP.renderPayments = async function() {
       </div>`;
     });
   } else {
-    html += UI.empty('✅','No payments pending approval');
+    html += UI.empty('','No payments pending approval');
   }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -6786,7 +6786,7 @@ APP.batchApprovePayments = async function(pid) {
 APP.renderPaymentsFin = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('💳','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
   if (!data) return;
@@ -6823,7 +6823,7 @@ APP.renderPaymentsFin = async function() {
       <div class="card-meta">19-column PAB bulk payment format — ready to upload to ICICI portal</div>
       <a href="/api/payments/${pid}/icici-excel" download>
         <button class="btn-primary" style="margin-top:10px">
-          ⬇ Download ICICI Excel
+          Download ICICI Excel
         </button>
       </a>
     </div>
@@ -6836,7 +6836,7 @@ APP.renderPaymentsFin = async function() {
       </div>
     </div>`;
   } else {
-    html += UI.empty('✅','No approved payments to process');
+    html += UI.empty('','No approved payments to process');
   }
 
   html += `<div class="sec-label">Payments</div>`;
@@ -6887,7 +6887,7 @@ APP.runPreUploadCheck = async function(pid) {
 APP.renderPI = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('🧾','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
   const data = await API.get(`/invoices/${pid}/pi`);
   if (!data) return;
   const pis = data.invoices || [];
@@ -6898,7 +6898,7 @@ APP.renderPI = async function() {
       <div class="sec-label" style="margin:0">Proforma Invoices</div>
       ${canRaise ? `<button class="btn-primary" onclick="APP.showRaisePI(${pid})">+ Raise PI</button>` : ''}
     </div>`;
-  if (!pis.length) { html += UI.empty('🧾','No invoices raised yet'); }
+  if (!pis.length) { html += UI.empty('','No invoices raised yet'); }
   else pis.forEach(pi => {
     const badge = pi.status === 'paid' ? 'b-green' : pi.status === 'issued' ? 'b-navy' : 'b-amber';
     html += `<div class="pay-item">
@@ -6990,7 +6990,7 @@ APP.submitRaisePI = async function(pid) {
 APP.renderPettyCash = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('💵','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
   const data = await API.get(`/finance/${pid}/petty-cash`);
   if (!data) return;
   const entries = data.entries || [];
@@ -7039,13 +7039,13 @@ APP.renderUsers = async function() {
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Bulk Upload Users</div>
     <div class="card-meta">Upload Excel with all team members at once — use the template</div>
-    <div class="actions-row">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:10px">
       <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download>
-        <button class="btn-secondary">⬇ Download Template</button>
+        <button class="btn-secondary">Download Template</button>
       </a>
       <label>
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="APP.bulkUploadUsers(this)">
-        <button class="btn-primary" onclick="this.previousElementSibling.click()">⬆ Upload Excel</button>
+        <button class="btn-primary" onclick="this.previousElementSibling.click()">Upload Excel</button>
       </label>
     </div>
   </div>`;
@@ -7055,7 +7055,7 @@ APP.renderUsers = async function() {
     html += `<div class="sec-label">Pending Approval (${approvals.length})</div>`;
     approvals.forEach(u => {
       html += `<div class="action-item c-amber">
-        <div class="ai-icon">👤</div>
+        <div class="ai-icon"></div>
         <div class="ai-body">
           <div class="ai-title">${UI.escapeText(u.full_name)}</div>
           <div class="ai-meta">${u.role} · ${u.email||u.phone||'—'}</div>
@@ -7127,7 +7127,7 @@ APP.renderAccountSetup = async function() {
           </div>
           <div class="card-title" style="margin-top:4px">${e.legal_name}</div>
           ${e.gstin ? `<div class="card-meta">GSTIN: ${e.gstin}</div>` : ''}
-          <div class="card-meta" style="margin-top:6px">💰 ${bankLine}</div>
+          <div class="card-meta" style="margin-top:6px">${bankLine}</div>
           ${e.upi_id ? `<div class="card-meta">UPI: ${e.upi_id}</div>` : ''}
         </div>
         ${isPrincipal ? `
@@ -7348,7 +7348,7 @@ APP.renderGovernance = async function() {
     timeout,
   ]);
   if (!status) {
-    el.innerHTML = UI.empty('⚠️', 'Governance status unavailable — the role_permissions table may be empty. Upload Sheet 1 to initialise.');
+    el.innerHTML = UI.empty('', 'Governance status unavailable — the role_permissions table may be empty. Upload Sheet 1 to initialise.');
     return;
   }
 
@@ -7419,14 +7419,14 @@ APP.renderGovernance = async function() {
       Edit the Excel sheet, save it, then upload here. Permissions reload automatically.
     </div>
 
-    ${uploadCard('permissions',     'Sheet 1 — Role Permission Matrix',     '🔒', '15 role tabs · W/R/A access per action')}
-    ${uploadCard('workflows',       'Sheet 2 — Workflow Status Transitions', '🔄', '9 object types · all state transitions')}
-    ${uploadCard('notifications',   'Sheet 3 — Notification Trigger Map',   '🔔', '50+ events · who gets notified for what')}
-    ${uploadCard('slas',            'Sheet 4 — SLA & Escalation Table',     '⏱', 'Days per item type before escalation')}
-    ${uploadCard('visibility',      'Sheet 5 — Tab Visibility Map',         '👁', 'Which roles see which screens')}
-    ${uploadCard('audit_events',    'Sheet 6 — Audit Event Registry',       '📋', 'Events that write to audit log')}
-    ${uploadCard('sequences',       'Sheet 7 — Sequence Number Registry',   '🔢', 'Prefix, table, and padding per entity')}
-    ${uploadCard('open_gaps',       'Sheet 8 — Open Permission Gaps',       '⚠️', 'Scanner-flagged ungated routes')}
+    ${uploadCard('permissions',     'Sheet 1 — Role Permission Matrix',     '', '15 role tabs · W/R/A access per action')}
+    ${uploadCard('workflows',       'Sheet 2 — Workflow Status Transitions', '', '9 object types · all state transitions')}
+    ${uploadCard('notifications',   'Sheet 3 — Notification Trigger Map',   '', '50+ events · who gets notified for what')}
+    ${uploadCard('slas',            'Sheet 4 — SLA & Escalation Table',     '', 'Days per item type before escalation')}
+    ${uploadCard('visibility',      'Sheet 5 — Tab Visibility Map',         '', 'Which roles see which screens')}
+    ${uploadCard('audit_events',    'Sheet 6 — Audit Event Registry',       '', 'Events that write to audit log')}
+    ${uploadCard('sequences',       'Sheet 7 — Sequence Number Registry',   '', 'Prefix, table, and padding per entity')}
+    ${uploadCard('open_gaps',       'Sheet 8 — Open Permission Gaps',       '', 'Scanner-flagged ungated routes')}
 
     <div class="sec-label" style="margin-top:20px">Recent uploads</div>
     ${recentHtml}
@@ -7484,7 +7484,7 @@ APP.renderErrorsLog = async function() {
     API.get('/client-errors/summary'),
     API.get('/client-errors?untriaged=1&limit=200'),
   ]);
-  if (!summary || !list) { el.innerHTML = UI.empty('⚠️','Could not load error log'); return; }
+  if (!summary || !list) { el.innerHTML = UI.empty('️','Could not load error log'); return; }
 
   const tile = (label, n, tone) => `
     <div class="card" style="text-align:center">
@@ -7822,7 +7822,7 @@ APP.renderClients = async function() {
 
 APP._renderClientsLegacy = async function() {
   const el = UI.contentEl();
-  el.innerHTML = UI.empty('⏳','Loading clients…');
+  el.innerHTML = UI.empty('','Loading clients…');
 
   const [allRes, incompleteRes] = await Promise.all([
     API.call('GET', '/clients'),
@@ -7830,7 +7830,7 @@ APP._renderClientsLegacy = async function() {
   ]);
 
   if (!allRes || allRes.error) {
-    el.innerHTML = UI.empty('🔒', allRes?.error || 'Access denied');
+    el.innerHTML = UI.empty('', allRes?.error || 'Access denied');
     return;
   }
 
@@ -7868,7 +7868,7 @@ APP._renderClientsLegacy = async function() {
 
   html += `<div class="sec-label" style="margin-top:18px">All Clients (${complete.length})</div>`;
   if (!complete.length) {
-    html += UI.empty('📋','No clients in master yet');
+    html += UI.empty('','No clients in master yet');
   } else {
     complete.forEach(c => {
       html += `
@@ -8280,7 +8280,7 @@ APP._markAllNotifsRead = async function() {
 APP.renderNCR = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('🔍','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/issues/ncr/${pid}`);
   if (!data) return;
@@ -8325,7 +8325,7 @@ APP.renderNCR = async function() {
     });
   }
 
-  if (!ncrs.length) html = UI.empty('✅','No NCRs raised');
+  if (!ncrs.length) html = UI.empty('','No NCRs raised');
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
@@ -8351,7 +8351,7 @@ APP.submitNCR = async function() {
 APP.renderSubmittals = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📄','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/submittals/${pid}`);
   if (!data) return;
@@ -8388,7 +8388,7 @@ APP.renderSubmittals = async function() {
   }
 
   html += `<div class="sec-label">All Submittals</div>`;
-  if (!subs.length) { html += UI.empty('📄','No submittals yet'); }
+  if (!subs.length) { html += UI.empty('','No submittals yet'); }
   else {
     html += APP._sortToggleHTML('submittals', ['default','age']);
     const sortedSubs = APP._applySort(subs, APP._getSortMode('submittals'), { ageField:'submitted_at' });
@@ -8441,7 +8441,7 @@ APP.renderWeeklyHealth = async function() {
   const projects = data.projects || [];
 
   let html = `<div class="sec-label">Weekly Health — All Projects</div>`;
-  if (!projects.length) { html += UI.empty('📊','No active projects'); }
+  if (!projects.length) { html += UI.empty('','No active projects'); }
   else projects.forEach(p => {
     const sched = p.schedule || {};
     const drift = sched.drift_days || 0;
@@ -8490,7 +8490,7 @@ APP.renderWeeklyHealth = async function() {
 APP.renderScheduleCompliance = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('✅','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   let html = `
   <div class="card" style="margin-bottom:16px;border-left:3px solid var(--navy)">
@@ -8554,7 +8554,7 @@ APP.renderProjectDetail = async function() {
   const projectsList = (projectsData && projectsData.projects) ? projectsData.projects : [];
 
   if (!projectsList.length) {
-    el.innerHTML = UI.empty('🏗️', 'No projects found');
+    el.innerHTML = UI.empty('', 'No projects found');
     return;
   }
 
@@ -8891,7 +8891,7 @@ APP._revertSla = async function(itemType) {
 APP.renderClientReceipts = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('💵','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/finance/${pid}/client-receipts`);
   if (!data) return;
@@ -8900,7 +8900,7 @@ APP.renderClientReceipts = async function() {
   let html = `<button class="btn-primary" onclick="APP.showReceiptForm()" style="margin-bottom:16px">+ Log Receipt</button>
   <div class="sec-label">Client Receipts</div>`;
 
-  if (!receipts.length) { html += UI.empty('💵','No receipts logged yet'); }
+  if (!receipts.length) { html += UI.empty('','No receipts logged yet'); }
   else receipts.forEach(r => {
     html += `<div class="pay-item">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -8947,7 +8947,7 @@ APP.submitReceipt = async function() {
 APP.renderTallyExport = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📤','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/invoices/${pid}/pi`);
   if (!data) return;
@@ -8961,7 +8961,7 @@ APP.renderTallyExport = async function() {
   <div class="sec-label">Select Invoices to Export</div>`;
 
   if (!pis.length) {
-    html += UI.empty('📤','No paid invoices to export');
+    html += UI.empty('','No paid invoices to export');
   } else {
     html += `<button class="btn-primary" style="margin-bottom:12px" onclick="APP.exportAllTally('${pid}')">Export All to Tally XML</button>`;
     pis.forEach(pi => {
@@ -9009,7 +9009,7 @@ APP.renderSetupBanner = async function(projectId) {
     
     return `
       <button class="setup-banner c-${statusClass}" style="min-height:44px;cursor:pointer" onclick="APP.showSetupChecklist()">
-        <div class="setup-banner-icon">${blocking.length > 0 ? '⚠️' : '📋'}</div>
+        <div class="setup-banner-icon">${blocking.length > 0 ? '' : ''}</div>
         <div class="setup-banner-body">
           <div class="setup-banner-title">Project Setup ${statusText}</div>
           <div class="setup-banner-meta">
@@ -9190,7 +9190,7 @@ APP.renderDashboard = async function() {
 APP.renderPMCDashboard = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('🏗️','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const [dash, budget] = await Promise.all([
     API.get(`/dashboard?project_id=${pid}`),
@@ -9221,11 +9221,11 @@ APP.renderPMCDashboard = async function() {
   const pending_changes = filterByPid(ac.pending_changes);
 
   if (pending_approvals.length) { hasItems=true; html += addItem('✍️','Approvals Pending',`${pending_approvals.length} requests awaiting PMC sign-off`,'blue','blue',pending_approvals.length,'pending'); }
-  if (overdue_queries.length)   { hasItems=true; html += addItem('⚠️','Design Queries Overdue',`${overdue_queries.length} queries blocked > 3 days`,'red','red',overdue_queries.length,'issues'); }
+  if (overdue_queries.length)   { hasItems=true; html += addItem('','Design Queries Overdue',`${overdue_queries.length} queries blocked > 3 days`,'red','red',overdue_queries.length,'issues'); }
   if (open_flags.length)        { hasItems=true; html += addItem('🚩','Task Updates Flagged',`${open_flags.length} tasks marked delayed by site team`,'amber','orange',open_flags.length,'schedule'); }
-  if (overdue_materials.length) { hasItems=true; html += addItem('📦','Materials Overdue',`${overdue_materials.length} material requests past needed date`,'amber','amber',overdue_materials.length,'materials'); }
-  if (pending_changes.length)   { hasItems=true; html += addItem('📝','Changes Pending',`${pending_changes.length} change notices pending signature`,'blue','blue',pending_changes.length,'changes'); }
-  if (budget?.has_alerts)       { hasItems=true; html += addItem('💰','Budget variance flagged','One or more heads over threshold','amber','amber','ALERT','budget'); }
+  if (overdue_materials.length) { hasItems=true; html += addItem('','Materials Overdue',`${overdue_materials.length} material requests past needed date`,'amber','amber',overdue_materials.length,'materials'); }
+  if (pending_changes.length)   { hasItems=true; html += addItem('','Changes Pending',`${pending_changes.length} change notices pending signature`,'blue','blue',pending_changes.length,'changes'); }
+  if (budget?.has_alerts)       { hasItems=true; html += addItem('','Budget variance flagged','One or more heads over threshold','amber','amber','ALERT','budget'); }
 
   if (!hasItems) html += `<div class="card" style="text-align:center;padding:20px">
     <div style="font-size:24px;margin-bottom:8px">✅</div>
@@ -9258,7 +9258,7 @@ APP.renderPMCDashboard = async function() {
 APP.renderSiteDashboard = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('🏗️','No project assigned'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','No project assigned'); return; }
 
   const today = APP.state.serverToday || UI.todayIST();
 
@@ -9309,19 +9309,19 @@ APP.renderSiteDashboard = async function() {
   <div class="sec-label">Quick Actions</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
     <button class="action-card" onclick="APP.switchTab('tasks')">
-      <span style="font-size:24px;margin-bottom:6px">📊</span>
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span style="font-size:13px;font-weight:600">Update Tasks</span>
     </button>
     <button class="action-card" onclick="APP.switchTab('grn')">
-      <span style="font-size:24px;margin-bottom:6px">📦</span>
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
       <span style="font-size:13px;font-weight:600">Raise GRN</span>
     </button>
     <button class="action-card" onclick="APP.switchTab('issues')">
-      <span style="font-size:24px;margin-bottom:6px">⚠️</span>
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <span style="font-size:13px;font-weight:600">Raise Issue</span>
     </button>
     <button class="action-card" onclick="APP.switchTab('issues_site')">
-      <span style="font-size:24px;margin-bottom:6px">📐</span>
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 2l20 20"/><path d="M5.5 5.5L2 22l16.5-3.5"/><path d="M14 14l8-8"/><path d="M18 6l4-4"/></svg>
       <span style="font-size:13px;font-weight:600">Drawing Query</span>
     </button>
   </div>`;
@@ -9370,7 +9370,7 @@ APP.renderDesignDashboard = async function() {
     html += `<div class="sec-label">Drawing Queries</div>`;
     html += queries.map(q => `
     <button class="action-item c-${q.days_open>=3?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('queries')">
-      <div class="ai-icon">${q.days_open>=3?'⚠️':'💬'}</div>
+      <div class="ai-icon"></div>
       <div class="ai-body">
         <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
         <div class="ai-meta">${q.project_name||'—'} · ${q.days_open||0}d open</div>
@@ -9437,7 +9437,7 @@ APP.renderFinanceDashboard = async function() {
       💵<div style="font-size:12px;margin-top:4px">Petty Cash</div>
     </button>
     <button class="btn-secondary" onclick="APP.renderTallyExport();APP.currentTab='tally'" style="padding:14px;text-align:center">
-      📤<div style="font-size:12px;margin-top:4px">Tally Export</div>
+      <div style="font-size:12px;margin-top:4px">Tally Export</div>
     </button>
   </div>`;
 
@@ -9467,19 +9467,19 @@ APP.renderTeamDashboard = async function() {
     html += `<div class="sec-label">Quick Actions</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
       <button class="action-card" onclick="APP.switchTab('meetings')">
-        <span style="font-size:24px;margin-bottom:6px">🗓️</span>
+        <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span style="font-size:13px;font-weight:600">Meetings</span>
       </button>
       <button class="action-card" onclick="APP.switchTab('tasks')">
-        <span style="font-size:24px;margin-bottom:6px">📋</span>
+        <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span style="font-size:13px;font-weight:600">Tasks</span>
       </button>
       <button class="action-card" onclick="APP.switchTab('issues')">
-        <span style="font-size:24px;margin-bottom:6px">⚠️</span>
+        <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span style="font-size:13px;font-weight:600">Issues</span>
       </button>
       <button class="action-card" onclick="APP.switchTab('grn')">
-        <span style="font-size:24px;margin-bottom:6px">📦</span>
+        <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         <span style="font-size:13px;font-weight:600">GRN</span>
       </button>
     </div>`;
@@ -9491,7 +9491,7 @@ APP.renderTeamDashboard = async function() {
     allQ.slice(0, 6).forEach(q => {
       const isOverdue = (q.days_open || 0) >= 3;
       html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('issues')">
-        <div class="ai-icon">${isOverdue?'⚠️':'💬'}</div>
+        <div class="ai-icon"></div>
         <div class="ai-body">
           <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
           <div class="ai-meta">${q.project_name||'—'} · ${q.days_open||0}d open</div>
@@ -9514,7 +9514,7 @@ APP.renderTeamDashboard = async function() {
     html += `</div>`;
   } else {
     html += `<div class="sec-label" style="margin-top:16px">Projects</div>`;
-    html += UI.empty('🏗️','No active projects assigned');
+    html += UI.empty('','No active projects assigned');
   }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -9709,7 +9709,7 @@ APP.renderGSTStatement = async function() {
         <input type="month" id="gst-month" value="${defaultMonth}" max="${defaultMonth}"></div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn-primary" onclick="APP.loadGSTStatement()">View</button>
-        <button class="btn-secondary" onclick="APP.downloadGSTStatement()">⬇ Excel</button>
+        <button class="btn-secondary" onclick="APP.downloadGSTStatement()">Excel</button>
       </div>
     </div>
     <div id="gst-results"></div>
@@ -9725,7 +9725,7 @@ APP.loadGSTStatement = async function() {
   const el = document.getElementById('gst-results');
   UI.loading(el);
   const data = await API.get('/gst-statement?' + params.toString());
-  if (!data || data.error) { el.innerHTML = UI.empty('📊', data?.error||'No data'); return; }
+  if (!data || data.error) { el.innerHTML = UI.empty('', data?.error||'No data'); return; }
   const fmt = n => Money.formatRupee(n||0, 2);
   const t = data.totals;
   let html = `
@@ -9785,7 +9785,7 @@ APP.downloadGSTStatement = function() {
 APP.renderBOQMapping = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📋', 'Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('', 'Select a project first'); return; }
   const data = await API.get('/boq-mapping/' + pid);
   if (!data) return;
   const { engagements = [], unmapped_count = 0, mappings = [] } = data;
@@ -9938,11 +9938,11 @@ APP.renderVendorsMaster = async function() {
       <div class="card-meta">Vendor fills the Excel template → you upload → AI validates → finance clears.</div>
       <div class="vendor-actions">
         <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download>
-          <button class="btn-secondary">⬇ Download Template</button>
+          <button class="btn-secondary">Download Template</button>
         </a>
         <label>
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadVendorExcel(this)">
-          <button class="btn-primary" onclick="this.previousElementSibling.click()">⬆ Upload Filled Excel</button>
+          <button class="btn-primary" onclick="this.previousElementSibling.click()">Upload Filled Excel</button>
         </label>
         <button class="btn-secondary" onclick="APP.showAddVendorMasterModal()">+ Add Single Vendor</button>
       </div>
@@ -9960,7 +9960,7 @@ APP.renderVendorsMaster = async function() {
     html += `<div class="sec-label" style="margin-top:14px;color:#C87060">✗ Rejected (${rejected.length})</div>`;
     rejected.forEach(v => { html += APP._vendorMasterCard(v, 'rejected'); });
   }
-  if (!vendors.length) html += UI.empty('🏢','No vendors in master yet');
+  if (!vendors.length) html += UI.empty('','No vendors in master yet');
 
   el.innerHTML = html;
 };
@@ -10111,7 +10111,7 @@ APP.renderFinanceClearance = async function() {
 
   let html = `<div class="sec-label">Vendors pending clearance (${pending.length})</div>`;
   if (!pending.length) {
-    html += UI.empty('✓','Nothing pending — all vendors cleared');
+    html += UI.empty('','Nothing pending — all vendors cleared');
     el.innerHTML = html;
     return;
   }
@@ -10384,10 +10384,10 @@ APP.deleteBOQItem = async function(pid, itemId, itemName) {
 APP.renderClientBOQ = async function() {
   const el  = UI.contentEl();
   const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('📄','Select a project first'); return; }
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.call('GET', `/client-boq/${pid}`);
-  if (!data) { el.innerHTML = UI.empty('📄','Failed to load'); return; }
+  if (!data) { el.innerHTML = UI.empty('','Failed to load'); return; }
   const items = data.items || [];
   const version = data.version || null;
 
@@ -10408,7 +10408,7 @@ APP.renderClientBOQ = async function() {
   </div>`;
 
   if (!items.length) {
-    el.innerHTML = html + UI.empty('📄','No client BOQ for this project');
+    el.innerHTML = html + UI.empty('','No client BOQ for this project');
     return;
   }
 
