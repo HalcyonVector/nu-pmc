@@ -1990,7 +1990,6 @@ a:focus-visible,
     padding: 0 20px 0 6px !important;
   }
 }
-}
 @media (max-width: 480px) {
   .tb-ctx, .tb-sep {
     display: none !important;
@@ -2009,7 +2008,8 @@ a:focus-visible,
 }
 @media (max-width: 360px) {
   .tb-role {
-    display: none !important; /* Hide role switcher on extremely narrow screens to ensure core features fit */
+    max-width: 70px !important;
+    font-size: 9px !important;
   }
 }
 
