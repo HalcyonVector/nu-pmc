@@ -240,6 +240,10 @@ const APP = {
     APP._todayReport = null;
     APP._todayReportAt = null;
 
+    // Ensure header menu is closed on load (prevents auto-open on mobile)
+    const actionsEl = document.getElementById('tb-actions');
+    if (actionsEl) actionsEl.classList.remove('show');
+
     // Force password change on first login
     if (APP.user.must_change_password) {
       APP.showForceChangePassword();
@@ -10498,9 +10502,19 @@ APP.submitEditClientBOQItem = async function(pid, itemId) {
   else UI.toast('Nothing to save');
 };
 
-APP.toggleHeaderMenu = function() {
+APP.toggleHeaderMenu = function(e) {
+  if (e) e.stopPropagation();
   const actions = document.getElementById('tb-actions');
   if (actions) {
     actions.classList.toggle('show');
   }
 };
+
+// Close header menu when tapping outside
+document.addEventListener('click', function(e) {
+  const actions = document.getElementById('tb-actions');
+  const toggle = document.getElementById('tb-menu-toggle');
+  if (!actions || !actions.classList.contains('show')) return;
+  if (actions.contains(e.target) || toggle?.contains(e.target)) return;
+  actions.classList.remove('show');
+});

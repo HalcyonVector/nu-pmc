@@ -88,7 +88,7 @@
     </div>
     <div class="tb-right">
       <select class="tb-role" id="tb-role" onchange="APP.switchActingRole(this.value)" style="display:none" title="View as role"></select>
-      <button class="tb-menu-toggle" id="tb-menu-toggle" onclick="APP.toggleHeaderMenu()" title="Toggle actions menu" aria-label="Toggle actions menu">☰</button>
+      <button class="tb-menu-toggle" id="tb-menu-toggle" onclick="APP.toggleHeaderMenu(event)" title="Toggle actions menu" aria-label="Toggle actions menu">☰</button>
       <div class="tb-actions" id="tb-actions">
         <button class="tb-notif" id="tb-pwd" onclick="APP.showChangePasswordModal()" title="Change password" aria-label="Change password">🔑</button>
         <button class="tb-notif" id="tb-notif" onclick="APP.switchTab('notifications')" title="Notifications" aria-label="Notifications">
