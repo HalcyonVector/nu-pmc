@@ -24,7 +24,7 @@
 // a sync manually via postMessage({ type: 'queue:sync-now' }).
 // ============================================================
 
-const CACHE_NAME     = 'nu-pmc-v4.33';
+const CACHE_NAME     = 'nu-pmc-v4.34';
 const OFFLINE_URL    = '/offline.html';
 const MAX_ATTEMPTS   = 5;
 const DB_NAME        = 'nu-pmc-queue';

@@ -7089,7 +7089,7 @@ APP.renderUsers = async function() {
 
 APP.renderAccountSetup = async function() {
   const el = UI.contentEl();
-  el.innerHTML = UI.spinner();
+  UI.loading(el);
 
   const data = await API.get('/company-entities');
   if (!data) return;
@@ -7326,12 +7326,16 @@ APP.toggleEntityStatus = async function(id, makeActive, name) {
 
 APP.renderGovernance = async function() {
   const el = UI.contentEl();
-  el.innerHTML = UI.spinner();
+  UI.loading(el);
 
-  // Load status from DB
-  const status = await API.get('/governance/status').catch(() => null);
+  // Load status from DB — 10s timeout guard against hung DB queries
+  const timeout = new Promise(resolve => setTimeout(() => resolve(null), 10000));
+  const status = await Promise.race([
+    API.get('/governance/status').catch(() => null),
+    timeout,
+  ]);
   if (!status) {
-    el.innerHTML = UI.empty('⚠️', 'Could not load governance status — check server logs');
+    el.innerHTML = UI.empty('⚠️', 'Governance status unavailable — the role_permissions table may be empty. Upload Sheet 1 to initialise.');
     return;
   }
 
@@ -7461,7 +7465,7 @@ APP.reloadGovernancePermissions = async function() {
 // screen with one row per click.
 APP.renderErrorsLog = async function() {
   const el = UI.contentEl();
-  el.innerHTML = UI.spinner();
+  UI.loading(el);
 
   const [summary, list] = await Promise.all([
     API.get('/client-errors/summary'),
