@@ -915,8 +915,9 @@ body {
   display: flex;
   gap: 8px;
   margin-bottom: 20px;
-  padding: 4px 2px;
+  padding: 4px 0;
   width: 100%;
+  justify-content: center;
 }
 .date-strip::-webkit-scrollbar { display: none; }
 .date-chip {
