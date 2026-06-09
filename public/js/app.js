@@ -1032,7 +1032,9 @@ Tomorrow: start formwork on next bay."
   },
 
   switchProject() {
-    // Allow site managers with multiple projects to switch
+    // Only site managers with multiple projects can switch via picker
+    const role = APP.user?.role;
+    if (!['site_manager','senior_site_manager'].includes(role)) return;
     const projects = APP.user.projects || [];
     if (projects.length <= 1) return;
     APP.showProjectPicker();
