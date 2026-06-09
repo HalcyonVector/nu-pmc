@@ -1975,7 +1975,7 @@ a:focus-visible,
     font-size: 12px !important;
   }
   .tb-role {
-    max-width: 120px !important;
+    max-width: none !important;
     font-size: 12px !important;
     padding: 0 24px 0 8px !important;
   }
@@ -1985,7 +1985,7 @@ a:focus-visible,
     max-width: 90px !important;
   }
   .tb-role {
-    max-width: 95px !important;
+    max-width: none !important;
     font-size: 11px !important;
     padding: 0 20px 0 6px !important;
   }
@@ -1995,7 +1995,7 @@ a:focus-visible,
     display: none !important;
   }
   .tb-role {
-    max-width: 85px !important;
+    max-width: none !important;
     font-size: 10px !important;
   }
   .tb-notif {
@@ -2008,7 +2008,7 @@ a:focus-visible,
 }
 @media (max-width: 360px) {
   .tb-role {
-    max-width: 70px !important;
+    max-width: none !important;
     font-size: 9px !important;
   }
 }
