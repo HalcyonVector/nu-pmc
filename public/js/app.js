@@ -1430,10 +1430,7 @@ Tomorrow: start formwork on next bay."
     const byTrade = APP.groupByTrade(tasks);
 
     // Build final HTML
-    let finalHtml = subTabs + strip +
-      `<button class="upload-btn" onclick="document.getElementById('photo-file-${date}').click()"><span class="upload-btn-icon">📷</span><span>Upload Site Photos</span></button>
-      <input type="file" id="photo-file-${date}" accept="image/*" multiple capture="environment" style="display:none"
-        onchange="APP.uploadPhotos(${pid},this)">`;
+    let finalHtml = subTabs + strip;
 
     if (!tasks.length) {
       finalHtml += UI.empty('','No tasks scheduled today');
