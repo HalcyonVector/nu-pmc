@@ -8476,7 +8476,7 @@ APP.renderWeeklyHealth = async function() {
       ${p.riskNarratives?.length ? `<div class="pc-progress">
         ${p.riskNarratives.slice(0,2).map(n =>
           `<div style="font-size:11px;color:var(--${n.escalation_level==='critical'?'red':n.escalation_level==='red'?'red':'amber'});line-height:1.4;margin-bottom:4px">
-            ⚠ ${n.trade}: ${(n.narrative||'').substring(0,80)}
+            ${n.trade}: ${(n.narrative||'').replace(/\s*\(AI narrative.*?\)/i,'')}
           </div>`
         ).join('')}
       </div>` : ''}
