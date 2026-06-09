@@ -290,7 +290,19 @@ const APP = {
         APP.buildTabs();
         return;
       }
-      // Multiple projects — show picker
+      // Multiple projects — restore last selection if valid, else show picker
+      try {
+        const saved = sessionStorage.getItem('nu_selected_project');
+        if (saved) {
+          const savedId = parseInt(saved, 10);
+          if (projects.some(p => p.id === savedId)) {
+            APP.state.selectedProject = savedId;
+            APP._updateTopbar();
+            APP.buildTabs();
+            return;
+          }
+        }
+      } catch (_e) {}
       APP.showProjectPicker();
       return;
     }
@@ -810,6 +822,7 @@ const APP = {
 
   pickProject(id) {
     APP.state.selectedProject = id;
+    try { sessionStorage.setItem('nu_selected_project', String(id)); } catch (_e) {}
     APP._updateTopbar();
     APP.buildTabs();
   },
