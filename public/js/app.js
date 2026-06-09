@@ -7039,7 +7039,7 @@ APP.renderUsers = async function() {
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Bulk Upload Users</div>
     <div class="card-meta">Upload Excel with all team members at once — use the template</div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:10px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px" class="bulk-upload-actions">
       <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download>
         <button class="btn-secondary">Download Template</button>
       </a>
