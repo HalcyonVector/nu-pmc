@@ -899,6 +899,7 @@ body {
 }
 .projects-grid .proj-card {
   margin-bottom: 0;
+  max-width: none;
 }
 
 /* ── PROGRESS BARS ── */
