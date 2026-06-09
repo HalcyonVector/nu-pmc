@@ -51,7 +51,7 @@ function isPlaceholderHash(hash) {
 }
 
 async function run() {
-  const seedPassword = process.env.SEED_PASSWORD || 'Welcome@123';
+  const seedPassword = process.env.SEED_PASSWORD || 'Start@123';
   if (seedPassword.length < 8) {
     console.error('✗ SEED_PASSWORD must be at least 8 characters');
     process.exit(1);

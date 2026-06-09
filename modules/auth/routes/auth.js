@@ -146,13 +146,12 @@ router.post('/login', asyncHandler(async (req, res) => {
 
     // Must-change-password check: default password still active AND login
     // count has reached the threshold, OR force_password_change flag is set
-    // (admin-reset). Threshold is 25 during testing to reduce lockouts —
-    // set to 2 before go-live.
-    const FORCE_CHANGE_AFTER = 25;
+    // (admin-reset). Threshold is 1 — users must change on first login.
+    const FORCE_CHANGE_AFTER = 1;
     await db.query('UPDATE users SET login_count = login_count + 1 WHERE id = ?', [user.id]);
     const [[countRow]] = await db.query('SELECT login_count FROM users WHERE id = ?', [user.id]);
     const loginCount = countRow.login_count;
-    const isDefault  = await bcrypt.compare('Welcome@123', user.password_hash);
+    const isDefault  = await bcrypt.compare('Start@123', user.password_hash);
     const mustChange = (isDefault && loginCount >= FORCE_CHANGE_AFTER) || (user.force_password_change === 1);
 
     // Session fixation defence (Bug #31): regenerate the session ID

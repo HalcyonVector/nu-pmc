@@ -84,11 +84,11 @@ router.post('/', requireAuth, requirePrincipal, validators.userCreate, async (re
     const { username, full_name, role, stream, managed_by, phone, email, password } = req.body;
     if (!username || !full_name || !role) return res.status(400).json({ error: 'Username, full name and role required' });
 
-    // Default password is Welcome@123 for all new users.
-    // force_password_change=1 means user MUST change it after FORCE_CHANGE_AFTER logins.
+    // Default password is Start@123 for all new users.
+    // force_password_change=1 means user MUST change it on first login.
     // See auth.js for the threshold. This removes the WhatsApp/phone dependency
     // for communicating temp passwords to new users.
-    const initPassword = password || 'Welcome@123';
+    const initPassword = password || 'Start@123';
     const hash = await bcrypt.hash(initPassword, 10);
     const [result] = await db.query(
       'INSERT INTO users (username, password_hash, full_name, role, stream, managed_by, phone, email, force_password_change) VALUES (?,?,?,?,?,?,?,?,1)',
