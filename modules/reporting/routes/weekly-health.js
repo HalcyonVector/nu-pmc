@@ -641,6 +641,71 @@ router.get('/report', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(a
 
   }));
 
+// GET /api/weekly-health/summary — JSON summary for in-app Health tab
+router.get('/summary', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(async (req, res) => {
+  const Onboarding = require('../../onboarding/contract');
+  const projects = await Onboarding.functions.getActiveProjects();
+
+  if (!projects.length) {
+    return res.json({ projects: [] });
+  }
+
+  const results = [];
+  for (const p of projects) {
+    // Schedule drift
+    const [[schedule]] = await db.query(
+      `SELECT drift_days, label FROM schedule_versions WHERE project_id = ? AND is_current = 1`,
+      [p.id]
+    );
+
+    // Open issues
+    const [[issueRow]] = await db.query(
+      `SELECT COUNT(*) AS cnt FROM issues WHERE project_id = ? AND status NOT IN ('closed')`,
+      [p.id]
+    );
+
+    // Pending payments
+    const [[pmtRow]] = await db.query(
+      `SELECT COUNT(*) AS cnt FROM vendor_payments WHERE project_id = ? AND status = 'pending'`,
+      [p.id]
+    );
+
+    // Open change notices
+    const [[cnRow]] = await db.query(
+      `SELECT COUNT(*) AS cnt FROM change_notices WHERE project_id = ? AND status = 'pending_approval'`,
+      [p.id]
+    );
+
+    // Risk narratives (last 4 weeks)
+    const [riskNarratives] = await db.query(
+      `SELECT trade, gap_pct, narrative, escalation_level
+       FROM schedule_risk_narratives
+       WHERE project_id = ? AND week_ending >= DATE_SUB(CURDATE(), INTERVAL 4 WEEK)
+       ORDER BY week_ending DESC, gap_pct DESC LIMIT 4`,
+      [p.id]
+    );
+
+    // Health status — derive from drift
+    const drift = schedule?.drift_days || 0;
+    const healthStatus = drift > 14 ? 'at_risk' : drift > 7 ? 'caution' : 'active';
+
+    results.push({
+      id:               p.id,
+      name:             p.name,
+      code:             p.code,
+      client_name:      p.client || '—',
+      health_status:    healthStatus,
+      schedule:         { drift_days: drift, label: schedule?.label || 'R0' },
+      open_issues:      issueRow?.cnt || 0,
+      pending_payments: pmtRow?.cnt || 0,
+      open_cns:         cnRow?.cnt || 0,
+      riskNarratives:   riskNarratives || [],
+    });
+  }
+
+  res.json({ projects: results });
+}));
+
 // GET /api/weekly-health/schedule — show when next report runs
 router.get('/schedule', requireAuth, asyncHandler(async (req, res) => {
   const today   = new Date();

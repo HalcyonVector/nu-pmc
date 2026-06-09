@@ -8423,7 +8423,7 @@ APP.submitSubmittal = async function() {
 // ── WEEKLY HEALTH REPORT — Naveen consolidated view
 APP.renderWeeklyHealth = async function() {
   const el = UI.contentEl();
-  const data = await API.get('/weekly-health/report');
+  const data = await API.get('/weekly-health/summary');
   if (!data) return;
   const projects = data.projects || [];
 
