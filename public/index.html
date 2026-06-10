@@ -18,6 +18,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="application-name" content="nu PMC">
 <title>nu associates — PMC</title>
+<script>
+// Apply saved theme immediately to prevent flash of light mode
+(function(){var t=localStorage.getItem('nu_theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
+</script>
 <link rel="stylesheet" href="/css/app.css?v=4.34">
 <link rel="stylesheet" href="/css/desktop.css?v=4.34">
 </head>
