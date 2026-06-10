@@ -2461,3 +2461,53 @@ html[data-theme="dark"] .tb-actions .tb-notif:hover {
 html[data-theme="dark"] .tb-actions .tb-notif svg {
   stroke: #FFFFFF !important;
 }
+
+/* ── DARK MODE — buttons, inline badges, work-pinned section ── */
+html[data-theme="dark"] .work-pinned,
+html[data-theme="dark"] .work-pinned * {
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .work-pinned .wp-card {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+}
+html[data-theme="dark"] .work-pinned .wp-label {
+  color: #AAB8C8 !important;
+}
+html[data-theme="dark"] .work-pinned span[style*="background:#f5ecdb"],
+html[data-theme="dark"] .work-pinned span[style*="background:#edeae2"],
+html[data-theme="dark"] .work-pinned span[style*="background:#dbebe0"],
+html[data-theme="dark"] #content-area span[style*="background:#f5ecdb"],
+html[data-theme="dark"] #content-area span[style*="background:#edeae2"],
+html[data-theme="dark"] #content-area span[style*="background:#dbebe0"] {
+  background: rgba(255,255,255,.1) !important;
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .work-pinned button,
+html[data-theme="dark"] #content-area .btn-primary,
+html[data-theme="dark"] .work-pinned .btn-primary {
+  background: #1D3D62 !important;
+  color: #FFFFFF !important;
+  border-color: #2A4A6A !important;
+}
+html[data-theme="dark"] .pa-strip,
+html[data-theme="dark"] .pa-strip * {
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .pa-strip {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+}
+html[data-theme="dark"] .pa-strip .pa-total-badge {
+  background: #1D3D62 !important;
+}
+html[data-theme="dark"] .pa-chip {
+  background: #0F1419 !important;
+  border-color: #2A3A4A !important;
+}
+html[data-theme="dark"] .pa-chip * {
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .pa-chip .pa-chip-count {
+  background: #1D3D62 !important;
+}
