@@ -53,6 +53,10 @@ Check: Are dates realistic? Any circular dependencies? Any trade conflicts? Is t
 // ── 3. BOQ ITEM → HSN CODE SUGGESTION
 // POST /api/ai/suggest-hsn
 router.post('/suggest-hsn', requireAuth, asyncHandler(async (req, res) => {
+    const aiToggles = require('../../../services/ai-toggles');
+    if (!await aiToggles.isEnabled('hsn_code_suggestion')) {
+      return res.json({ success: true, suggestion: { hsn_code: null, confidence: 'low', note: 'Feature disabled' } });
+    }
     const { item_description, trade } = req.body;
     if (!item_description) return res.status(400).json({ error: 'Item description required' });
 
@@ -72,6 +76,10 @@ Return: { hsn_code, description, gst_rate, confidence: 'high'|'medium'|'low', no
 // ── 4. DRAWING QUERY DE-DUPLICATION
 // POST /api/ai/similar-queries
 router.post('/similar-queries', requireAuth, asyncHandler(async (req, res) => {
+    const aiToggles = require('../../../services/ai-toggles');
+    if (!await aiToggles.isEnabled('similar_query_search')) {
+      return res.json({ success: true, similar: [], message: 'Feature disabled' });
+    }
     const { question, project_id, trade } = req.body;
     if (!question) return res.status(400).json({ error: 'Question required' });
 
@@ -164,6 +172,10 @@ Return null for missing fields. Amounts as numbers without commas.`,
 // ── 7. BOQ UPLOAD → FLAG MISSING MATERIAL APPROVALS
 // POST /api/ai/check-material-approvals
 router.post('/check-material-approvals', requireAuth, asyncHandler(async (req, res) => {
+    const aiToggles = require('../../../services/ai-toggles');
+    if (!await aiToggles.isEnabled('material_approval_check')) {
+      return res.json({ success: true, flagged: [] });
+    }
     const { boq_items, project_id } = req.body;
     if (!boq_items?.length) return res.status(400).json({ error: 'BOQ items required' });
 
@@ -226,5 +238,41 @@ router.post('/analyse-drawing-change', requireAuth, asyncHandler(async (req, res
 
     res.json({ success: true, analysis: result });
   }));
+
+// ── AI SETTINGS ENDPOINTS (Principal only)
+
+// GET /api/ai/settings — get all AI feature toggle states (Principal only)
+router.get('/settings', requireAuth, asyncHandler(async (req, res) => {
+  const me = req.session.user;
+  if (!['principal','design_principal'].includes(me.role)) {
+    return res.status(403).json({ error: 'Only principals can manage AI settings' });
+  }
+  const toggles = require('../../../services/ai-toggles');
+  const all = await toggles.getAll();
+  res.json({ toggles: all });
+}));
+
+// POST /api/ai/settings — update a toggle (Principal only)
+router.post('/settings', requireAuth, asyncHandler(async (req, res) => {
+  const me = req.session.user;
+  if (!['principal','design_principal'].includes(me.role)) {
+    return res.status(403).json({ error: 'Only principals can manage AI settings' });
+  }
+  const { feature_key, enabled } = req.body;
+  if (!feature_key || typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'feature_key and enabled (boolean) required' });
+  }
+  const toggles = require('../../../services/ai-toggles');
+  await toggles.setEnabled(feature_key, enabled, me.id);
+  res.json({ success: true });
+}));
+
+// GET /api/ai/settings/active — public (authenticated) list of enabled features
+router.get('/settings/active', requireAuth, asyncHandler(async (req, res) => {
+  const toggles = require('../../../services/ai-toggles');
+  const all = await toggles.getAll();
+  const active = Object.entries(all).filter(([,v]) => v).map(([k]) => k);
+  res.json({ active });
+}));
 
 module.exports = router;

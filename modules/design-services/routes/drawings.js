@@ -275,7 +275,9 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
     const vId = vResult.insertId;
     setImmediate(async () => {
       try {
+        const aiToggles = require('../../../services/ai-toggles');
         // ── v2: COMMON-SENSE CHECK on every upload (main, detail, rfi_response)
+        if (await aiToggles.isEnabled('drawing_sanity_check')) {
         try {
           const sanity = await ai.checkDrawingUpload({
             pdfPath: req.file?.path,
@@ -299,9 +301,10 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
             );
           }
         } catch (e) { console.error('[AI common-sense] error:', e.message); }
+        }
 
         // ── v2: DETAIL context extraction
-        if (dType === 'detail') {
+        if (dType === 'detail' && await aiToggles.isEnabled('detail_drawing_analysis')) {
           try {
             const parentNum = parent_drawing_id
               ? (await db.query('SELECT drawing_number FROM drawings WHERE id = ?', [parent_drawing_id]))[0][0]?.drawing_number
@@ -318,7 +321,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
         }
 
         // ── v2: RFI relevance
-        if (dType === 'rfi_response' && rfi_issue_id) {
+        if (dType === 'rfi_response' && rfi_issue_id && await aiToggles.isEnabled('rfi_response_check')) {
           try {
             const [[rfi]] = await db.query('SELECT title, description FROM issues WHERE id = ?', [rfi_issue_id]);
             // The RFI question is the issue title or full description. Prefer title for brevity.
@@ -337,7 +340,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
         }
 
         // Existing: revision-change analysis (for main drawings with a prior revision)
-        if (dType === 'main' && drawing.version_count > 0) {
+        if (dType === 'main' && drawing.version_count > 0 && await aiToggles.isEnabled('revision_change_analysis')) {
           const [[prev]] = await db.query(
             'SELECT id, file_path FROM drawing_versions WHERE drawing_id = ? ORDER BY revision_number DESC LIMIT 1 OFFSET 1',
             [drawing.id]

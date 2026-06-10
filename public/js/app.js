@@ -53,8 +53,10 @@ const TAB_LABELS = {
   boq_versions:'BOQ Versions',
   governance:'Governance',
   account_setup:'Account Setup',
+  ai_settings:'AI Settings',
   errors_log:'Error Log',
   library:'Knowledge Library',
+  ai_settings:'AI Features',
 };
 
 const APP = {
@@ -276,6 +278,7 @@ const APP = {
       const projects = APP.user.projects || [];
       if (projects.length > 0) APP.state.selectedProject = projects[0].id;
       APP._updateTopbar();
+      APP._loadAIToggles();
       APP.buildTabs();
       return;
     }
@@ -311,6 +314,7 @@ const APP = {
       return;
     }
 
+    APP._loadAIToggles();
     APP.buildTabs();
     APP._checkNotifBadge();
     // Handle deep-link if present
@@ -333,6 +337,14 @@ const APP = {
     } catch(_e) {}
   },
 
+  async _loadAIToggles() {
+    try {
+      const aiRes = await API.get('/ai/settings/active');
+      APP.state.aiToggles = {};
+      (aiRes?.active || []).forEach(k => { APP.state.aiToggles[k] = true; });
+    } catch(_e) { APP.state.aiToggles = {}; }
+  },
+
   async buildTabs() {
     // Auto-select first project if none selected
     if (!APP.state.selectedProject) {
@@ -350,6 +362,16 @@ const APP = {
       try {
         APP._nav = await API.get('/nav/me');
       } catch (_e) { APP._nav = null; }
+    }
+
+    // Load AI feature toggles (Phase 2) — controls which AI buttons appear
+    if (!APP.state.aiToggles) {
+      try {
+        const toggleRes = await API.get('/ai-settings/enabled');
+        const enabled = toggleRes?.enabled || [];
+        APP.state.aiToggles = {};
+        enabled.forEach(k => { APP.state.aiToggles[k] = true; });
+      } catch (_e) { APP.state.aiToggles = {}; }
     }
 
     if (APP._nav && APP._nav.buckets) {
@@ -1091,8 +1113,10 @@ Tomorrow: start formwork on next bay."
       nav_editor:        () => APP.renderNavEditor(),
       governance:        () => APP.renderGovernance(),
       account_setup:     () => APP.renderAccountSetup(),
+      ai_settings:       () => APP.renderAISettings(),
       errors_log:        () => APP.renderErrorsLog(),
       library:           () => APP.renderKnowledgeLibrary(),
+      ai_settings:       () => APP.renderAISettings(),
     };
     (map[id] || (() => el.innerHTML = UI.empty('','Coming soon')))();
   },
@@ -1105,7 +1129,53 @@ Tomorrow: start formwork on next bay."
     const ac = data.action_centre;
     // Stash items for triage modal to read without another API call
     APP._dashAC = ac;
-    let html = `<div class="sec-label">Action Centre</div>`;
+
+    // Morning Brief — fetch overnight activity summary
+    let briefHtml = '';
+    try {
+      const brief = await API.get('/dashboard/morning-brief');
+      if (brief) {
+        const items = brief.items || [];
+        const total = brief.total_activity || 0;
+
+        // Build metric boxes from the raw counts
+        const metrics = [];
+        if (brief.drawings > 0)    metrics.push({ val: brief.drawings, lbl: 'Drawings' });
+        if (brief.payments > 0)    metrics.push({ val: brief.payments, lbl: 'Payments' });
+        if (brief.flags > 0)       metrics.push({ val: brief.flags, lbl: 'Flags' });
+        if (brief.issues > 0)      metrics.push({ val: brief.issues, lbl: 'Issues' });
+        if (brief.reports > 0)     metrics.push({ val: brief.reports, lbl: 'Reports' });
+        if (brief.task_updates > 0) metrics.push({ val: brief.task_updates, lbl: 'Updates' });
+
+        // Narrative line
+        const narrative = total === 0
+          ? 'No activity since yesterday evening. All quiet across projects.'
+          : brief.summary;
+
+        // Status indicator
+        const statusColor = brief.flags > 0 ? 'var(--amber)' : 'var(--green)';
+        const statusLabel = brief.flags > 0 ? 'Needs attention' : 'All healthy';
+
+        briefHtml = `<div class="morning-brief" style="margin-bottom:20px;background:var(--navy);border-radius:var(--r2);padding:20px 18px;color:var(--white)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55)">Morning Brief</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:8px;height:8px;border-radius:50%;background:${statusColor}"></div>
+              <span style="font-size:11px;color:rgba(255,255,255,.7)">${statusLabel}</span>
+            </div>
+          </div>
+          ${metrics.length ? `<div style="display:grid;grid-template-columns:repeat(${Math.min(metrics.length, 4)},1fr);gap:8px;margin-bottom:14px">
+            ${metrics.slice(0, 4).map(m => `<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:var(--r);padding:12px 8px;text-align:center">
+              <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--white);line-height:1">${m.val}</div>
+              <div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:4px;letter-spacing:.04em">${m.lbl}</div>
+            </div>`).join('')}
+          </div>` : ''}
+          <div style="font-size:13px;color:rgba(255,255,255,.85);line-height:1.5">${narrative}</div>
+        </div>`;
+      }
+    } catch (_e) {}
+
+    let html = briefHtml + `<div class="sec-label">Action Centre</div>`;
 
     const addItem = (icon, title, meta, c, b, badge, fn) =>
       `<div class="action-item c-${c}" style="min-height:44px;cursor:pointer;width:100%" onclick="${fn}">
@@ -3139,13 +3209,16 @@ Tomorrow: start formwork on next bay."
   // ── QUERY RAISING (generic — from any source: task, drawing, etc.)
   showRaiseQueryModal(projectId, prefill) {
     const p = prefill || {};
+    const dedupWired = APP.state.aiToggles?.similar_query_dedup;
+    const dedupHandler = dedupWired ? ` onblur="APP.checkSimilarQueries(this.value,${projectId})"` : '';
     UI.openModal('Raise Query', `
       <div class="field-row"><label class="field-label" for="rq-subject">Subject</label>
         <input type="text" id="rq-subject" placeholder="Brief subject" value="${UI.escapeAttr(p.subject||'')}">
       </div>
       <div class="field-row"><label class="field-label" for="rq-body">Details</label>
-        <textarea id="rq-body" rows="4" placeholder="Clear description with references">${p.body||''}</textarea>
+        <textarea id="rq-body" rows="4" placeholder="Clear description with references"${dedupHandler}>${p.body||''}</textarea>
       </div>
+      <div id="similar-queries-container" style="display:none;margin-bottom:10px"></div>
       <div class="field-row"><label class="field-label" for="rq-stream">Stream</label>
         <select id="rq-stream">
           <option value="design">Design</option>
@@ -4264,7 +4337,7 @@ Tomorrow: start formwork on next bay."
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <span class="badge ${bc}">${r.status.replace('_',' ')}</span>
         <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">Ending ${r.week_ending}</span>
-        ${r.pdf_url ? `<a class="btn-sm" href="${r.pdf_url}" target="_blank" style="margin-left:auto">⬇ PDF</a>` : ''}
+        ${r.pdf_url ? `<a class="btn-sm" href="${r.pdf_url}" target="_blank" style="margin-left:auto">PDF</a>` : `<button class="btn-sm" onclick="APP.generateReportPDF(${r.id})" style="margin-left:auto">Generate PDF</button>`}
       </div>
       ${r.summary ? `<div class="field-row"><label class="field-label">Summary</label>
         <div style="font-size:14px;color:var(--text);line-height:1.5;padding:10px 14px;background:var(--bg);border-radius:var(--r)">${UI.escapeText(r.summary)}</div>
@@ -4294,6 +4367,18 @@ Tomorrow: start formwork on next bay."
   async approveWeeklyReport(id) {
     const res = await API.approveReport(id);
     if (res?.success) { UI.toast('Report approved ✓'); APP.renderWeeklyReports(); }
+  },
+
+  async generateReportPDF(id) {
+    UI.toast('Generating PDF...');
+    const res = await API.call('POST', `/reports/${id}/generate-pdf`, {});
+    if (res?.success && res.file_url) {
+      UI.closeModal();
+      UI.toast('PDF ready');
+      window.open(res.file_url, '_blank');
+    } else {
+      UI.toast(res?.error || 'PDF generation failed');
+    }
   },
 
   // ── GANTT
@@ -5565,6 +5650,58 @@ APP.openLibraryLesson = async function(lessonId) {
   `);
 };
 
+// ── AI SETTINGS (Principal only)
+const AI_FEATURES = [
+  { key: 'drawing_sanity_check', label: 'Auto Drawing Sanity Check', desc: 'Validates uploaded drawing metadata against title block' },
+  { key: 'detail_drawing_analysis', label: 'Auto Detail Drawing Analysis', desc: 'Extracts trade and reference info from detail uploads' },
+  { key: 'rfi_response_check', label: 'Auto RFI Response Check', desc: 'Checks if uploaded drawing answers the RFI question' },
+  { key: 'revision_change_analysis', label: 'Auto Revision Change Analysis', desc: 'Compares old vs new drawing revisions, flags impacts' },
+  { key: 'photo_auto_tagging', label: 'Photo Auto-Tagging', desc: 'Suggests task association for uploaded site photos' },
+  { key: 'hsn_code_suggestion', label: 'HSN Code Suggestion', desc: 'Auto-suggests HSN code on BOQ item edit' },
+  { key: 'similar_query_search', label: 'Similar Query Search', desc: 'Shows past matching queries while raising a new one' },
+  { key: 'material_approval_check', label: 'Material Approval Check', desc: 'Flags BOQ items needing client material approval' },
+  { key: 'boq_hsn_autofill', label: 'Auto-fill BOQ HSN', desc: 'Shows HSN suggestion button in BOQ edit modal' },
+  { key: 'similar_query_dedup', label: 'Similar Query Dedup', desc: 'Shows similar past queries in Raise Query modal' },
+];
+
+APP.renderAISettings = async function() {
+  const el = UI.contentEl();
+  const data = await API.get('/ai/settings');
+  if (!data) return;
+  const toggles = data.toggles || {};
+
+  let html = '<div class="sec-label">AI Features</div>';
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Toggle AI-powered features on or off. Changes take effect immediately.</div>';
+
+  AI_FEATURES.forEach(f => {
+    const checked = toggles[f.key] ? 'checked' : '';
+    html += `<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${f.label}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${f.desc}</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" ${checked} onchange="APP.toggleAIFeature('${f.key}',this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+  });
+
+  el.innerHTML = '<div class="fade-in">' + html + '</div>';
+};
+
+APP.toggleAIFeature = async function(key, enabled) {
+  const res = await API.post('/ai/settings', { feature_key: key, enabled });
+  if (res?.success) {
+    UI.toast(enabled ? 'Feature enabled' : 'Feature disabled');
+    // Update local toggle cache
+    if (!APP.state.aiToggles) APP.state.aiToggles = {};
+    if (enabled) APP.state.aiToggles[key] = true;
+    else delete APP.state.aiToggles[key];
+  }
+  else UI.toast(res?.error || 'Failed to update');
+};
+
 // ── PROJECT CLOSURE SCREEN
 APP.loadProjectClosure = async function(projectId) {
   const res = await API.call('GET', `/handover/${projectId}/closure`);
@@ -6678,15 +6815,17 @@ APP.renderBudget = async function() {
 
   const overallPct = totals.sanctioned > 0 ? ((totals.committed / totals.sanctioned)*100).toFixed(1) : '0.0';
   const totalColor = overallPct > 1.5 ? 'red' : overallPct > 1 ? 'amber' : 'green';
+  const sanctioned = parseFloat(totals.sanctioned) || 0;
+  const committed = parseFloat(totals.committed) || 0;
 
   let html = APP._budgetToggleHTML() + `
   <div class="stat-row">
     <div class="stat-card">
-      <span class="stat-val">₹${(totals.sanctioned/100000).toFixed(1)}L</span>
+      <span class="stat-val">₹${(sanctioned/100000).toFixed(1)}L</span>
       <span class="stat-lbl">Sanctioned</span>
     </div>
     <div class="stat-card">
-      <span class="stat-val ${totalColor}">₹${(totals.committed/100000).toFixed(1)}L</span>
+      <span class="stat-val ${totalColor}">₹${(committed/100000).toFixed(1)}L</span>
       <span class="stat-lbl">Committed</span>
     </div>
     <div class="stat-card">
@@ -7353,6 +7492,48 @@ APP.toggleEntityStatus = async function(id, makeActive, name) {
   if (res?.error) { UI.toast(res.error, 'error'); return; }
   UI.toast(`${name} ${action}d`);
   APP.renderAccountSetup();
+};
+
+// ── AI SETTINGS (Principal-only) ────────────────────────────────────────────
+APP.renderAISettings = async function() {
+  const el = UI.contentEl();
+  UI.loading(el);
+
+  const data = await API.get('/ai-settings');
+  if (!data?.features) { el.innerHTML = UI.empty('', 'Could not load AI settings'); return; }
+
+  let html = '<div class="sec-label">AI Features — Phase 2 Toggles</div>';
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">These features call Claude AI when enabled. Off by default — enable gradually. Requires ANTHROPIC_API_KEY on the server.</div>';
+
+  data.features.forEach(f => {
+    const checked = f.enabled ? 'checked' : '';
+    html += `<div class="card" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${UI.escapeText(f.label)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${UI.escapeText(f.description || '')}</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" ${checked} onchange="APP.toggleAIFeature('${f.feature_key}', this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.toggleAIFeature = async function(key, enabled) {
+  const res = await API.call('PATCH', '/ai-settings/' + key, { enabled });
+  if (res?.success) {
+    // Update local cache immediately
+    if (!APP.state.aiToggles) APP.state.aiToggles = {};
+    if (enabled) APP.state.aiToggles[key] = true;
+    else delete APP.state.aiToggles[key];
+    UI.toast(enabled ? 'Enabled' : 'Disabled');
+  } else {
+    UI.toast(res?.error || 'Failed to update');
+    APP.renderAISettings(); // revert UI
+  }
 };
 
 // ── GOVERNANCE ──────────────────────────────────────────────────────────────
@@ -10490,12 +10671,16 @@ APP.showEditClientBOQItem = async function(pid, itemId) {
   const data = await API.call('GET', `/client-boq/${pid}`);
   const item = (data?.items || []).find(i => i.id === itemId);
   if (!item) { UI.toast('Item not found'); return; }
+  const hsnBtn = APP.state.aiToggles?.autofill_boq_hsn
+    ? `<button class="btn-sm" type="button" onclick="APP.suggestHSN('${UI.escapeAttr(item.item_name||item.description||'')}','${UI.escapeAttr(item.trade||'')}','cb-hsn')" style="margin-top:4px;font-size:11px">Suggest HSN</button>`
+    : '';
   UI.openModal(`Edit: ${item.item_name}`, `
     <div class="field-row"><label class="field-label" for="cb-rate">Rate (₹ per ${UI.escapeText(item.unit||'unit')})</label>
       <input type="number" step="0.01" id="cb-rate" value="${item.rate || ''}">
     </div>
     <div class="field-row"><label class="field-label" for="cb-hsn">HSN Code</label>
       <input type="text" id="cb-hsn" value="${UI.escapeAttr(item.hsn_code || '')}" maxlength="8">
+      ${hsnBtn}
     </div>
     <button class="btn-primary" onclick="APP.submitEditClientBOQItem(${pid},${itemId})">Save</button>
   `);

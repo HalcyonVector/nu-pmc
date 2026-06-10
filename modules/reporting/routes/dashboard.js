@@ -234,4 +234,56 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
   }));
 
+// GET /api/dashboard/morning-brief — overnight activity summary (principals only)
+router.get('/morning-brief', requireAuth, asyncHandler(async (req, res) => {
+  const me = req.session.user;
+  if (!PRINCIPALS.includes(me.role)) {
+    return res.status(403).json({ error: 'Principals only' });
+  }
+
+  // Activity in the last 18 hours
+  const since = new Date(Date.now() - 18 * 60 * 60 * 1000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+
+  const [[drawings]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM drawing_versions WHERE created_at >= ?', [since]
+  );
+  const [[payments]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM vendor_payments WHERE raised_at >= ?', [since]
+  );
+  const [[flags]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM task_updates WHERE is_flagged = 1 AND created_at >= ?', [since]
+  );
+  const [[issues]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ?', [since]
+  );
+  const [[reports]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM weekly_reports WHERE created_at >= ?', [since]
+  );
+  const [[taskUpdates]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM task_updates WHERE created_at >= ?', [since]
+  );
+
+  const items = [];
+  if (drawings.cnt > 0) items.push(`${drawings.cnt} drawing${drawings.cnt > 1 ? 's' : ''} issued`);
+  if (payments.cnt > 0) items.push(`${payments.cnt} payment${payments.cnt > 1 ? 's' : ''} raised`);
+  if (flags.cnt > 0)    items.push(`${flags.cnt} task flag${flags.cnt > 1 ? 's' : ''} raised`);
+  if (issues.cnt > 0)   items.push(`${issues.cnt} issue${issues.cnt > 1 ? 's' : ''} logged`);
+  if (reports.cnt > 0)  items.push(`${reports.cnt} report${reports.cnt > 1 ? 's' : ''} submitted`);
+  if (taskUpdates.cnt > 0) items.push(`${taskUpdates.cnt} task update${taskUpdates.cnt > 1 ? 's' : ''}`);
+
+  res.json({
+    since,
+    items,
+    drawings: drawings.cnt,
+    payments: payments.cnt,
+    flags: flags.cnt,
+    issues: issues.cnt,
+    reports: reports.cnt,
+    task_updates: taskUpdates.cnt,
+    total_activity: drawings.cnt + payments.cnt + flags.cnt + issues.cnt + reports.cnt + taskUpdates.cnt,
+    summary: items.length ? items.join(', ') : 'No overnight activity',
+  });
+}));
+
 module.exports = router;

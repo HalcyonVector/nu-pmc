@@ -202,7 +202,7 @@ const UI = {
   },
 
   loading(el) {
-    if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-family:var(--mono);font-size:11px">Loading…</div>';
+    if (el) el.innerHTML = '<div style="padding:24px 0;text-align:center"><div class="skeleton-card"><div class="skeleton-line w60"></div><div class="skeleton-line w40"></div></div></div>';
   },
 
   empty(icon, text) {

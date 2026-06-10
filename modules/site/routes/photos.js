@@ -136,6 +136,8 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
 
     setImmediate(async () => {
       try {
+        const aiToggles = require('../../../services/ai-toggles');
+        if (!await aiToggles.isEnabled('photo_auto_tagging')) return;
         const ai = require('../../../services/ai');
         const today2 = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
         const [tasks] = await db.query(

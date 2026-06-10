@@ -272,6 +272,180 @@ router.get('/:id/view', requireAuth, requireRole(...REPORT_READER_ROLES), asyncH
     res.json({ report });
   }));
 
+// POST /api/reports/:id/generate-pdf — generate branded PDF for a weekly report
+router.post('/:id/generate-pdf', requireAuth, requirePMC, asyncHandler(async (req, res) => {
+  const [[report]] = await db.query('SELECT * FROM weekly_reports WHERE id = ?', [req.params.id]);
+  if (!report) return res.status(404).json({ error: 'Report not found' });
+
+  const Onboarding = require('../../onboarding/contract');
+  const DS = require('../../design-services/contract');
+  const project = await Onboarding.functions.getProject(report.project_id);
+  const Auth = require('../../auth/contract');
+  const draftedByMap = await Auth.functions.getUsers([report.drafted_by].filter(Boolean));
+  const draftedByName = draftedByMap.get(report.drafted_by)?.full_name || '—';
+
+  // Get schedule progress by trade
+  const tradeProgress = await DS.functions.getScheduleProgressByTrade(report.project_id).catch(() => []);
+
+  // Get company entity for branding
+  const [[firm]] = await db.query(
+    `SELECT legal_name, gstin FROM company_entities WHERE is_active = 1 ORDER BY FIELD(entity_code,'LLP','PROP') LIMIT 1`
+  );
+
+  // Get open issues count
+  const [[issueCount]] = await db.query(
+    'SELECT COUNT(*) AS cnt FROM issues WHERE project_id = ? AND status NOT IN (?)',
+    [report.project_id, 'closed']
+  );
+
+  // Get schedule drift
+  const [[schedule]] = await db.query(
+    'SELECT drift_days, label FROM schedule_versions WHERE project_id = ? AND is_current = 1',
+    [report.project_id]
+  );
+
+  const PDFDoc = require('pdfkit');
+  const path = require('path');
+  const fs = require('fs');
+  const { UPLOAD_DIR } = require('../../../middleware/upload');
+
+  const outPath = path.join(UPLOAD_DIR, 'documents',
+    `weekly_report_${report.project_id}_wk${report.week_number}_${Date.now()}.pdf`);
+  const doc = new PDFDoc({ margin: 40, size: 'A4' });
+  const ws = fs.createWriteStream(outPath);
+  doc.pipe(ws);
+
+  const PW = 515;
+  const LM = 40;
+  const NAVY = '#1D3D62';
+  const LIGHT = '#F2F4F7';
+
+  // ── HEADER BAR
+  doc.rect(LM, 40, PW, 55).fill(NAVY);
+  doc.fontSize(18).font('Helvetica-Bold').fillColor('white')
+     .text('WEEKLY PROGRESS REPORT', LM + 12, 50);
+  doc.fontSize(9).font('Helvetica').fillColor('#B0C4D8')
+     .text(`${firm?.legal_name || 'nu associates'}  ·  Week ${report.week_number}  ·  Ending ${new Date(report.week_ending).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+            LM + 12, 74);
+
+  let y = 115;
+
+  // ── PROJECT INFO BOX
+  doc.rect(LM, y, PW, 48).fill(LIGHT);
+  doc.fontSize(12).font('Helvetica-Bold').fillColor(NAVY)
+     .text(project?.name || '—', LM + 12, y + 8);
+  doc.fontSize(9).font('Helvetica').fillColor('#555')
+     .text(`Client: ${project?.client || '—'}`, LM + 12, y + 24);
+  doc.text(`Location: ${project?.location || '—'}  ·  Prepared by: ${draftedByName}`, LM + 12, y + 36);
+  y += 60;
+
+  // ── SNAPSHOT ROW (schedule drift + open issues)
+  const drift = schedule?.drift_days || 0;
+  const driftLabel = drift === 0 ? 'On schedule' : `${drift} days ${drift > 0 ? 'behind' : 'ahead'}`;
+  doc.fontSize(9).font('Helvetica-Bold').fillColor(NAVY).text('SNAPSHOT', LM, y);
+  y += 14;
+  doc.fontSize(9).font('Helvetica').fillColor('#333');
+  doc.text(`Schedule: ${schedule?.label || 'R0'} — ${driftLabel}`, LM + 8, y);
+  doc.text(`Open issues: ${issueCount?.cnt || 0}`, LM + 260, y);
+  y += 20;
+
+  // ── TRADE PROGRESS TABLE
+  if (tradeProgress.length) {
+    doc.rect(LM, y, PW, 16).fill(NAVY);
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('white').text('TRADE PROGRESS', LM + 8, y + 3);
+    y += 20;
+
+    doc.fontSize(8).font('Helvetica-Bold').fillColor(NAVY);
+    doc.text('Trade', LM + 8, y);
+    doc.text('Planned %', LM + 200, y);
+    doc.text('Actual %', LM + 300, y);
+    doc.text('Gap', LM + 400, y);
+    y += 14;
+
+    doc.moveTo(LM, y).lineTo(LM + PW, y).strokeColor('#ddd').stroke();
+    y += 4;
+
+    let rowBg = false;
+    tradeProgress.forEach(t => {
+      if (rowBg) doc.rect(LM, y - 2, PW, 14).fill('#f8f9fa');
+      rowBg = !rowBg;
+      const gap = (t.planned_pct || 0) - (t.actual_pct || 0);
+      doc.fontSize(8).font('Helvetica').fillColor('#333');
+      doc.text(t.trade || '—', LM + 8, y);
+      doc.text(`${(t.planned_pct || 0).toFixed(0)}%`, LM + 200, y);
+      doc.text(`${(t.actual_pct || 0).toFixed(0)}%`, LM + 300, y);
+      doc.fillColor(gap > 10 ? '#C0392B' : gap > 5 ? '#B07D1A' : '#2A7A4B');
+      doc.text(`${gap > 0 ? '-' : '+'}${Math.abs(gap).toFixed(0)}%`, LM + 400, y);
+      y += 14;
+    });
+    y += 12;
+  }
+
+  // ── SUMMARY SECTION
+  doc.fillColor(NAVY);
+  doc.rect(LM, y, PW, 16).fill(NAVY);
+  doc.fontSize(9).font('Helvetica-Bold').fillColor('white').text('SUMMARY', LM + 8, y + 3);
+  y += 22;
+  doc.fillColor('#333').font('Helvetica').fontSize(9);
+  if (report.summary) {
+    doc.text(report.summary, LM + 8, y, { width: PW - 16, lineGap: 4 });
+    y = doc.y + 20;
+  } else {
+    doc.text('(No summary provided)', LM + 8, y);
+    y += 20;
+  }
+
+  // ── ISSUES FOR CLIENT
+  if (report.issues_for_client && report.issues_for_client.trim() !== 'None') {
+    doc.fillColor(NAVY);
+    doc.rect(LM, y, PW, 16).fill(NAVY);
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('white').text('ISSUES FOR CLIENT ATTENTION', LM + 8, y + 3);
+    y += 22;
+    doc.fillColor('#333').font('Helvetica').fontSize(9);
+    doc.text(report.issues_for_client, LM + 8, y, { width: PW - 16, lineGap: 4 });
+    y = doc.y + 20;
+  }
+
+  // ── AI DRAG FLAG (if present)
+  if (report.ai_drag_detected && report.ai_drag_summary) {
+    doc.fillColor('#C0392B');
+    doc.rect(LM, y, PW, 16).fill('#C0392B');
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('white').text('SCHEDULE DRAG ALERT', LM + 8, y + 3);
+    y += 22;
+    doc.fillColor('#333').font('Helvetica').fontSize(9);
+    doc.text(report.ai_drag_summary, LM + 8, y, { width: PW - 16, lineGap: 4 });
+    y = doc.y + 12;
+    if (report.mitigation_note) {
+      doc.font('Helvetica-Bold').fillColor(NAVY).text('Mitigation:', LM + 8, y);
+      y += 12;
+      doc.font('Helvetica').fillColor('#333')
+         .text(report.mitigation_note, LM + 8, y, { width: PW - 16, lineGap: 4 });
+      y = doc.y + 12;
+    }
+  }
+
+  // ── FOOTER
+  const footerY = 780;
+  doc.moveTo(LM, footerY).lineTo(LM + PW, footerY).strokeColor('#ccc').stroke();
+  doc.fontSize(7).font('Helvetica').fillColor('#999')
+     .text(
+       `${firm?.legal_name || ''}${firm?.gstin ? '  ·  GSTIN: ' + firm.gstin : ''}  ·  Generated ${new Date().toLocaleString('en-IN')}`,
+       LM, footerY + 6, { align: 'center', width: PW }
+     );
+
+  doc.end();
+  await new Promise((resolve, reject) => { ws.on('finish', resolve); ws.on('error', reject); });
+
+  // Save PDF path on the report
+  await db.query('UPDATE weekly_reports SET pdf_path = ? WHERE id = ?', [outPath, report.id]);
+
+  res.json({
+    success: true,
+    file_url: fileUrls.fileUrl(outPath, { defaultSubdir: 'documents' }),
+    file_name: `WeeklyReport_${project?.code || 'P'}_Wk${report.week_number}.pdf`,
+  });
+}));
+
 // POST /api/reports/:project_id/weekly/upload — upload final signed weekly report
 router.post('/:project_id/weekly/upload', requireAuth, requireProjectScope(), require('../../../middleware/upload').upload.single('report'), asyncHandler(async (req, res) => {
     const { week_ending, notes } = req.body;
