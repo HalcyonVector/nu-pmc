@@ -2433,3 +2433,31 @@ html[data-theme="dark"] #content-area div[style*="background:#dbebe0"] {
   border: 1px solid rgba(255,255,255,.15) !important;
   color: #FFFFFF !important;
 }
+
+/* ── DARK MODE — mobile topbar + actions dropdown ── */
+html[data-theme="dark"] .topbar {
+  background: #0D1B2A !important;
+}
+html[data-theme="dark"] .topbar .tb-brand-name {
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .topbar .tb-brand-sub {
+  color: rgba(255,255,255,.55) !important;
+}
+html[data-theme="dark"] .tb-menu-toggle {
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .tb-actions {
+  background: #0D1B2A !important;
+  border-color: rgba(255,255,255,.15) !important;
+}
+html[data-theme="dark"] .tb-actions .tb-notif {
+  color: #FFFFFF !important;
+  background: rgba(255,255,255,.08) !important;
+}
+html[data-theme="dark"] .tb-actions .tb-notif:hover {
+  background: rgba(255,255,255,.15) !important;
+}
+html[data-theme="dark"] .tb-actions .tb-notif svg {
+  stroke: #FFFFFF !important;
+}
