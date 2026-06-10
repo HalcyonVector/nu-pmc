@@ -2511,3 +2511,18 @@ html[data-theme="dark"] .pa-chip * {
 html[data-theme="dark"] .pa-chip .pa-chip-count {
   background: #1D3D62 !important;
 }
+
+/* ── DARK MODE — colored stat cards (green/red/amber backgrounds) ── */
+html[data-theme="dark"] #content-area .stat-card[style*="background"],
+html[data-theme="dark"] #content-area div[style*="background:#dbebe0"],
+html[data-theme="dark"] #content-area div[style*="background:#f5ecdb"],
+html[data-theme="dark"] #content-area div[style*="background:#fde8e8"],
+html[data-theme="dark"] #content-area div[style*="background:#e8f5e9"],
+html[data-theme="dark"] #content-area div[style*="background:#fff3e0"],
+html[data-theme="dark"] #content-area div[style*="background:#f0fdf4"],
+html[data-theme="dark"] #content-area div[style*="background:var(--green-bg)"],
+html[data-theme="dark"] #content-area div[style*="background:var(--red-bg)"],
+html[data-theme="dark"] #content-area div[style*="background:var(--amber-bg)"] {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+}
