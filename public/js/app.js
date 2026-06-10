@@ -3599,13 +3599,16 @@ Tomorrow: start formwork on next bay."
   },
 
   showRaiseChange(pid) {
+    const projName = APP._projectName(APP.state.selectedProject) || '';
     UI.openModal('New Change Notice', `
+      <div class="field-row"><label class="field-label" for="cn-plain-desc">Describe the change (plain language)</label><textarea id="cn-plain-desc" rows="2" placeholder="e.g. Client wants to add a mezzanine floor in Bay 3…"></textarea></div>
+      <button class="btn-secondary" style="margin-bottom:14px" onclick="APP.draftCNText('${projName}')">AI Draft Formal Text</button>
       <div class="field-row"><label class="field-label" for="cn-title">Title</label><input type="text" id="cn-title" placeholder="Brief title"></div>
       <div class="field-row"><label class="field-label" for="cn-source">Source</label>
         <select id="cn-source"><option value="client">Client</option><option value="site">Site Condition</option>
           <option value="design">Design Coordination</option><option value="statutory">Statutory</option></select>
       </div>
-      <div class="field-row"><label class="field-label" for="cn-desc">Description</label><textarea id="cn-desc" rows="3" placeholder="Describe the change…"></textarea></div>
+      <div class="field-row"><label class="field-label" for="cn-desc">Description</label><textarea id="cn-desc" rows="3" placeholder="Formal CN description…"></textarea></div>
       <div class="field-row"><label class="field-label" for="cn-drawings">Affected Drawings</label><input type="text" id="cn-drawings" placeholder="A-101, E-201…"></div>
       <div class="field-row"><label class="field-label" for="cn-days">Schedule Impact (days)</label><input type="text" id="cn-days" placeholder="0"></div>
       <button class="btn-primary" onclick="APP.submitChange(${pid})">Raise Change Notice</button>
@@ -4570,6 +4573,10 @@ Tomorrow: start formwork on next bay."
     const TYPES = ['running_account_bill','advance','mobilisation_advance','material_advance',
                    'final_bill','retention_release','extra_item','deduction'];
     UI.openModal(`Payment — ${vendorName}`, `
+      <div style="margin-bottom:14px">
+        <label class="field-label">Scan invoice to auto-fill</label>
+        <input type="file" accept="image/*,.pdf" id="pay-invoice-scan" onchange="APP.readInvoice(this)" style="margin-top:4px">
+      </div>
       <div class="field-row"><label class="field-label" for="pay-type">Payment Type</label>
         <select id="pay-type">
           ${TYPES.map(t=>`<option value="${t}">${t.replace(/_/g,' ').toUpperCase()}</option>`).join('')}
@@ -5830,7 +5837,7 @@ APP.suggestHSN = async function(description, trade, targetId) {
 
 APP.draftCNText = async function(projectName) {
   const desc = document.getElementById('cn-plain-desc')?.value;
-  const trade = document.getElementById('cn-trade')?.value;
+  const trade = document.getElementById('cn-source')?.value;
   if (!desc) { UI.toast('Describe the change first'); return; }
   UI.toast('Drafting CN text...');
   const res = await API.call('POST', '/ai/draft-cn', {
@@ -5838,10 +5845,12 @@ APP.draftCNText = async function(projectName) {
   });
   if (res?.draft) {
     const titleEl = document.getElementById('cn-title');
-    const descEl  = document.getElementById('cn-description');
-    if (titleEl) titleEl.value = res.draft.cn_title || '';
-    if (descEl)  descEl.value  = res.draft.cn_description || '';
-    UI.toast('✓ CN text drafted — review and edit before submitting');
+    const descEl  = document.getElementById('cn-desc');
+    if (titleEl && res.draft.cn_title) titleEl.value = res.draft.cn_title;
+    if (descEl && res.draft.cn_description) descEl.value = res.draft.cn_description;
+    UI.toast('CN text drafted — review and edit before submitting');
+  } else {
+    UI.toast('AI unavailable — write the CN text manually');
   }
 };
 
@@ -5871,14 +5880,24 @@ APP.readInvoice = async function(fileInput) {
   const res = await API.call('POST', '/ai/read-invoice', fd, true);
   if (res?.extracted) {
     const e = res.extracted;
-    // Pre-fill payment entry fields
-    if (e.vendor_name)    { const el=document.getElementById('inv-vendor'); if(el) el.value=e.vendor_name; }
-    if (e.invoice_number) { const el=document.getElementById('inv-number'); if(el) el.value=e.invoice_number; }
-    if (e.invoice_date)   { const el=document.getElementById('inv-date');   if(el) el.value=e.invoice_date; }
-    if (e.total_amount)   { const el=document.getElementById('inv-total');  if(el) el.value=e.total_amount; }
-    if (e.gst_amount)     { const el=document.getElementById('inv-gst');    if(el) el.value=e.gst_amount; }
-    UI.toast('✓ Invoice read — review details before saving. PMC approval required.');
-  } else UI.toast(res?.error || 'Could not read invoice');
+    // Pre-fill payment entry fields from scanned invoice
+    if (e.total_amount) {
+      const el = document.getElementById('pay-amt');
+      if (el) el.value = e.total_amount;
+    }
+    // Add invoice details to notes
+    const parts = [];
+    if (e.invoice_number) parts.push('Inv: ' + e.invoice_number);
+    if (e.invoice_date) parts.push('Date: ' + e.invoice_date);
+    if (e.gst_amount) parts.push('GST: ' + e.gst_amount);
+    if (parts.length) {
+      const notesEl = document.getElementById('pay-notes');
+      if (notesEl) notesEl.value = parts.join(' · ');
+    }
+    UI.toast('Invoice read — review amount before submitting');
+  } else {
+    UI.toast(res?.error || 'Could not read invoice — fill manually');
+  }
 };
 
 // ═══════════════════════════════════════════════════
