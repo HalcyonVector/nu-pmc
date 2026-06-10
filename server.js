@@ -401,6 +401,7 @@ app.use('/api/user-management', authContract.routes.userManagement);
 app.use('/api/admin-reset', authContract.routes.adminReset);
 app.use('/api/lookup', systemContract.routes.lookup);
 app.use('/api/ai', systemContract.routes.aiTriggers);
+app.use('/api/sse', require('./modules/system/routes/sse'));
 app.use('/api/ai-settings', require('./modules/system/routes/ai-settings'));
 app.use('/api/payment-requests', financeContract.routes.paymentRequests);
 app.use('/api/payments', financeContract.routes.payments);

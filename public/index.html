@@ -94,6 +94,9 @@
         <button class="tb-notif" id="tb-notif" onclick="APP.switchTab('notifications')" title="Notifications" aria-label="Notifications">
           🔔<div class="notif-dot" id="notif-dot" style="display:none"></div>
         </button>
+        <button class="tb-notif" id="tb-dark" onclick="APP.toggleDarkMode()" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
         <button class="tb-notif tb-logout" onclick="APP.confirmLogout()" title="Logout" aria-label="Logout">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
@@ -103,6 +106,8 @@
       </div>
     </div>
   </div>
+
+  <div id="ptr-indicator" class="ptr-indicator" style="display:none">Pull to refresh</div>
 
   <div id="sync-banner" class="sync-banner">
     📡 Offline — changes saved locally, will sync on reconnect

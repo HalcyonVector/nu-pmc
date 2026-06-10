@@ -2266,11 +2266,11 @@ Tomorrow: start formwork on next bay."
 
     const statusPill = s => {
       const cfg = {
-        pending:     { bg:'#edeae2', fg:'#666',    label:'Pending' },
-        in_progress: { bg:'#f5ecdb', fg:'#8a6320', label:'In progress' },
-        issued:      { bg:'#dbebe0', fg:'#2a7d4f', label:'Issued' },
-      }[s] || { bg:'#edeae2', fg:'#666', label:s };
-      return `<span style="background:${cfg.bg};color:${cfg.fg};padding:3px 9px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.3px">${cfg.label}</span>`;
+        pending:     { cls:'b-silver', label:'Pending' },
+        in_progress: { cls:'b-amber',  label:'In progress' },
+        issued:      { cls:'b-green',  label:'Issued' },
+      }[s] || { cls:'b-silver', label:s };
+      return `<span class="badge ${cfg.cls}">${cfg.label}</span>`;
     };
 
     const designRows   = rows.filter(r => r.stream === 'design');
@@ -6567,7 +6567,7 @@ APP.viewMOM = async function(id) {
       <div class="ar-who">${(a.assigned_to_name||'—').split(' ')[0]}</div>
       <div class="ar-text">${a.action}</div>
       <div class="ar-due ${new Date(a.due_date)<new Date()&&!a.completed?'overdue':''}">${UI.fmtDate(a.due_date)}</div>
-      ${!a.completed ? `<button class="btn-sm approve" onclick="APP.doneAction(${a.id})">Done</button>` : `<span style="font-size:18px">✅</button>`}
+      ${!a.completed ? `<button class="btn-sm approve" onclick="APP.doneAction(${a.id})">Done</button>` : `<span style="font-size:18px"></button>`}
     </div>`).join('')}
     ${!actions.length ? UI.empty('','No action items') : ''}`;
   document.getElementById('modal-overlay').classList.add('open');
@@ -7031,7 +7031,7 @@ APP.runPreUploadCheck = async function(pid) {
   const issues  = res.results?.filter(r => !r.cleared) || [];
   const warnings = res.results?.filter(r => r.warnings?.length) || [];
 
-  let html = `<div class="card-title">${res.summary?.ready_to_upload ? '✅ All Clear — Safe to download' : '⚠ Issues Found'}</div>`;
+  let html = `<div class="card-title">${res.summary?.ready_to_upload ? ' All Clear — Safe to download' : '⚠ Issues Found'}</div>`;
   if (issues.length) {
     html += issues.map(r => `<div style="color:var(--red);font-size:12px;margin-top:6px">✗ ${r.vendor}: ${r.issues.join(', ')}</div>`).join('');
   }
@@ -9278,7 +9278,7 @@ APP.showSetupChecklist = async function() {
         </div>`;
     
     items.forEach(item => {
-      const icon = item.is_complete ? '✅' : (item.is_mandatory ? '⚠️' : '○');
+      const icon = item.is_complete ? '' : (item.is_mandatory ? '⚠️' : '○');
       const statusClass = item.is_complete ? 'complete' : (item.blocks_operations ? 'blocking' : 'pending');
       
       html += `
@@ -9329,7 +9329,7 @@ APP._dashTriageMeta = {
   overdue_materials: { title: 'Materials overdue',            tab: 'materials',icon: '📦',
                        label: it => it.item_name || it.material_name || 'Material',
                        sub:   it => `${it.project_name||''}` },
-  pending_approvals: { title: 'Approvals pending',            tab: 'approvals',icon: '✅',
+  pending_approvals: { title: 'Approvals pending',            tab: 'approvals',icon: '',
                        label: it => `${it.title||''} (${it.request_type||''})`,
                        sub:   it => `${it.project_name} · raised by ${it.raised_by_name||'—'}` },
   pending_changes:   { title: 'Change notices — signatures',  tab: 'changes',  icon: '🔄',
@@ -9431,7 +9431,7 @@ APP.renderPMCDashboard = async function() {
   if (budget?.has_alerts)       { hasItems=true; html += addItem('','Budget variance flagged','One or more heads over threshold','amber','amber','ALERT','budget'); }
 
   if (!hasItems) html += `<div class="card" style="text-align:center;padding:20px">
-    <div style="font-size:24px;margin-bottom:8px">✅</div>
+    <div style="font-size:24px;margin-bottom:8px"></div>
     <div style="font-size:13px;font-weight:600;color:var(--navy)">All clear</div>
     <div style="font-size:12px;color:var(--muted);margin-top:4px">No priority items today</div>
   </div>`;
@@ -9552,7 +9552,7 @@ APP.renderDesignDashboard = async function() {
 
   if (!pending.length && !queries.length && !pendingChanges.length) {
     html += `<div class="card" style="text-align:center;padding:20px">
-      <div style="font-size:24px;margin-bottom:8px">✅</div>
+      <div style="font-size:24px;margin-bottom:8px"></div>
       <div style="font-size:13px;font-weight:600;color:var(--navy)">Nothing pending</div>
     </div>`;
   }
@@ -9704,7 +9704,7 @@ APP.renderTeamDashboard = async function() {
     });
   } else if (role !== 'coordinator') {
     html += `<div class="card" style="text-align:center;padding:16px;margin-bottom:12px">
-      <div style="font-size:22px;margin-bottom:6px">✅</div>
+      <div style="font-size:22px;margin-bottom:6px"></div>
       <div style="font-size:13px;font-weight:600;color:var(--navy)">No open queries</div>
     </div>`;
   }
@@ -10722,3 +10722,87 @@ document.addEventListener('click', function(e) {
   if (actions.contains(e.target) || toggle?.contains(e.target)) return;
   actions.classList.remove('show');
 });
+
+// ── DARK MODE TOGGLE
+APP.toggleDarkMode = function() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('nu_theme', next);
+  UI.toast(next === 'dark' ? 'Dark mode' : 'Light mode');
+};
+
+// ── PULL TO REFRESH
+(function() {
+  let startY = 0, pulling = false;
+  const indicator = document.createElement('div');
+  indicator.className = 'ptr-indicator';
+  indicator.textContent = 'Pull to refresh';
+  document.body.appendChild(indicator);
+
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY === 0) startY = e.touches[0].clientY;
+    else startY = 0;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!startY) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 60 && window.scrollY === 0) {
+      pulling = true;
+      indicator.classList.add('pulling');
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => {
+    if (pulling) {
+      indicator.textContent = 'Refreshing...';
+      indicator.classList.remove('pulling');
+      indicator.classList.add('refreshing');
+      setTimeout(() => {
+        APP._nav = null;
+        APP.state.aiToggles = null;
+        APP.buildTabs();
+        indicator.classList.remove('refreshing');
+        indicator.textContent = 'Pull to refresh';
+      }, 400);
+    }
+    pulling = false;
+    startY = 0;
+  });
+})();
+
+// ── SSE REAL-TIME UPDATES
+APP._initSSE = function() {
+  if (APP._sse) return; // already connected
+  if (typeof EventSource === 'undefined') return;
+  try {
+    APP._sse = new EventSource('/api/sse/stream');
+    APP._sse.addEventListener('task_update', () => {
+      // Refresh dashboard if currently viewing it
+      if (APP.currentTab === 'dashboard') APP.render('dashboard');
+    });
+    APP._sse.addEventListener('payment_update', () => {
+      if (APP.currentTab === 'payments' || APP.currentTab === 'payments_fin') APP.render(APP.currentTab);
+    });
+    APP._sse.addEventListener('drawing_issued', () => {
+      if (APP.currentTab === 'drawings') APP.render('drawings');
+    });
+    APP._sse.addEventListener('report_submitted', () => {
+      if (APP.currentTab === 'reports' || APP.currentTab === 'reports_weekly') APP.render(APP.currentTab);
+    });
+    APP._sse.addEventListener('notification', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.message) UI.toast(data.message);
+      } catch(_e) {}
+      APP._checkNotifBadge();
+    });
+    APP._sse.onerror = () => {
+      // Reconnect after 5s on error
+      APP._sse.close();
+      APP._sse = null;
+      setTimeout(() => APP._initSSE(), 5000);
+    };
+  } catch (_e) {}
+};

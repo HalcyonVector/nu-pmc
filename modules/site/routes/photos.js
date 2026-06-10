@@ -132,6 +132,13 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
     audit.log({ userId: me.id, action: 'photo.upload',
       entityType: 'entity_photos', entityId: null,
       details: { project_id: parseInt(pid), count: saved.length, ids: saved, task_id: task_id || null, source: source || 'app' }, req });
+    // Apply timestamp watermark to each saved photo
+    const projectCode = (await db.query('SELECT code FROM projects WHERE id=?', [pid]))[0][0]?.code || '';
+    for (const photoId of saved) {
+      const [[photo]] = await db.query('SELECT file_path FROM project_photos WHERE id=?', [photoId]);
+      if (photo?.file_path) await applyTimestampWatermark(photo.file_path, projectCode);
+    }
+
     res.json({ success: true, count: saved.length, ids: saved, ai_tagging: 'scheduled' });
 
     setImmediate(async () => {
