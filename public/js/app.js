@@ -9620,7 +9620,7 @@ APP.renderFinanceDashboard = async function() {
 
   if (isSaturday && hour >= 17) {
     html += `<button class="action-item c-green" style="min-height:44px" onclick="APP.switchTab('payments_fin')">
-      <div class="ai-icon">💳</div>
+      <div class="ai-icon"></div>
       <div class="ai-body">
         <div class="ai-title">Payment Excel ready</div>
         <div class="ai-meta">Naveen has approved — download and upload to ICICI</div>
@@ -9630,17 +9630,21 @@ APP.renderFinanceDashboard = async function() {
   }
 
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-    <button class="btn-secondary" onclick="APP.switchTab('payments_fin')" style="padding:14px;text-align:center">
-      💳<div style="font-size:12px;margin-top:4px">Payments</div>
+    <button class="action-card" onclick="APP.switchTab('payments_fin')">
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      <span style="font-size:13px;font-weight:600">Payments</span>
     </button>
-    <button class="btn-secondary" onclick="APP.switchTab('pi')" style="padding:14px;text-align:center">
-      🧾<div style="font-size:12px;margin-top:4px">Invoices</div>
+    <button class="action-card" onclick="APP.switchTab('pi')">
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span style="font-size:13px;font-weight:600">Invoices</span>
     </button>
-    <button class="btn-secondary" onclick="APP.switchTab('petty_cash')" style="padding:14px;text-align:center">
-      💵<div style="font-size:12px;margin-top:4px">Petty Cash</div>
+    <button class="action-card" onclick="APP.switchTab('petty_cash')">
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span style="font-size:13px;font-weight:600">Petty Cash</span>
     </button>
-    <button class="btn-secondary" onclick="APP.renderTallyExport();APP.currentTab='tally'" style="padding:14px;text-align:center">
-      <div style="font-size:12px;margin-top:4px">Tally Export</div>
+    <button class="action-card" onclick="APP.renderTallyExport();APP.currentTab='tally'">
+      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2v20l8-4 8 4V2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
+      <span style="font-size:13px;font-weight:600">Tally Export</span>
     </button>
   </div>`;
 
