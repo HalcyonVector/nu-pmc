@@ -11,7 +11,7 @@
 // never touched. Re-running the script is safe.
 //
 // USAGE
-//   # Default — seed every placeholder user with 'Welcome@123'
+//   # Default — seed every placeholder user with 'Start@123'
 //   node scripts/set-passwords.js
 //
 //   # Override the seed password
@@ -28,7 +28,7 @@
 //     (see auth.js FORCE_CHANGE_AFTER). No force-change flag is
 //     set here — the 25-login policy handles rotation.
 //   - Use a strong SEED_PASSWORD on production hosts. The default
-//     'Welcome@123' is for development/testing only.
+//     'Start@123' is for development/testing only.
 // ============================================================
 
 'use strict';

@@ -226,6 +226,9 @@ router.post('/:project_id/update', requireAuth, requireProjectScope(), validator
       entityType: 'task_updates', entityId: null,
       details: { project_id: parseInt(req.params.project_id), task_id: parseInt(task_id), pct_complete: pct, regression: !!regressionFlag, report_date: today }, req });
 
+    // SSE real-time notification
+    try { require('../../system/routes/sse').broadcast('task_update', { project_id: req.params.project_id, task_id }); } catch(_e) {}
+
     res.json({ success: true });
 
   }));

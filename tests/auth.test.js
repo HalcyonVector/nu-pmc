@@ -55,7 +55,7 @@ describe('POST /api/auth/login', () => {
   });
 
   test('returns 200 and user on valid credentials', async () => {
-    const hash = await bcrypt.hash('Welcome@123', 10);
+    const hash = await bcrypt.hash('Start@123', 10);
     db.query
       .mockResolvedValueOnce([[{ id:1, username:'naveen', full_name:'Naveen Kumar Bhat', role:'principal', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]])
       // role_nav existence check
@@ -66,7 +66,7 @@ describe('POST /api/auth/login', () => {
       .mockResolvedValueOnce([[{ login_count: 1 }]])
       // projects list
       .mockResolvedValueOnce([[{ id:1, code:'PV90', name:'PV90 Production Line', client:'TLD', location:'Nelamangala' }]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'naveen', password: 'Welcome@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'naveen', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.user.username).toBe('naveen');
@@ -75,7 +75,7 @@ describe('POST /api/auth/login', () => {
   });
 
   test('must_change_password is true when login_count reaches threshold', async () => {
-    const hash = await bcrypt.hash('Welcome@123', 10);
+    const hash = await bcrypt.hash('Start@123', 10);
     db.query
       .mockResolvedValueOnce([[{ id:2, username:'newuser', full_name:'New User', role:'pmc_head', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]])
       .mockResolvedValueOnce([[{ '1': 1 }]])
@@ -83,13 +83,13 @@ describe('POST /api/auth/login', () => {
       // login_count at FORCE_CHANGE_AFTER threshold (25)
       .mockResolvedValueOnce([[{ login_count: 25 }]])
       .mockResolvedValueOnce([[]]); // empty projects
-    const res = await request(app).post('/api/auth/login').send({ username: 'newuser', password: 'Welcome@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'newuser', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.user.must_change_password).toBe(true);
   });
 
   test('must_change_password is false before threshold', async () => {
-    const hash = await bcrypt.hash('Welcome@123', 10);
+    const hash = await bcrypt.hash('Start@123', 10);
     db.query
       .mockResolvedValueOnce([[{ id:3, username:'earlyuser', full_name:'Early User', role:'pmc_head', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]])
       .mockResolvedValueOnce([[{ '1': 1 }]])
@@ -97,24 +97,24 @@ describe('POST /api/auth/login', () => {
       // login_count below threshold
       .mockResolvedValueOnce([[{ login_count: 10 }]])
       .mockResolvedValueOnce([[]]); // empty projects
-    const res = await request(app).post('/api/auth/login').send({ username: 'earlyuser', password: 'Welcome@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'earlyuser', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.user.must_change_password).toBe(false);
   });
   test('returns 403 when role has no nav rows', async () => {
-    const hash = await bcrypt.hash('Welcome@123', 10);
+    const hash = await bcrypt.hash('Start@123', 10);
     db.query
       .mockResolvedValueOnce([[{ id:99, username:'orphan', full_name:'Orphan User', role:'orphan_role', stream:'design', password_hash: hash, is_active:1, force_password_change:0 }]])
       // role_nav existence check returns empty — role has no rows
       .mockResolvedValueOnce([[]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'orphan', password: 'Welcome@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'orphan', password: 'Start@123' });
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('ROLE_NAV_MISSING');
     expect(res.body.error).toMatch(/not fully configured/i);
   });
 
   test('returns 200 and user on valid detailing_head login', async () => {
-    const hash = await bcrypt.hash('Welcome@123', 10);
+    const hash = await bcrypt.hash('Start@123', 10);
     db.query
       .mockResolvedValueOnce([[{ id:45, username:'detailinghead', full_name:'Detailing Head', role:'detailing_head', stream:'design', password_hash: hash, is_active:1, force_password_change:0 }]])
       // role_nav existence check
@@ -125,14 +125,14 @@ describe('POST /api/auth/login', () => {
       .mockResolvedValueOnce([[{ login_count: 1 }]])
       // projects list
       .mockResolvedValueOnce([[{ id:1, code:'PV90', name:'PV90 Production Line', client:'TLD', location:'Nelamangala' }]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'detailinghead', password: 'Welcome@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'detailinghead', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.user.role).toBe('detailing_head');
   });
 
   test('site manager login also returns project list', async () => {
-    const hash = await bcrypt.hash('Welcome@123', 10);
+    const hash = await bcrypt.hash('Start@123', 10);
     db.query
       .mockResolvedValueOnce([[{ id:16, username:'anjaneya', full_name:'Anjaneya', role:'site_manager', stream:'site', password_hash: hash, is_active:1, force_password_change:0 }]])
       // role_nav existence check
@@ -143,7 +143,7 @@ describe('POST /api/auth/login', () => {
       .mockResolvedValueOnce([[{ login_count: 3 }]])
       // projects list
       .mockResolvedValueOnce([[{ id:1, code:'PV90', name:'PV90 Production Line', client:'TLD', location:'Nelamangala' }]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'anjaneya', password: 'Welcome@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'anjaneya', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.user.role).toBe('site_manager');
   });
