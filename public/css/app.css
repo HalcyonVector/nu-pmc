@@ -2529,3 +2529,47 @@ html[data-theme="dark"] #content-area div[style*="background:var(--amber-bg)"] {
   background: #1A2332 !important;
   border-color: #2A3A4A !important;
 }
+
+/* ── DARK MODE — modals, buttons inside modals, tab-like toggles ── */
+html[data-theme="dark"] .modal * {
+  color: #E8ECF0 !important;
+}
+html[data-theme="dark"] .modal {
+  background: #1A2332 !important;
+  color: #E8ECF0 !important;
+}
+html[data-theme="dark"] .modal button {
+  color: #E8ECF0 !important;
+}
+html[data-theme="dark"] .modal button[style*="background:#fff"],
+html[data-theme="dark"] .modal button[style*="background:var(--white)"],
+html[data-theme="dark"] .modal button[style*="background: #fff"],
+html[data-theme="dark"] .modal button[style*="background:white"],
+html[data-theme="dark"] .modal div[style*="background:#fff"],
+html[data-theme="dark"] .modal div[style*="background:var(--white)"],
+html[data-theme="dark"] .modal div[style*="background:white"] {
+  background: #0F1419 !important;
+  border-color: #3A4A5A !important;
+}
+html[data-theme="dark"] .modal .btn-primary {
+  background: #1D3D62 !important;
+  color: #FFFFFF !important;
+}
+html[data-theme="dark"] .modal .btn-secondary {
+  background: #0F1419 !important;
+  color: #B0C4D8 !important;
+  border-color: #3A4A5A !important;
+}
+html[data-theme="dark"] .modal .field-label {
+  color: #AAB8C8 !important;
+}
+html[data-theme="dark"] .modal select,
+html[data-theme="dark"] .modal input,
+html[data-theme="dark"] .modal textarea {
+  background: #0F1419 !important;
+  border-color: #2A3A4A !important;
+  color: #E8ECF0 !important;
+}
+html[data-theme="dark"] .modal-title {
+  color: #FFFFFF !important;
+}

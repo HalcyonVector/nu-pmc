@@ -2156,18 +2156,69 @@ Tomorrow: start formwork on next bay."
     const parentRow = document.getElementById('dwg-parent-row');
     const rfiRow    = document.getElementById('dwg-rfi-row');
     const info      = document.getElementById('dwg-type-info');
+    const numEl     = document.getElementById('dwg-num');
+    const nameEl    = document.getElementById('dwg-name');
+    const numRow    = numEl?.parentElement;
+    const nameRow   = nameEl?.parentElement;
+
     if (parentRow) parentRow.style.display = (t === 'detail') ? 'block' : 'none';
     if (rfiRow)    rfiRow.style.display    = (t === 'rfi_response') ? 'block' : 'none';
+
+    // For detail/rfi_response: convert drawing number + name to dropdowns from existing drawings
+    if ((t === 'detail' || t === 'rfi_response') && numRow && nameRow) {
+      // Replace text inputs with a single dropdown that populates both
+      if (!document.getElementById('dwg-parent-select')) {
+        const pid = document.getElementById('dwg-proj')?.value;
+        numRow.innerHTML = `<label class="field-label" for="dwg-parent-select">Parent Drawing</label>
+          <select id="dwg-parent-select" onchange="APP._fillFromParentDrawing(this.value)" style="width:100%">
+            <option value="">— Select existing drawing —</option>
+          </select>`;
+        nameRow.innerHTML = `<label class="field-label">Drawing Number</label>
+          <input type="text" id="dwg-num" placeholder="Auto-fills from selection, or type freely">
+          <input type="hidden" id="dwg-name" value="">`;
+        // Load drawings list
+        if (pid) {
+          API.get('/drawings/' + pid).then(data => {
+            const sel = document.getElementById('dwg-parent-select');
+            if (!sel || !data?.drawings) return;
+            data.drawings.forEach(d => {
+              sel.innerHTML += `<option value="${d.id}" data-num="${UI.escapeAttr(d.drawing_number)}" data-name="${UI.escapeAttr(d.drawing_name)}">${d.drawing_number} — ${d.drawing_name}</option>`;
+            });
+          }).catch(() => {});
+        }
+      }
+    } else if (t === 'main' && numRow && nameRow) {
+      // Restore text inputs for main type
+      if (document.getElementById('dwg-parent-select')) {
+        numRow.innerHTML = `<label class="field-label" for="dwg-num">Drawing Number</label><input type="text" id="dwg-num" placeholder="e.g. A-101">`;
+        nameRow.innerHTML = `<label class="field-label" for="dwg-name">Drawing Name</label><input type="text" id="dwg-name" placeholder="Ground Floor Plan">`;
+      }
+    }
 
     if (info) {
       if (t === 'main') {
         info.innerHTML = '<strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. Rajani or Srinath pre-registers every main drawing at project start.';
       } else if (t === 'detail') {
-        info.innerHTML = '<strong style="color:#1a2e44">Detail drawing</strong> — any number allowed. Use for site-specific details, sketches, condition-driven drawings. Optionally link to a parent main drawing.';
+        info.innerHTML = '<strong style="color:#1a2e44">Detail drawing</strong> — select the parent drawing this detail belongs to. You can also type a custom number.';
       } else {
-        info.innerHTML = '<strong style="color:#1a2e44">RFI Reply</strong> — drawing produced in response to an RFI. No register check. RFI number is required.';
+        info.innerHTML = '<strong style="color:#1a2e44">RFI Reply</strong> — select the drawing this reply relates to. RFI number is required below.';
       }
     }
+  },
+
+  _fillFromParentDrawing(drawingId) {
+    const sel = document.getElementById('dwg-parent-select');
+    if (!sel) return;
+    const opt = sel.selectedOptions[0];
+    const num = opt?.dataset?.num || '';
+    const name = opt?.dataset?.name || '';
+    const numInput = document.getElementById('dwg-num');
+    const nameInput = document.getElementById('dwg-name');
+    if (numInput) numInput.value = num ? num + '-D1' : '';
+    if (nameInput) nameInput.value = name;
+    // Also fill the parent_drawing_id field
+    const parentInput = document.getElementById('dwg-parent');
+    if (parentInput) parentInput.value = drawingId;
   },
 
   async uploadDrawing(pid, input) {
@@ -6303,7 +6354,7 @@ APP.renderIssues = async function() {
     });
   }
 
-  const typeFilters = ['all','safety','quality','design','rfi','compliance'];
+  const typeFilters = ['all','quality','design','rfi','safety','compliance'];
   const cur = APP.state.issueFilter || 'all';
   html += `<div class="sec-hdr-row">
     <div class="sec-label" style="margin:0;flex:1">Issues Register</div>
