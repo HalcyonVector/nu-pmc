@@ -2015,12 +2015,12 @@ Tomorrow: start formwork on next bay."
             <div style="font-size:10px;font-weight:400;opacity:0.8;margin-top:2px">on register</div>
           </button>
           <button onclick="APP.setDwgType('detail')" id="dwg-type-detail" style="min-height:44px;flex:1;padding:10px 8px;text-align:center;font-size:13px;font-weight:600;
-                      background:#fff;color:#666;border:1.5px solid #e8e4dc;border-radius:8px;cursor:pointer">
+                      background:var(--white);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;cursor:pointer">
             Detail
             <div style="font-size:10px;font-weight:400;opacity:0.7;margin-top:2px">any number</div>
           </button>
           <button onclick="APP.setDwgType('rfi_response')" id="dwg-type-rfi" style="min-height:44px;flex:1;padding:10px 8px;text-align:center;font-size:13px;font-weight:600;
-                      background:#fff;color:#666;border:1.5px solid #e8e4dc;border-radius:8px;cursor:pointer">
+                      background:var(--white);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;cursor:pointer">
             RFI Reply
             <div style="font-size:10px;font-weight:400;opacity:0.7;margin-top:2px">links to RFI</div>
           </button>
@@ -2144,13 +2144,19 @@ Tomorrow: start formwork on next bay."
 
     const types = ['main','detail','rfi'];
     const ids   = { main:'dwg-type-main', detail:'dwg-type-detail', rfi_response:'dwg-type-rfi' };
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const activeBg = '#1a2e44';
+    const activeFg = '#faf8f3';
+    const inactiveBg = isDark ? '#0F1419' : '#fff';
+    const inactiveFg = isDark ? '#AAB8C8' : '#666';
+    const inactiveBorder = isDark ? '#3A4A5A' : '#e8e4dc';
     Object.entries(ids).forEach(([key, elId]) => {
       const el = document.getElementById(elId);
       if (!el) return;
       const active = key === t;
-      el.style.background = active ? '#1a2e44' : '#fff';
-      el.style.color      = active ? '#faf8f3' : '#666';
-      el.style.borderColor= active ? '#1a2e44' : '#e8e4dc';
+      el.style.background = active ? activeBg : inactiveBg;
+      el.style.color      = active ? activeFg : inactiveFg;
+      el.style.borderColor= active ? activeBg : inactiveBorder;
     });
 
     const parentRow = document.getElementById('dwg-parent-row');
