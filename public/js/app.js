@@ -1999,7 +1999,7 @@ Tomorrow: start formwork on next bay."
     const drawings = data?.drawings || [];
     const role = APP.user.role;
 
-    const canUpload = ['detailing_head','team_lead','jr_architect','detailing','services_engineer',
+    const canUpload = ['team_lead','jr_architect','jr_engineer','services_engineer',
                        'design_head','services_head','principal','design_principal'].includes(role);
 
     let html = '<div class="drawings-page">';
@@ -2088,7 +2088,7 @@ Tomorrow: start formwork on next bay."
     const isSite    = role === 'site_manager';
 
     const myTurn = isPending && (
-      (['detailing_head','team_lead'].includes(role) && d.stream === 'design' && d.version_status === 'pending_l1') ||
+      (role === 'team_lead' && d.stream === 'design' && d.version_status === 'pending_l1') ||
       (role === 'design_head'    && d.stream === 'design'    && d.version_status === 'pending_l2') ||
       (role === 'services_head'  && d.stream === 'services'  && d.version_status === 'pending_l1') ||
       ['principal','design_principal'].includes(role)
@@ -2111,7 +2111,7 @@ Tomorrow: start formwork on next bay."
       ${awaiting&&!myTurn?`<div style="font-size:10px;color:var(--muted);margin-bottom:6px">Awaiting: ${awaiting}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${isIssued?'<span class="badge b-green">Issued ✓</span>':''}
-        ${myTurn?`<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${['detailing_head','team_lead'].includes(role)?'Mark Reviewed':'Approve & Issue'}</button>
+        ${myTurn?`<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${role === 'team_lead'?'Mark Reviewed':'Approve & Issue'}</button>
           <button class="btn-sm reject" onclick="APP.rejectDrawing(${d.version_id})">Reject</button>`:''}
         ${isSite && isIssued?`<button class="btn-sm query" onclick="APP.raiseQueryForDrawing(${d.version_id},'${d.drawing_number} ${d.revision}',${pid})">Raise Query</button>`:''}
         <!-- History/New Rev stub buttons removed (lines 1610-1611). Both were
@@ -2638,7 +2638,7 @@ Tomorrow: start formwork on next bay."
     // Editable roles (must match backend EDITABLE_ROLES list in routes/nav-admin.js)
     const EDITABLE_ROLES = [
       'principal','design_principal','pmc_head','design_head','services_head',
-      'team_lead','jr_architect','detailing','services_engineer','coordinator',
+      'team_lead','jr_architect','jr_engineer','services_engineer','coordinator',
       'site_manager','senior_site_manager','finance_admin','trainee',
     ];
     const role = APP.state.navEditorRole || 'principal';
@@ -5079,7 +5079,7 @@ APP._loadProfileLegacy = async function() {
   // to be able to anoint a deputy. Currently mirrors the streamMap from
   // before the v5.11 collapse.
   const streamMap = {
-    design_head:    ['detailing_head','team_lead','jr_architect'],
+    design_head:    ['team_lead','jr_architect'],
     services_head:  ['services_engineer'],
     pmc_head:       ['pmc_head'],
     design_principal: [],
@@ -5334,7 +5334,7 @@ APP._loadPendingUsersLegacy = async function() {
 
 APP.showInitiateUser = function() {
   const roleOptions = {
-    design_head:   [['team_lead','Team Lead'],['jr_architect','Jr Architect'],['detailing','Detailing Staff']],
+    design_head:   [['team_lead','Team Lead'],['jr_architect','Jr Architect'],['jr_engineer','Jr Engineer']],
     services_head: [['services_engineer','Services Engineer']],
     pmc_head:      [['site_manager','Site Manager']],
   };
@@ -7940,7 +7940,7 @@ APP.bulkUploadUsers = async function(input) {
 APP.openAddUserModal = function() {
   const roles = [
     'principal','design_principal','pmc_head','design_head','services_head',
-    'detailing_head','jr_architect','detailing','services_engineer','team_lead',
+    'team_lead','jr_architect','jr_engineer','services_engineer',
     'coordinator','site_manager','senior_site_manager','finance_admin',
     'trainee','audit','it_admin'
   ];
@@ -9439,7 +9439,7 @@ APP.renderDashboard = async function() {
   if (role === 'design_head' || role === 'services_head') {
     return APP.renderDesignDashboard();
   }
-  if (['team_lead','detailing_head','coordinator','jr_architect','services_engineer'].includes(role)) {
+  if (['team_lead','coordinator','jr_architect','services_engineer'].includes(role)) {
     return APP.renderTeamDashboard();
   }
   // principal / design_principal — original dashboard
@@ -9817,13 +9817,15 @@ APP._updateTopbar = function() {
 // Selecting a role sudoes into it; selecting Principal again returns home.
 APP.IMPERSONATABLE_ROLES = [
   'principal','design_principal','design_head','team_lead','services_head',
-  'detailing_head','jr_architect','detailing','services_engineer','coordinator',
+  'team_lead','jr_architect','jr_engineer','services_engineer','coordinator',
   'pmc_head','site_manager','senior_site_manager','finance_admin','trainee',
   'audit','it_admin'
 ];
 
 APP._roleLabel = function(role) {
   if (role === 'it_admin') return 'IT Admin';
+  if (role === 'jr_engineer') return 'Jr Engineer';
+  if (role === 'jr_architect') return 'Jr Architect';
   return (role || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
 };
 

@@ -17,16 +17,14 @@ function isAuditGet(req) {
 // These roles see only projects they are assigned to via project_assignments.
 // All other roles (principal, design_principal, pmc_head, design_head,
 // services_head, finance_admin, audit) see every project firm-wide.
-// detailing_head is here until merged into team_lead (Sprint 2 nav redesign).
 const PROJECT_SCOPED_ROLES = [
   'site_manager',
   'senior_site_manager',
   'team_lead',
-  'detailing_head',
   'jr_architect',
   'services_engineer',
   'coordinator',
-  'detailing',
+  'jr_engineer',
   'trainee',
 ];
 
@@ -74,7 +72,7 @@ function requirePMC(req, res, next) {
 
 // Design stream access
 function requireDesign(req, res, next) {
-  const allowed = ['principal', 'design_principal', 'design_head', 'detailing_head', 'team_lead', 'jr_architect', 'detailing'];
+  const allowed = ['principal', 'design_principal', 'design_head', 'team_lead', 'jr_architect', 'jr_engineer'];
   if (!req.session?.user) return res.status(401).json({ error: 'Not authenticated' });
   if (isAuditGet(req)) return next();
   if (!allowed.includes(req.session.user.role)) {
@@ -98,8 +96,8 @@ function requireServices(req, res, next) {
 function canApproveDrawing(user, drawing) {
   if (user.role === 'audit') return false;          // Audit never performs actions
   if (['principal', 'design_principal'].includes(user.role)) return true;
-  // Design stream — two-step: detailing_head/team_lead at L1, design_head at L2
-  if ((user.role === 'detailing_head' || user.role === 'team_lead') && drawing.stream === 'design' && drawing.status === 'pending_l1') return true;
+  // Design stream — two-step: team_lead at L1, design_head at L2
+  if (user.role === 'team_lead' && drawing.stream === 'design' && drawing.status === 'pending_l1') return true;
   if (user.role === 'design_head' && drawing.stream === 'design' && drawing.status === 'pending_l2') return true;
   // Services stream — no detailing equivalent; services_head approves at both levels
   if (user.role === 'services_head' && drawing.stream === 'services') return true;
