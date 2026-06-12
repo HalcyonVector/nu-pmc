@@ -1021,6 +1021,8 @@ Tomorrow: start formwork on next bay."
       for (const [bucket, tabs] of Object.entries(APP._nav.buckets)) {
         if (tabs.some(t => t.key === id)) { targetBucket = bucket; break; }
       }
+      // Tab not in user's nav — ignore silently
+      if (!targetBucket) return;
       if (targetBucket && targetBucket !== APP._activeBucket) {
         APP._activeBucket = targetBucket;
         document.querySelectorAll('.bb-item').forEach(el =>
@@ -1332,10 +1334,11 @@ Tomorrow: start formwork on next bay."
       </div>`;
     } else {
       const stats = p.stats || {};
+      const navTo = (tab) => `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP.switchTab('${tab}')"`;
       html += `<div class="pc-stats">
-        <div class="pc-stat"><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
-        <div class="pc-stat"><span class="pc-stat-val${stats.open_queries>0?' amber':''}">${stats.open_queries||0}</span><span class="pc-stat-lbl">Queries</span></div>
-        <div class="pc-stat"><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
+        <div class="pc-stat" style="cursor:pointer" ${navTo('tasks')}><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
+        <div class="pc-stat" style="cursor:pointer" ${navTo('issues')}><span class="pc-stat-val${stats.open_queries>0?' amber':''}">${stats.open_queries||0}</span><span class="pc-stat-lbl">Queries</span></div>
+        <div class="pc-stat" style="cursor:pointer" ${navTo('tasks')}><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.overdue_materials>0?' red':''}">${stats.overdue_materials||0}</span><span class="pc-stat-lbl">Overdue</span></div>
       </div>`;
 
@@ -9374,13 +9377,13 @@ APP.completeSetupItem = async function(itemId) {
 // 6 items with per-item action buttons — not the full tab. "View all →" at
 // bottom navigates to the tab for fuller context.
 APP._dashTriageMeta = {
-  overdue_queries:   { title: 'Drawing queries — overdue',    tab: 'queries',  icon: '🔴',
+  overdue_queries:   { title: 'Drawing queries — overdue',    tab: 'issues',   icon: '',
                        label: it => `${it.drawing_number || '?'} · ${(it.description||'').slice(0,60)}`,
                        sub:   it => `${it.project_name} · ${it.days_open}d open` },
   fresh_queries:     { title: 'Drawing queries — open',       tab: 'queries',  icon: '💬',
                        label: it => `${it.drawing_number || '?'} · ${(it.description||'').slice(0,60)}`,
                        sub:   it => `${it.project_name} · ${it.days_open}d open` },
-  open_flags:        { title: 'Site flags open',              tab: 'queries',  icon: '🚩',
+  open_flags:        { title: 'Site flags open',              tab: 'project_detail', icon: '',
                        label: it => `${it.task_name||''} (${it.trade||''})`,
                        sub:   it => `${it.project_name} · ${(it.flag_note||'').slice(0,80)}` },
   overdue_materials: { title: 'Materials overdue',            tab: 'materials',icon: '📦',
@@ -9420,7 +9423,7 @@ APP.showActionTriage = function(key) {
     <div class="triage-body">
       <div class="triage-meta">${items.length} item${items.length===1?'':'s'} awaiting review</div>
       ${items.map(rowFor).join('')}
-      <button class="btn-secondary" style="margin-top:12px;width:100%" onclick="UI.closeModal();APP.switchTab('${meta.tab}');">View all in ${meta.tab} tab →</button>
+      <button class="btn-secondary" style="margin-top:12px;width:100%" onclick="UI.closeModal();">Close</button>
     </div>`;
 
   UI.openModal(meta.title, html);
