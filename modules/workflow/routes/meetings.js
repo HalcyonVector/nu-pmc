@@ -467,7 +467,7 @@ router.post('/:id/action-items', requireAuth, requirePMC, asyncHandler(async (re
     } else {
       // Regular member — their team head countersigns
       const roleToHead = {
-        detailing_head: 'design_head', team_lead: 'design_head', jr_architect: 'design_head', detailing: 'design_head',
+        team_lead: 'design_head', team_lead: 'design_head', jr_architect: 'design_head', jr_engineer: 'design_head',
         services_engineer: 'services_head', site_manager: 'pmc_head',
       };
       const headRole = roleToHead[assignee?.role];

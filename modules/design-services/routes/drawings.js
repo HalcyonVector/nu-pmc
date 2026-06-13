@@ -29,7 +29,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       whereExtra = `AND dv.status = 'issued'`;
     }
     // Design stream users see only design drawings
-    else if (['detailing_head','team_lead','jr_architect','detailing'].includes(me.role) && me.stream === 'design') {
+    else if (['team_lead','team_lead','jr_architect','jr_engineer'].includes(me.role) && me.stream === 'design') {
       whereExtra = `AND d.stream = 'design'`;
     }
     // Services stream users see only services drawings
@@ -123,7 +123,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
 
     // Check user can upload to this stream
     const canUpload = ['principal','design_principal'].includes(me.role) ||
-                      (stream === 'design'   && ['design_head','detailing_head','team_lead','jr_architect','detailing'].includes(me.role)) ||
+                      (stream === 'design'   && ['design_head','team_lead','team_lead','jr_architect','jr_engineer'].includes(me.role)) ||
                       (stream === 'services' && ['services_head','services_engineer'].includes(me.role));
 
     if (!canUpload) return res.status(403).json({ error: 'Cannot upload to this stream' });
@@ -166,12 +166,12 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
 
     // Determine initial status based on uploader role
     // Services: services_engineer → pending_l1 (srinath reviews)
-    // Design: detailing → pending_l1 (sahana/sushmitha review), detailing_head/team_lead → pending_l2 (rajani), design_head/principal → issued
+    // Design: jr_engineer → pending_l1 (sahana/sushmitha review), team_lead/team_lead → pending_l2 (rajani), design_head/principal → issued
     let initStatus = 'pending_l1';
     if (['principal','design_principal'].includes(me.role)) initStatus = 'issued';
     else if (me.role === 'design_head') initStatus = 'issued';
     else if (me.role === 'services_head') initStatus = 'issued';
-    else if (me.role === 'detailing_head' || me.role === 'team_lead') initStatus = 'pending_l2';
+    else if (me.role === 'team_lead' || me.role === 'team_lead') initStatus = 'pending_l2';
 
     // ── ATOMIC WRITES BLOCK ─────────────────────────────────────────
     // The upload writes touch four tables in sequence: drawings (insert if new),

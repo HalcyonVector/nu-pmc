@@ -66,12 +66,12 @@ describe('M7 System — getNavForRole', () => {
 
   test('detailing_head navigation logic loads properly', async () => {
     const mockNavRows = [
-      { role: 'detailing_head', bucket: 'home', tab_key: 'dashboard', sort_order: 1, is_visible: 1 }
+      { role: 'team_lead', bucket: 'home', tab_key: 'dashboard', sort_order: 1, is_visible: 1 }
     ];
     db.query.mockResolvedValueOnce([mockNavRows]);
-    const r = await System.functions.getNavForRole('detailing_head');
+    const r = await System.functions.getNavForRole('team_lead');
     expect(r).toEqual(mockNavRows);
-    expect(db.query.mock.calls[0][1]).toEqual(['detailing_head']);
+    expect(db.query.mock.calls[0][1]).toEqual(['team_lead']);
   });
 });
 

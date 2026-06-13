@@ -29,6 +29,8 @@ const TAB_LABELS = {
   monthly:'Monthly Overview',  project_detail:'Project Summary',
   budget:'Budget',          payments:'Payments',      payments_fin:'Payments',
   schedule_view:'Schedule', weekly_health:'Health',   users:'Users',
+  schedule:'Schedule',
+  flags:'Flags',
   reports_daily:'Daily Reports', reports_weekly:'Weekly Reports', grn:'GRNs',  issues:'Issues',
   meetings:'Meetings',       labour:'Labour',
   drawings:'Drawings',       register:'Register',
@@ -1009,6 +1011,21 @@ Tomorrow: start formwork on next bay."
     APP.switchTab(tab);
   },
 
+  // Try multiple tab keys in order — uses the first one that exists in the user's nav
+  _tryNav(tabList) {
+    const tabs = tabList.split(',');
+    for (const tab of tabs) {
+      if (APP._nav && APP._nav.buckets) {
+        for (const [, items] of Object.entries(APP._nav.buckets)) {
+          if (items.some(t => t.key === tab)) {
+            APP.switchTab(tab);
+            return;
+          }
+        }
+      }
+    }
+  },
+
   switchTab(id) {
     APP.currentTab = id;
     const ca = document.getElementById('content-area'); if (ca) ca.scrollTop = 0;
@@ -1112,6 +1129,7 @@ Tomorrow: start formwork on next bay."
       finance_clearance: () => APP.renderFinanceClearance(),
       client_boq:        () => APP.renderClientBOQ(),
       pending:           () => APP.renderPending(),
+      flags:             () => APP.renderFlags(),
       nav_editor:        () => APP.renderNavEditor(),
       governance:        () => APP.renderGovernance(),
       account_setup:     () => APP.renderAccountSetup(),
@@ -1334,11 +1352,11 @@ Tomorrow: start formwork on next bay."
       </div>`;
     } else {
       const stats = p.stats || {};
-      const navTo = (tab) => `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP.switchTab('${tab}')"`;
+      const navTo = (tab) => `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP._tryNav('${tab}')"`;
       html += `<div class="pc-stats">
-        <div class="pc-stat" style="cursor:pointer" ${navTo('tasks')}><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
+        <div class="pc-stat" style="cursor:pointer" ${navTo('tasks,schedule')}><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
         <div class="pc-stat" style="cursor:pointer" ${navTo('issues')}><span class="pc-stat-val${stats.open_queries>0?' amber':''}">${stats.open_queries||0}</span><span class="pc-stat-lbl">Queries</span></div>
-        <div class="pc-stat" style="cursor:pointer" ${navTo('tasks')}><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
+        <div class="pc-stat" style="cursor:pointer" ${navTo('flags,tasks,schedule')}><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.overdue_materials>0?' red':''}">${stats.overdue_materials||0}</span><span class="pc-stat-lbl">Overdue</span></div>
       </div>`;
 
@@ -1509,6 +1527,27 @@ Tomorrow: start formwork on next bay."
     // Build final HTML
     let finalHtml = subTabs + strip;
 
+    // Flagged tasks section — shown to principals/PMC at the top (fetched across all dates)
+    const isPrincipalView = ['principal','design_principal','pmc_head'].includes(APP.user?.role || APP.user?.real_role);
+    if (isPrincipalView) {
+      try {
+        const flagData = await API.get(`/schedule/${pid}/flags`);
+        const flaggedTasks = flagData?.flags || [];
+        if (flaggedTasks.length) {
+          finalHtml += `<div class="sec-label" style="color:var(--red)">Flagged Tasks (${flaggedTasks.length})</div>`;
+          flaggedTasks.forEach(t => {
+            finalHtml += `<div class="action-item c-red" style="margin-bottom:6px">
+              <div class="ai-body">
+                <div class="ai-title">${t.task_name} (${t.trade || '—'})</div>
+                <div class="ai-meta">${t.flag_note || 'Auto-flagged: behind plan'} · ${t.pct_complete || 0}% · ${t.flagged_by_name || ''}</div>
+              </div>
+              <button class="btn-sm" onclick="APP.resolveFlag(${pid},${t.update_id})">Resolve</button>
+            </div>`;
+          });
+        }
+      } catch (_e) {}
+    }
+
     if (!tasks.length) {
       finalHtml += UI.empty('','No tasks scheduled today');
     } else {
@@ -1593,6 +1632,18 @@ Tomorrow: start formwork on next bay."
     await API.updateTask(pid, { task_id: taskId, pct_complete: APP.state.taskPct[taskId]||0, is_flagged: true });
     UI.toast('Flagged ✓');
     APP.renderSchedule();
+  },
+
+  async resolveFlag(pid, updateId) {
+    const note = await UI.prompt('Resolution note (what action was taken?)');
+    if (note === null) return; // cancelled
+    const res = await API.call('POST', `/schedule/${pid}/flags/${updateId}/resolve`, { resolution_note: note || '' });
+    if (res?.success) {
+      UI.toast('Flag resolved');
+      APP.renderSchedule();
+    } else {
+      UI.toast(res?.error || 'Failed to resolve');
+    }
   },
 
   buildAhead(data) {
@@ -2981,6 +3032,35 @@ Tomorrow: start formwork on next bay."
     const res = await API.post(`/nav-admin/${id}/reject`, { reason });
     if (res?.success) { UI.toast('Rejected'); APP.renderPending(); }
     else UI.toast(res?.error || 'Failed');
+  },
+
+  // ── FLAGS MODULE — dedicated tab for reviewing flagged tasks
+  async renderFlags() {
+    const el = UI.contentEl();
+    const pid = APP.state.selectedProject;
+    if (!pid) { el.innerHTML = UI.empty('', 'Select a project first'); return; }
+
+    UI.loading(el);
+    const data = await API.get(`/schedule/${pid}/flags`);
+    const flags = data?.flags || [];
+
+    let html = `<div class="sec-label">Flagged Tasks (${flags.length})</div>`;
+
+    if (!flags.length) {
+      html += UI.empty('', 'No open flags — all clear');
+    } else {
+      flags.forEach(f => {
+        html += `<div class="action-item c-red" style="margin-bottom:8px">
+          <div class="ai-body">
+            <div class="ai-title">${UI.escapeText(f.task_name)} (${UI.escapeText(f.trade || '—')})</div>
+            <div class="ai-meta">${UI.escapeText(f.flag_note || 'Auto-flagged: behind plan')} · ${f.pct_complete || 0}% complete · ${f.flagged_by_name || '—'} · ${f.report_date || ''}</div>
+          </div>
+          <button class="btn-sm" onclick="APP.resolveFlag(${pid},${f.update_id})">Resolve</button>
+        </div>`;
+      });
+    }
+
+    el.innerHTML = `<div class="fade-in">${html}</div>`;
   },
 
   // ── WEEKLY SIGN-OFF (3-way)
@@ -9383,7 +9463,7 @@ APP._dashTriageMeta = {
   fresh_queries:     { title: 'Drawing queries — open',       tab: 'queries',  icon: '💬',
                        label: it => `${it.drawing_number || '?'} · ${(it.description||'').slice(0,60)}`,
                        sub:   it => `${it.project_name} · ${it.days_open}d open` },
-  open_flags:        { title: 'Site flags open',              tab: 'project_detail', icon: '',
+  open_flags:        { title: 'Site flags open',              tab: 'flags',    icon: '',
                        label: it => `${it.task_name||''} (${it.trade||''})`,
                        sub:   it => `${it.project_name} · ${(it.flag_note||'').slice(0,80)}` },
   overdue_materials: { title: 'Materials overdue',            tab: 'materials',icon: '📦',
@@ -9406,8 +9486,7 @@ APP.showActionTriage = function(key) {
   const rowFor = (it) => {
     const label = UI.escapeText(meta.label(it));
     const sub   = UI.escapeText(meta.sub(it));
-    // Per-item actions — navigate to tab scoped to this item ID (deep link)
-    const deep = `${meta.tab}?project=${it.project_id||''}&item=${it.id||''}`;
+    const pid = it.project_id || APP.state.selectedProject || '';
     return `
       <div class="triage-row">
         <div class="triage-row-icon">${meta.icon}</div>
@@ -9415,7 +9494,7 @@ APP.showActionTriage = function(key) {
           <div class="triage-row-label">${label}</div>
           <div class="triage-row-sub">${sub}</div>
         </div>
-        <button class="btn-sm navy" onclick="location.hash='${deep}';UI.closeModal();APP.handleHashRoute();">Review →</button>
+        <button class="btn-sm navy" onclick="UI.closeModal();APP.state.selectedProject=${pid};APP._tryNav('${meta.tab}');">Review →</button>
       </div>`;
   };
 

@@ -10,8 +10,8 @@ const { requireAuth, requirePrincipal, requirePMC, requireRole, requireProjectSc
 // Narrower restriction would need project-membership-based gating — deferred.
 const REPORT_READER_ROLES = [
   'principal','design_principal','pmc_head','design_head','services_head',
-  'detailing_head','coordinator','senior_site_manager','site_manager',
-  'services_engineer','finance_admin','team_lead','jr_architect','detailing',
+  'team_lead','coordinator','senior_site_manager','site_manager',
+  'services_engineer','finance_admin','team_lead','jr_architect','jr_engineer',
 ];
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');

@@ -224,7 +224,7 @@ async function buildProjectSummary(me, projectId) {
 
   // ── Issues count (role-filtered)
   async function countIssues() {
-    if (['jr_architect','services_engineer','team_lead','detailing_head','coordinator'].includes(role)) {
+    if (['jr_architect','services_engineer','team_lead','team_lead','coordinator'].includes(role)) {
       const [[r]] = await db.query(
         `SELECT COUNT(*) c FROM issues
           WHERE project_id=? AND assigned_to=? AND status IN ('open','in_progress')`,

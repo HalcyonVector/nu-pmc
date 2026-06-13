@@ -117,7 +117,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
       if (task_id) {
         const sourceMap = {
           site_manager:'site_manager', pmc_head:'pmc', principal:'principal', design_principal:'principal',
-          design_head:'design', detailing_head:'design', team_lead:'design', jr_architect:'design', detailing:'design',
+          design_head:'design', team_lead:'design', team_lead:'design', jr_architect:'design', jr_engineer:'design',
           services_head:'services', services_engineer:'services',
         };
         await db.query(

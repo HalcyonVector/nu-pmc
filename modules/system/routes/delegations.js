@@ -14,7 +14,7 @@ const DELEGATION_RULES = {
   // PMC Heads — peer, or limited-scope to their site managers.
   pmc_head:          ['pmc_head','site_manager'],   // site_manager only with limited_pmc scope
   // Design Head — detailing heads, peer services head.
-  design_head:       ['detailing_head','team_lead','services_head','design_head'],
+  design_head:       ['team_lead','team_lead','services_head','design_head'],
   // Services Head — services engineer, peer design head.
   services_head:     ['services_engineer','design_head','services_head'],
 };

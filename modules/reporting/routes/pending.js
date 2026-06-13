@@ -88,7 +88,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
 
   // ─── BLOCKED (all roles see this set; PMC Head has a narrower custom set) ──
   if (['principal','design_principal','audit'].includes(role)) {
-    // Drawings overdue — design-stream L1 (detailing) or L2 (design_head)
+    // Drawings overdue — design-stream L1 (jr_engineer) or L2 (design_head)
     const [dDraws] = await db.query(
       `SELECT dv.id, d.drawing_number, d.drawing_name, d.stream, dv.status,
               dv.created_at, d.project_id,

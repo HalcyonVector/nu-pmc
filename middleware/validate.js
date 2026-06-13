@@ -388,7 +388,7 @@ const validators = {
   userCreate: makeValidator({
     username:  { required: true,  type: 'string', minLength: 2, maxLength: 50 },
     full_name: { required: true,  type: 'safeText', maxLength: 100, textOpts: { allowNumbers: true, maxNumDensity: 0.3 } },
-    role:      { required: true,  enum: ['principal','design_principal','design_head','team_lead','services_head','detailing_head','jr_architect','detailing','services_engineer','coordinator','pmc_head','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin'] },
+    role:      { required: true,  enum: ['principal','design_principal','design_head','team_lead','services_head','team_lead','jr_architect','jr_engineer','services_engineer','coordinator','pmc_head','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin'] },
     phone:     { required: false, type: 'phone' },
     email:     { required: false, type: 'email' },
     stream:    { required: false, enum: ['design','services','pmc','site','all'] },

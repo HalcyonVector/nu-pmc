@@ -11,10 +11,10 @@ const router  = express.Router();
 
 // Role → who can initiate
 const INITIATOR_MAP = {
-  detailing_head:   ['design_head','principal','design_principal'],
+  team_lead:   ['design_head','principal','design_principal'],
   team_lead:        ['design_head','principal','design_principal'],
   jr_architect:     ['design_head','principal','design_principal'],
-  detailing:        ['design_head','principal','design_principal'],
+  jr_engineer:        ['design_head','principal','design_principal'],
   services_engineer:['services_head','principal','design_principal'],
   site_manager:         ['pmc_head','principal','design_principal'],
   senior_site_manager:  ['pmc_head','principal','design_principal'],

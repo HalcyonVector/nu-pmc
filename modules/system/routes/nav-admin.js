@@ -35,7 +35,7 @@ const VALID_BUCKETS = ['home','work','money','more','pending','strip'];
 // editing of 'audit' (read-only test account) or 'it_admin' (bootstrap lock).
 const EDITABLE_ROLES = [
   'principal','design_principal','pmc_head','design_head','services_head',
-  'team_lead','jr_architect','detailing','services_engineer','coordinator',
+  'team_lead','jr_architect','jr_engineer','services_engineer','coordinator',
   'site_manager','senior_site_manager','finance_admin','trainee',
 ];
 

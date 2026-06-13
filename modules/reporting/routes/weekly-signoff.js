@@ -81,7 +81,7 @@ router.post('/:report_id/edit-section', requireAuth, asyncHandler(async (req, re
       const r = await hasEffectiveRole(me, ['principal','design_principal','pmc_head'], report.project_id);
       allowed = r.allowed;
     } else if (section === 'design') {
-      const r = await hasEffectiveRole(me, ['principal','design_principal','design_head','detailing_head','team_lead'], report.project_id);
+      const r = await hasEffectiveRole(me, ['principal','design_principal','design_head','team_lead','team_lead'], report.project_id);
       allowed = r.allowed;
     } else if (section === 'services') {
       const r = await hasEffectiveRole(me, ['principal','design_principal','services_head','services_engineer'], report.project_id);

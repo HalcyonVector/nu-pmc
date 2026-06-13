@@ -393,8 +393,8 @@ const WeeklyReportDraft = z.object({
 const Role = z.enum([
   'principal','design_principal',
   'pmc_head','design_head','services_head',
-  'detailing_head','team_lead',
-  'jr_architect','detailing','services_engineer','coordinator',
+  'team_lead','team_lead',
+  'jr_architect','jr_engineer','services_engineer','coordinator',
   'site_manager','senior_site_manager',
   'finance_admin',
   'trainee','audit','it_admin',

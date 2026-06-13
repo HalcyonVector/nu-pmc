@@ -4,7 +4,7 @@
 //   - IT Admin: any user
 //   - Principal: any user
 //   - PMC Head: site_manager, senior_site_manager, coordinator
-//   - Design Head: jr_architect, team_lead, detailing
+//   - Design Head: jr_architect, team_lead, jr_engineer
 //   - Services Head: services_engineer
 //
 // Flow:

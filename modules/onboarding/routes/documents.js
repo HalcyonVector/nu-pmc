@@ -27,7 +27,7 @@ const audit = require('../../../services/audit');
 const DOC_UPLOAD_ROLES = [
   'principal','design_principal','pmc_head','design_head','services_head',
   'finance_admin','senior_site_manager','site_manager','team_lead',
-  'detailing_head','services_engineer','coordinator',
+  'team_lead','services_engineer','coordinator',
 ];
 
 const router = express.Router();

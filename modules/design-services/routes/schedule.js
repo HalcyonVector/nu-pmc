@@ -98,6 +98,34 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
 
   }));
 
+// GET /api/schedule/:project_id/flags — all currently flagged tasks (any date)
+router.get('/:project_id/flags', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+  const pid = req.params.project_id;
+  const [flags] = await db.query(
+    `SELECT st.id, st.task_name, st.trade, st.start_date, st.end_date,
+            tu.pct_complete, tu.flag_note, tu.report_date, tu.id AS update_id,
+            u.full_name AS flagged_by_name
+     FROM task_updates tu
+     JOIN schedule_tasks st ON tu.task_id = st.id
+     JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+     LEFT JOIN users u ON tu.updated_by = u.id
+     WHERE tu.project_id = ? AND tu.is_flagged = 1 AND tu.flag_resolved = 0
+     ORDER BY tu.report_date DESC`,
+    [pid]
+  );
+  res.json({ flags });
+}));
+
+// POST /api/schedule/:project_id/flags/:update_id/resolve — principal resolves a flag
+router.post('/:project_id/flags/:update_id/resolve', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+  const { resolution_note } = req.body || {};
+  await db.query(
+    'UPDATE task_updates SET flag_resolved = 1, flag_resolved_by = ?, flag_resolved_at = NOW(), flag_resolution_note = ? WHERE id = ? AND project_id = ?',
+    [req.session.user.id, resolution_note || null, req.params.update_id, req.params.project_id]
+  );
+  res.json({ success: true });
+}));
+
 // GET /api/schedule/:project_id/lookahead — next N days (default 7).
 // Returns the upcoming tasks plus an AI-generated site-readiness plan
 // (material / manpower / access / risks). The AI sees both what's done and

@@ -274,7 +274,7 @@ router.post('/bulk-upload', requireAuth, upload.single('users'), asyncHandler(as
     let added = 0, skipped = 0, errors = [];
 
     const VALID_ROLES = ['principal','design_principal','pmc_head','design_head','services_head',
-      'detailing_head','jr_architect','detailing','services_engineer','team_lead','coordinator',
+      'team_lead','jr_architect','jr_engineer','services_engineer','team_lead','coordinator',
       'site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin'];
 
     const VALID_STREAMS = ['design','services','pmc','site','all'];

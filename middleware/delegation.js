@@ -82,7 +82,7 @@ async function hasEffectiveRole(user, allowedRoles, projectId = null) {
 // Permissive variant used by photo-tag routes — accepts photo_tags_only scope too
 async function canTagPhotos(user, projectId = null) {
   const eff = await resolveEffectiveRoles(user, projectId);
-  const streamRoles = ['design_head','services_head','detailing_head','team_lead','jr_architect','detailing','services_engineer'];
+  const streamRoles = ['design_head','services_head','team_lead','team_lead','jr_architect','jr_engineer','services_engineer'];
   const managerRoles= ['principal','design_principal','pmc_head','site_manager'];
   for (const e of eff) {
     if (streamRoles.includes(e.role) || managerRoles.includes(e.role)) return { allowed: true, via: e };
