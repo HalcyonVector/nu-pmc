@@ -1,3 +1,20 @@
+# IDE / workspace config
+.vscode/
+.kiro/
+.idea/
+
+# Runtime / generated
+logs/
+uploads/
+*.tar.gz
+local_full.sql
+
+# Stray binaries
+mysql
+node
+npm
+nu-pmc@1.0.0
+
 # Logs
 logs
 *.log
