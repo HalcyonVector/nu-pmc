@@ -96,7 +96,7 @@ describe('workflow — route mounts respond', () => {
     app.use(express.json());
     app.use(session({ secret: 'x'.repeat(40), resave: false, saveUninitialized: false }));
     app.use((req, res, next) => {
-      req.session.user = { id: 1, username: 'naveen', full_name: 'N', role, stream: 'all' };
+      req.session.user = { id: 1, username: 'principal', full_name: 'N', role, stream: 'all' };
       next();
     });
     app.use('/api/meetings',      W.routes.meetings);
@@ -141,7 +141,7 @@ describe('workflow — upsertMomItem', () => {
     const r = await W.functions.upsertMomItem({
       id: 42, projectId: 1, actorId: 9,
       description: 'ignored on update',
-      responsible: 'Ajay', remarks: 'note', trade: 'civil', status: 'open',
+      responsible: 'Design Principal', remarks: 'note', trade: 'civil', status: 'open',
     });
     // First call is the state-read SELECT, second is the metadata UPDATE
     expect(db.query.mock.calls[0][0]).toMatch(/SELECT status FROM mom_items/);
@@ -154,7 +154,7 @@ describe('workflow — upsertMomItem', () => {
     const r = await W.functions.upsertMomItem({
       projectId: 1, actorId: 9,
       description: 'New item',
-      responsible: 'Ajay', trade: 'MEP', status: 'open',
+      responsible: 'Design Principal', trade: 'MEP', status: 'open',
     });
     expect(db.query.mock.calls[0][0]).toMatch(/INSERT INTO mom_items/);
     expect(r.id).toBe(100);

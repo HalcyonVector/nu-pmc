@@ -11,7 +11,7 @@ const ai     = require('../services/ai');
 const GAP_THRESHOLD      = 10;   // % gap before flagging
 const AMBER_DAYS         = 1;    // flag amber at day 1
 const PMC_NOTIFY_DAYS    = 3;    // notify PMC at day 3
-const NAVEEN_NOTIFY_DAYS = 7;    // notify Naveen at day 7
+const NAVEEN_NOTIFY_DAYS = 7;    // notify Principal at day 7
 
 async function run() {
   // use shared middleware db pool
@@ -309,7 +309,7 @@ async function escalate(db, project, trade, gap, level, narrative) {
   if (daysEquivalent >= NAVEEN_NOTIFY_DAYS) {
     const [[alreadyNotified]] = await db.execute(
       `SELECT id FROM schedule_risk_narratives
-       WHERE project_id=? AND trade=? AND notified_naveen=1
+       WHERE project_id=? AND trade=? AND notified_principal=1
        ORDER BY week_ending DESC LIMIT 1`,
       [project.id, trade]
     );
@@ -324,7 +324,7 @@ async function escalate(db, project, trade, gap, level, narrative) {
           .catch(e => console.warn('[schedule-health] Matrix alert failed:', e.message));
       }
       await db.execute(
-        `UPDATE schedule_risk_narratives SET notified_naveen=1
+        `UPDATE schedule_risk_narratives SET notified_principal=1
          WHERE project_id=? AND trade=?
          ORDER BY week_ending DESC LIMIT 1`,
         [project.id, trade]

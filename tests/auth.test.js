@@ -35,7 +35,7 @@ describe('POST /api/auth/login', () => {
   });
 
   test('returns 400 if password missing', async () => {
-    const res = await request(app).post('/api/auth/login').send({ username: 'naveen' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'principal' });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/required/i);
   });
@@ -49,15 +49,15 @@ describe('POST /api/auth/login', () => {
 
   test('returns 401 for wrong password', async () => {
     const hash = await bcrypt.hash('correctpass', 10);
-    db.query.mockResolvedValueOnce([[{ id:1, username:'naveen', full_name:'Naveen', role:'principal', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'naveen', password: 'wrongpass' });
+    db.query.mockResolvedValueOnce([[{ id:1, username:'principal', full_name:'Principal', role:'principal', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]]);
+    const res = await request(app).post('/api/auth/login').send({ username: 'principal', password: 'wrongpass' });
     expect(res.status).toBe(401);
   });
 
   test('returns 200 and user on valid credentials', async () => {
     const hash = await bcrypt.hash('Start@123', 10);
     db.query
-      .mockResolvedValueOnce([[{ id:1, username:'naveen', full_name:'Naveen Kumar Bhat', role:'principal', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]])
+      .mockResolvedValueOnce([[{ id:1, username:'principal', full_name:'Principal Kumar Bhat', role:'principal', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]])
       // role_nav existence check
       .mockResolvedValueOnce([[{ '1': 1 }]])
       // UPDATE login_count
@@ -66,10 +66,10 @@ describe('POST /api/auth/login', () => {
       .mockResolvedValueOnce([[{ login_count: 1 }]])
       // projects list
       .mockResolvedValueOnce([[{ id:1, code:'PV90', name:'PV90 Production Line', client:'TLD', location:'Nelamangala' }]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'naveen', password: 'Start@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'principal', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.user.username).toBe('naveen');
+    expect(res.body.user.username).toBe('principal');
     expect(res.body.user.role).toBe('principal');
     expect(res.body.user.password_hash).toBeUndefined();
   });

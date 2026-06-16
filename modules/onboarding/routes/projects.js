@@ -66,7 +66,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       const [flaggedRows] = await db.query(
         `SELECT project_id, COUNT(*) AS flagged_tasks
          FROM task_updates 
-         WHERE project_id IN (?) AND is_flagged = 1
+         WHERE project_id IN (?) AND is_flagged = 1 AND flag_resolved = 0
          GROUP BY project_id`,
         [pids]
       );
@@ -506,7 +506,7 @@ router.post('/', requireAuth, requirePrincipal, validators.project, async (req, 
 
     // Bug B4: stub-client INSERT and project INSERT used to be separate
     // queries with no transaction. If the project INSERT failed (e.g. dup
-    // code), the stub client was orphaned AND Udupa got a notification for
+    // code), the stub client was orphaned AND Finance Admin got a notification for
     // a project that didn't exist. Now: both INSERTs run in one tx; the
     // notification fires only after commit succeeds.
     let clientStubCreated = false;
@@ -561,7 +561,7 @@ router.post('/', requireAuth, requirePrincipal, validators.project, async (req, 
       entityType: 'projects', entityId: txResult.projectId,
       details: { code, name, client_id: client_id || null, client_stub_created: clientStubCreated, project_type, r0_start_date, r0_end_date }, req });
 
-    // Notify Udupa about the stub — only after successful commit.
+    // Notify Finance Admin about the stub — only after successful commit.
     if (clientStubCreated) {
       try {
         // Auth is required at module scope — see top of file.
@@ -579,7 +579,7 @@ router.post('/', requireAuth, requirePrincipal, validators.project, async (req, 
       client_id: client_id || null,
       client_stub_created: clientStubCreated,
       ...(clientStubCreated ? {
-        notice: `Client "${client}" added as stub — Udupa must complete client master (GSTIN, Tally ledger, payment terms) before first PI.`
+        notice: `Client "${client}" added as stub — Finance Admin must complete client master (GSTIN, Tally ledger, payment terms) before first PI.`
       } : {})
     });
 

@@ -18,7 +18,7 @@
 //   SEED_PASSWORD='MyTempPass123' node scripts/set-passwords.js
 //
 //   # Restrict to specific usernames (comma-separated)
-//   SEED_USERNAMES='naveen,udupa,test_principal' \
+//   SEED_USERNAMES='principal,finance_admin,test_principal' \
 //     node scripts/set-passwords.js
 //
 // SECURITY MODEL

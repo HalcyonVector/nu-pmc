@@ -74,7 +74,7 @@ async function sendWA(to, templateSid, variables) {
 // Query overdue — notify PMC (called from overdue-checker)
 // Task rejected — notify site manager
 // Schedule change approved — notify PMC + site manager
-// Change Notice approved — notify M/P + Rajani + Srinath
+// Change Notice approved — notify M/P + PMC Head + Services Head
 // Material overdue — notify PMC
 // Query closed — notify site manager who raised it
 
@@ -292,8 +292,8 @@ router.post('/send-test', require('../../../middleware/auth').requirePrincipal, 
 
 // Missing daily report notifications (called from overdue-checker)
 // PMC 7 AM digest
-// Drawing escalation — notify Naveen
-// Change Notice stuck — notify Naveen
+// Drawing escalation — notify Principal
+// Change Notice stuck — notify Principal
 
 // POST /status-callback — Twilio delivery status callback (used by production)
 router.post('/status-callback', validateTwilioSignature, async (req, res) => {

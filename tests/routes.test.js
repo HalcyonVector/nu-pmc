@@ -15,7 +15,7 @@ function makeApp(role = 'principal', extraRoutes = []) {
   // and consume the test's mocked db.query results.
   app.use((req, _res, next) => {
     req.session.user = {
-      id: 1, username: 'naveen', full_name: 'Naveen Kumar Bhat',
+      id: 1, username: 'principal', full_name: 'Principal Kumar Bhat',
       role, stream: 'all',
       projects: [{ id: 1, name: 'Test Project' }],
       projects_at: Date.now(),
@@ -257,7 +257,7 @@ describe('POST /api/changes/:project_id', () => {
 });
 
 describe('POST /api/changes/:id/sign', () => {
-  test('design_head can sign as Rajani', async () => {
+  test('design_head can sign as PMC Head', async () => {
     const app = makeApp('design_head', [['/api/changes', require('../modules/workflow/routes/changes')]]);
     db.query
       // 0. requireScopeFromEntity('change_notices') — project_id + status lookup

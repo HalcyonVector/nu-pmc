@@ -62,7 +62,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requirePrincipal
 
   }));
 
-// POST /api/changes/:id/sign — Rajani, Srinath, or PMC signs.
+// POST /api/changes/:id/sign — PMC Head, Services Head, or PMC signs.
 // NOT using requireRole() middleware here: a user acting as deputy for
 // design_head/services_head/pmc_head must also be allowed. The deputy
 // lookup below handles both the gate and the dispatch in one pass —
@@ -194,7 +194,7 @@ router.post('/:id/sign', requireAuth, requireScopeFromEntity('change_notices'), 
     res.json({
       success: true,
       all_signed: allSigned,
-      message: allSigned ? 'All signatures collected — sent to Naveen/Ajay for approval.' : 'Signature recorded.'
+      message: allSigned ? 'All signatures collected — sent to Principal/Design Principal for approval.' : 'Signature recorded.'
     });
 
   }));
@@ -226,7 +226,7 @@ router.post('/:id/approve', requireAuth, async (req, res) => {
       // Above threshold — must be principal
       if (cnValue >= THRESHOLD) {
         return res.status(403).json({
-          error: `CN value ₹${cnValue.toLocaleString('en-IN')} ≥ ₹1,00,000 — Naveen or Ajay required.`,
+          error: `CN value ₹${cnValue.toLocaleString('en-IN')} ≥ ₹1,00,000 — Principal or Design Principal required.`,
         });
       }
       // Below threshold — correct head + PMC Head peer required

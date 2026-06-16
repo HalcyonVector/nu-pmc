@@ -4,7 +4,7 @@ const express = require('express');
 const session = require('express-session');
 const db      = require('../middleware/db');
 
-function makeApp(role = 'principal', username = 'naveen') {
+function makeApp(role = 'principal', username = 'principal') {
   const app = express();
   app.use(express.json());
   app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
@@ -47,7 +47,7 @@ describe.skip('[V5 REMOVED — see /api/issues] POST /api/ncr/:project_id', () =
   });
 
   test('critical NCR auto-flags payment block', async () => {
-    const app = makeApp('pmc_head', 'murugesan');
+    const app = makeApp('pmc_head', 'pmc_head');
     db.query.mockResolvedValueOnce([[{ cnt: 2 }]]).mockResolvedValueOnce([{ insertId: 3 }]);
     const res = await request(app).post('/api/ncr/1').send({
       title: 'Structural concrete not per spec',
@@ -100,15 +100,15 @@ describe.skip('[V5 REMOVED — see /api/issues] POST /api/ncr/:project_id/:id/cl
 });
 
 describe.skip('[V5 REMOVED — see /api/issues] POST /api/ncr/:project_id/:id/clear-payment', () => {
-  test('principal (Naveen) can clear payment block', async () => {
-    const app = makeApp('principal', 'naveen');
+  test('principal (Principal) can clear payment block', async () => {
+    const app = makeApp('principal', 'principal');
     db.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
     const res = await request(app).post('/api/ncr/1/1/clear-payment');
     expect(res.status).toBe(200);
   });
 
-  test('design_principal (Ajay) cannot clear payment block', async () => {
-    const app = makeApp('design_principal', 'ajay');
+  test('design_principal (Design Principal) cannot clear payment block', async () => {
+    const app = makeApp('design_principal', 'design_principal');
     const res = await request(app).post('/api/ncr/1/1/clear-payment');
     expect(res.status).toBe(403);
   });
@@ -272,8 +272,8 @@ describe.skip('[V5 REMOVED] POST /api/site-visits/:project_id', () => {
     expect(res.body.message).toMatch(/photos/i);
   });
 
-  test('design_principal (Ajay) can log visit', async () => {
-    const app = makeApp('design_principal', 'ajay');
+  test('design_principal (Design Principal) can log visit', async () => {
+    const app = makeApp('design_principal', 'design_principal');
     db.query.mockResolvedValueOnce([[{ cnt: 1 }]]).mockResolvedValueOnce([{ insertId: 2 }]);
     const res = await request(app).post('/api/site-visits/1').send({
       visit_type: 'design_review', visit_date: '2026-04-12'
@@ -380,7 +380,7 @@ describe('PATCH /api/comms/:project_id/:id/ack', () => {
 describe('GET /api/comms/:project_id', () => {
   test('pmc_head can view comms log', async () => {
     const app = makeApp('pmc_head');
-    db.query.mockResolvedValueOnce([[{ id: 1, document_type: 'mom', sent_by_name: 'Murugesan' }]])
+    db.query.mockResolvedValueOnce([[{ id: 1, document_type: 'mom', sent_by_name: 'PMC Head' }]])
             .mockResolvedValueOnce([[{ total_sent: 5, acknowledged: 3, last_comm_date: '2026-04-12' }]]);
     const res = await request(app).get('/api/comms/1');
     expect(res.status).toBe(200);

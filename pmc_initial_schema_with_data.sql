@@ -771,8 +771,8 @@ CREATE TABLE `company_entities` (
 LOCK TABLES `company_entities` WRITE;
 /*!40000 ALTER TABLE `company_entities` DISABLE KEYS */;
 INSERT INTO `company_entities` VALUES
-(1,'PROP','NU ASSOCIATES','No.940, Shantha Complex, 1st Floor, 20th Main Road, Banashankari Stage 2, Bengaluru 560070',NULL,'Bengaluru','Karnataka','560070','29AHSPB4003H1ZH','29','naveen@nuassociates.com','finance@nuassociates.com','9886050673','998311','ICICI Bank','233705001068','ICIC0002337','NU ASSOCIATES','Banashankari, Bengaluru',NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:16'),
-(2,'LLP','NU ASSOCIATES LLP','1st Floor, No.940, Shantha Complex, 20th Main Road, Banashankari Stage 2, Bengaluru 560070',NULL,'Bengaluru','Karnataka','560070','29AAVFN2055K1ZM','29','naveen@nuassociates.com','finance@nuassociates.com','9886050673','998311','ICICI Bank','233705000984','ICIC0002337','NU ASSOCIATES LLP','Banashankari, Bengaluru','nuassociatesllp.ibz@icici',NULL,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:16');
+(1,'PROP','NU ASSOCIATES','No.940, Shantha Complex, 1st Floor, 20th Main Road, Banashankari Stage 2, Bengaluru 560070',NULL,'Bengaluru','Karnataka','560070','29AHSPB4003H1ZH','29','principal@nuassociates.com','finance@nuassociates.com','9886050673','998311','ICICI Bank','233705001068','ICIC0002337','NU ASSOCIATES','Banashankari, Bengaluru',NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:16'),
+(2,'LLP','NU ASSOCIATES LLP','1st Floor, No.940, Shantha Complex, 20th Main Road, Banashankari Stage 2, Bengaluru 560070',NULL,'Bengaluru','Karnataka','560070','29AAVFN2055K1ZM','29','principal@nuassociates.com','finance@nuassociates.com','9886050673','998311','ICICI Bank','233705000984','ICIC0002337','NU ASSOCIATES LLP','Banashankari, Bengaluru','nuassociatesllp.ibz@icici',NULL,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:16');
 /*!40000 ALTER TABLE `company_entities` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -3164,7 +3164,7 @@ CREATE TABLE `schedule_risk_narratives` (
   `narrative` text NOT NULL,
   `escalation_level` enum('amber','red','critical') NOT NULL DEFAULT 'amber',
   `notified_pmc` tinyint(1) NOT NULL DEFAULT 0,
-  `notified_naveen` tinyint(1) NOT NULL DEFAULT 0,
+  `notified_principal` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_project_trade_week` (`project_id`,`trade`,`week_ending`),
@@ -3614,7 +3614,7 @@ CREATE TABLE `users` (
   `username` varchar(50) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
-  `role` enum('principal','design_principal','design_head','services_head','pmc_head','detailing_head','team_lead','jr_architect','detailing','services_engineer','coordinator','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin') NOT NULL,
+  `role` enum('principal','design_principal','design_head','services_head','pmc_head','detailing_head','team_lead','jr_architect','jr_engineer','detailing','services_engineer','coordinator','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin') NOT NULL,
   `stream` enum('design','services','pmc','site','all') NOT NULL DEFAULT 'all',
   `phone` varchar(20) DEFAULT NULL,
   `matrix_user_id` varchar(255) DEFAULT NULL,
@@ -3648,44 +3648,23 @@ CREATE TABLE `users` (
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
 INSERT INTO `users` VALUES
-(1,'naveen','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Naveen Kumar Bhat','principal','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(2,'ajay','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Ajay Appachu','design_principal','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(3,'murugesan','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Murugesan K','pmc_head','pmc',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,1,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(4,'praveen','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Praveen Kumar','pmc_head','pmc',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,1,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(5,'rajani','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Rajani Gowda K','design_head','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,2,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(6,'srinath','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Srinath','services_head','services',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,2,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(7,'sahana','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Sahana R','team_lead','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:18'),
-(8,'sushmitha','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Sushmitha H N','team_lead','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:18'),
-(9,'preethi','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Preethi R','jr_architect','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(10,'satish','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Satish Rajakumar','jr_architect','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(11,'abhishek','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Abhishek K C','detailing','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,7,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(12,'bhumika','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Bhumika Y M','detailing','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,7,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(13,'ajay_a','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Ajay Acharya','detailing','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,7,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(14,'shreyas','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Shreyas Y Acharya','detailing','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,7,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(15,'karthik','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Karthik','services_engineer','services',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,6,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(16,'anjaneya','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Anjaneya','site_manager','site',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,3,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(17,'suleman','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Suleman Saiyed','site_manager','site',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,3,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(18,'prajwal','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Prajwal S Thantry','site_manager','site',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,3,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(19,'arun','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Arun Kumar B R','site_manager','site',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,3,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
-(20,'udupa','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Udupa','finance_admin','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,1,NULL,1,'2026-04-22 17:25:16','2026-04-22 17:25:16'),
-(21,'audit','$2a$10$8NkaWss83QE2iJy8x6P21u4wuwBpeLtm1XS2mRGGzRf8J6D2E/RCi','Audit Account','audit','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:18','2026-04-22 17:25:18'),
-(22,'test_principal','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Principal','principal','all',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(23,'test_design_principal','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Design Principal','design_principal','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(24,'test_design_head','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Design Head','design_head','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(25,'test_team_lead','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Team Lead','team_lead','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(26,'test_services_head','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Services Head','services_head','services',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(27,'test_detailing_head','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Detailing Head','detailing_head','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(28,'test_jr_architect','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Junior Architect','jr_architect','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(29,'test_detailing','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Detailing','detailing','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(30,'test_services_eng','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Services Eng','services_engineer','services',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(31,'test_coordinator','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Coordinator','coordinator','pmc',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(32,'test_pmc_head','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test PMC Head','pmc_head','pmc',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(33,'test_site_manager','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Site Manager','site_manager','site',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(34,'test_sr_site_manager','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Sr Site Manager','senior_site_manager','site',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(35,'test_finance_admin','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Finance Admin','finance_admin','pmc',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(36,'test_trainee','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Trainee','trainee','all',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(37,'test_audit','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test Audit','audit','all',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
-(38,'test_it_admin','$2a$10$IUj8O7gwV8E3ESTJ906U3e1JPzttDma7vZ82C3FDkrqMLqkZe57pa','Test IT Admin','it_admin','all',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19');
+(1,'principal','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Principal','principal','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(2,'design_principal','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Design Principal','design_principal','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(3,'pmc_head','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','PMC Head','pmc_head','pmc',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,1,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(4,'design_head','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Design Head','design_head','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,2,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(5,'services_head','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Services Head','services_head','services',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,2,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(6,'team_lead','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Team Lead','team_lead','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:18'),
+(7,'jr_architect','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Junior Architect','jr_architect','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(8,'jr_engineer','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Jr Engineer','jr_engineer','design',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,5,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(9,'services_eng','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Services Eng','services_engineer','services',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,6,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(10,'coordinator','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Coordinator','coordinator','design',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
+(11,'site_manager','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Site Manager','site_manager','site',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,3,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13'),
+(12,'sr_site_manager','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Sr Site Manager','senior_site_manager','site',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
+(13,'finance_admin','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Finance Admin','finance_admin','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,1,NULL,1,'2026-04-22 17:25:16','2026-04-22 17:25:16'),
+(14,'trainee','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Trainee','trainee','all',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
+(15,'audit','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Audit Account','audit','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:18','2026-04-22 17:25:18'),
+(16,'it_admin','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','IT Admin','it_admin','all',NULL,NULL,NULL,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:19','2026-04-22 17:25:19'),
+(17,'user1','$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','Dev Tester','principal','all',NULL,NULL,NULL,NULL,1,1,0,NULL,NULL,NULL,NULL,NULL,1,'2026-04-22 17:25:13','2026-04-22 17:25:13');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -4654,7 +4633,7 @@ CREATE TABLE `notifications_config` (
 
 INSERT INTO `notifications_config` (`digest_type`, `send_time`) VALUES
   ('morning_pmc',    '07:00:00'),
-  ('naveen_morning', '08:00:00'),
+  ('principal_morning', '08:00:00'),
   ('closeout',       '21:00:00');
 
 -- ── budget_threshold_alerts — de-dup table for budget alerts (C3) ────────
@@ -4756,7 +4735,7 @@ CREATE TABLE IF NOT EXISTS `vendor_alerts` (
 CREATE TABLE IF NOT EXISTS `matrix_rooms` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `project_id` int unsigned DEFAULT NULL,
-  `room_type` enum('coordination','internal','finance','internal_naveen','internal_finance','system_health','site','design','general') NOT NULL,
+  `room_type` enum('coordination','internal','finance','internal_principal','internal_finance','system_health','site','design','general') NOT NULL,
   `room_id` varchar(255) NOT NULL,
   `room_alias` varchar(255) DEFAULT NULL,
   `encrypted` tinyint(1) NOT NULL DEFAULT '0',
@@ -5053,9 +5032,9 @@ INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (3,'snag_rectified','poll',1,60,NULL,'pmc',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','internal');
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (4,'mom_acknowledgement','poll',1,1440,NULL,'client_rep',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','personal',NULL);
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (5,'drawing_query_ack','poll',1,1440,NULL,'pmc',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','personal',NULL);
-INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (6,'payment_batch','poll',2,NULL,NULL,'finance,naveen',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','finance');
+INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (6,'payment_batch','poll',2,NULL,NULL,'finance,principal',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','finance');
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (7,'weekly_report','poll',2,NULL,NULL,'pmc,principal',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','internal');
-INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (8,'final_settlement','poll',3,NULL,2.00,'finance,naveen,principal',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','finance');
+INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (8,'final_settlement','poll',3,NULL,2.00,'finance,principal,principal',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','finance');
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (9,'dlp_signoff','poll',3,NULL,NULL,'design_lead,services_head,pmc',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','internal');
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (10,'change_notice','poll',0,NULL,1.00,'site_manager,pmc,design_lead,principal',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','internal');
 INSERT IGNORE INTO `signoff_workflows` (`id`, `workflow_type`, `signoff_type`, `quorum_required`, `closing_minutes`, `principal_threshold_pct`, `sequence`, `escalation_user_id`, `active`, `created_at`, `updated_at`, `destination_kind`, `destination_qualifier`) VALUES (11,'project_closure','poll',0,NULL,NULL,'site_manager,design_lead,finance,principal',NULL,1,'2026-05-09 07:01:31','2026-05-09 07:01:31','project','internal');
@@ -5101,7 +5080,7 @@ INSERT IGNORE INTO `external_comm_config` (`id`, `activity_type`, `workflow_type
 INSERT IGNORE INTO `security_config` (`config_key`, `config_value`, `description`, `updated_at`) VALUES ('canary_time','06:00','When the daily canary suite runs. HH:MM in IST.','2026-05-09 07:01:31');
 INSERT IGNORE INTO `security_config` (`config_key`, `config_value`, `description`, `updated_at`) VALUES ('max_vote_window_minutes','1440','Hard cap on poll closing_minutes; rejected at gate if exceeded.','2026-05-09 07:01:31');
 INSERT IGNORE INTO `security_config` (`config_key`, `config_value`, `description`, `updated_at`) VALUES ('signoff_lock_after_close_minutes','5','Grace period after a poll closes before vote rows become read-only.','2026-05-09 07:01:31');
-INSERT IGNORE INTO `security_config` (`config_key`, `config_value`, `description`, `updated_at`) VALUES ('vendor_bank_alert_days','90','Days after a vendor bank change within which the first payment triggers a Naveen FYI alert.','2026-05-09 07:01:31');
+INSERT IGNORE INTO `security_config` (`config_key`, `config_value`, `description`, `updated_at`) VALUES ('vendor_bank_alert_days','90','Days after a vendor bank change within which the first payment triggers a Principal FYI alert.','2026-05-09 07:01:31');
 INSERT IGNORE INTO `security_config` (`config_key`, `config_value`, `description`, `updated_at`) VALUES ('vendor_bank_change_cooling_hours','24','V7 vendor-confirm cooling window. UNUSED while V8 peer-approval model is in effect.','2026-05-09 07:01:31');
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

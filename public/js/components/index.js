@@ -32,7 +32,7 @@
 //    editable by non-JS hands (and makes diffs clear).
 //
 // ── Why Alpine? ─────────────────────────────────────────────
-// - 45 KB, no build step (Naveen's rule: no build pipeline)
+// - 45 KB, no build step (Principal's rule: no build pipeline)
 // - Directives live in HTML where they're visible
 // - Reactive state per component, no global state management
 // - Coexists with existing code — incremental migration

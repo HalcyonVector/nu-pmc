@@ -212,7 +212,7 @@ router.post('/:project_id/:claim_id/rs-signoff', requireAuth, requireProjectScop
   res.json({ success: true, message });
 }));
 
-// POST /api/claims/:project_id/:claim_id/approve — Naveen ONLY
+// POST /api/claims/:project_id/:claim_id/approve — Principal ONLY
 router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope(), requireRole('principal','design_principal'), asyncHandler(async (req, res) => {
     const [[claim]] = await db.query(
       'SELECT * FROM client_claims WHERE id = ? AND project_id = ?',
@@ -239,9 +239,9 @@ router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope()
     const approvals = require('../../../services/approvals');
     await approvals.close({ refTable: 'client_claims', refId: parseInt(req.params.claim_id), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
-    // Notify Udupa via WhatsApp with rates and amounts
+    // Notify Finance Admin via WhatsApp with rates and amounts
     try {
-      // Get claim items with rates for Udupa
+      // Get claim items with rates for Finance Admin
       const [items] = await db.query(
         `SELECT cb.item_code, cb.item_name, cb.unit, cli.claimed_qty, cb.client_rate,
            (cli.claimed_qty * cb.client_rate) AS line_amount, cb.trade
@@ -255,7 +255,7 @@ router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope()
       const total    = items.reduce((s, i) => s + parseFloat(i.line_amount || 0), 0);
       const totalFmt = total.toLocaleString('en-IN');
 
-      // Build message for Udupa
+      // Build message for Finance Admin
       const msg = `nu PMC — Client Claim Approved\n` +
         `Project: ${proj?.name}\n` +
         `RA Bill: ${claim.ra_bill_number} — ${claim.discipline}\n` +
@@ -263,7 +263,7 @@ router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope()
         `Please generate GST invoice.\n` +
         `Full breakdown attached.`;
 
-      // Notify finance admins (role-based — was hardcoded username='udupa')
+      // Notify finance admins (role-based — was hardcoded username='finance_admin')
       const { notify } = require('../../../services/notifications');
       const financeRecipients = await users.financeAdmins('id');
       for (const fa of financeRecipients) {
@@ -281,7 +281,7 @@ router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope()
     res.json({ success: true, message: 'Claim approved — finance notified via WhatsApp' });
   }));
 
-// PATCH /api/claims/:project_id/:claim_id/invoice-number — M/P records Udupa's invoice number
+// PATCH /api/claims/:project_id/:claim_id/invoice-number — M/P records Finance Admin's invoice number
 router.patch('/:project_id/:claim_id/invoice-number', requireAuth, requireProjectScope(), requireRole(...PMC_PRINCIPAL), validators.invoiceNumber, asyncHandler(async (req, res) => {
     const me = req.session.user;
         const { invoice_number, invoice_date } = req.body;

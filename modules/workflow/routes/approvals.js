@@ -123,7 +123,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 // D1 NOTE: this endpoint writes to the legacy wa_pending_actions table.
 // Currently called from the PMC "Raise Schedule Change / Raise Weekly Report"
 // buttons in the approvals view (public/js/app.js showRaiseApproval). When
-// the unified approvals API gains config rows for these workflows (Naveen
+// the unified approvals API gains config rows for these workflows (Principal
 // must approve signer/quorum), migrate the frontend to /approvals/v2 and
 // then this endpoint can be deleted.
 const APPROVAL_RAISERS = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'];

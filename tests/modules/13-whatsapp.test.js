@@ -211,23 +211,23 @@ async function run() {
   });
 
   // ── 10. UDUPA EXCEL REQUEST — Saturday payment flow
-  await test('Udupa requests payment Excel via WhatsApp', async () => {
-    const [[udupa]] = await db.query(
+  await test('Finance Admin requests payment Excel via WhatsApp', async () => {
+    const [[finance_admin]] = await db.query(
       "SELECT id, phone FROM users WHERE username='test_finance'"
     );
-    if (!udupa?.phone) return;
+    if (!finance_admin?.phone) return;
 
-    // Seed pending action for Udupa Excel
+    // Seed pending action for Finance Admin Excel
     const expiresAt = new Date(Date.now() + 86400000);
     await db.query(
       `INSERT INTO wa_pending_actions
        (action_type, ref_id, ref_table, phone, user_id, message_sent, expires_at)
        VALUES ('udupa_excel_request',0,'payment_requests',?,?,?,?)`,
-      [udupa.phone, udupa.id, 'ICICI Payment Excel request', expiresAt]
+      [finance_admin.phone, finance_admin.id, 'ICICI Payment Excel request', expiresAt]
     );
 
-    const res = await waButton(udupa.phone, '1'); // Confirm Excel generation
-    is(res.status, 200, 'Udupa Excel request handled');
+    const res = await waButton(finance_admin.phone, '1'); // Confirm Excel generation
+    is(res.status, 200, 'Finance Admin Excel request handled');
     await new Promise(r => setTimeout(r, 300));
   });
 

@@ -316,10 +316,10 @@ router.post('/end-impersonation', requireAuth, asyncHandler(async (req, res) => 
 
 // POST /api/auth/request-otp — WhatsApp OTP for password reset
 // POST /api/auth/request-otp — REMOVED in v3.1. Self-service password reset deleted 2026-04-21.
-// Users ask their manager (or Naveen/Ajay) to reset via the Users tab in the app.
+// Users ask their manager (or Principal/Design Principal) to reset via the Users tab in the app.
 router.post('/request-otp', asyncHandler(async (req, res) => {
   res.status(410).json({
-    error: 'Self-service password reset has been removed. Ask your manager or Naveen/Ajay to reset your password.',
+    error: 'Self-service password reset has been removed. Ask your manager or Principal/Design Principal to reset your password.',
     code:  'SELF_SERVICE_OTP_REMOVED'
   });
 }));
@@ -327,7 +327,7 @@ router.post('/request-otp', asyncHandler(async (req, res) => {
 // POST /api/auth/verify-otp — REMOVED in v3.1. Self-service password reset deleted 2026-04-21.
 router.post('/verify-otp', asyncHandler(async (req, res) => {
   res.status(410).json({
-    error: 'Self-service password reset has been removed. Ask your manager or Naveen/Ajay to reset your password.',
+    error: 'Self-service password reset has been removed. Ask your manager or Principal/Design Principal to reset your password.',
     code:  'SELF_SERVICE_OTP_REMOVED'
   });
 }));

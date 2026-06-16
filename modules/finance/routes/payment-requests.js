@@ -1,7 +1,7 @@
 // routes/payment-requests.js
 // ============================================================
 // STANDARD VENDOR PAYMENT LANE
-// Raise → M/P review → Naveen approval (if above threshold) → Udupa pays
+// Raise → M/P review → Principal approval (if above threshold) → Finance Admin pays
 //
 // nu PMC has TWO payment lanes by design (NOT a duplication; healthy split):
 //
@@ -357,7 +357,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
     const threshold = await getProjectThreshold(pr.project_id);
 
     if (approvedAmount >= threshold) {
-      // Needs Naveen approval — transition to pending_principal
+      // Needs Principal approval — transition to pending_principal
       await prSM.transition({
         id: parseInt(req.params.id), from: pr.status, to: 'pending_principal',
         extraCols: {
@@ -366,16 +366,16 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
         },
         audit: { userId: me.id, req, details: { pmc_amount: approvedAmount } },
       });
-      // Notify Naveen + Ajay
+      // Notify Principal + Design Principal
       const principals = await users.principals();
       for (const p of principals) {
         await notifyWhatsApp(p.id,
           `Payment request ${fmtRupee(approvedAmount)} approved by PMC — above project threshold ${fmtRupee(threshold)}. Your approval needed.`
         );
       }
-      res.json({ success: true, message: `Above threshold (${fmtRupee(threshold)}). Sent to Naveen for approval.` });
+      res.json({ success: true, message: `Above threshold (${fmtRupee(threshold)}). Sent to Principal for approval.` });
     } else {
-      // Below threshold — fast-path to principal_approved (Udupa can pay without Naveen review)
+      // Below threshold — fast-path to principal_approved (Finance Admin can pay without Principal review)
       await prSM.transition({
         id: parseInt(req.params.id), from: pr.status, to: 'principal_approved',
         extraCols: {
@@ -384,24 +384,24 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
         },
         audit: { userId: me.id, req, details: { source: 'fast_path_below_threshold', pmc_amount: approvedAmount } },
       });
-      // Notify Udupa
+      // Notify Finance Admin
       const finance = await users.financeAdmins();
       for (const f of finance) {
         await notifyWhatsApp(f.id,
           `Payment request approved — ₹${approvedAmount.toLocaleString('en-IN')} — below auto-approval threshold. Ready to pay.`
         );
       }
-      res.json({ success: true, message: `Below threshold. Auto-approved. Udupa notified.` });
+      res.json({ success: true, message: `Below threshold. Auto-approved. Finance Admin notified.` });
     }
   }));
 
-// ── PATCH /api/payment-requests/:id/naveen-review — Naveen approves or rejects
-router.patch('/:id/naveen-review', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
+// ── PATCH /api/payment-requests/:id/principal-review — Principal approves or rejects
+router.patch('/:id/principal-review', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
     const { action } = req.body;
     if (!['approve','reject'].includes(action)) return res.status(400).json({ error: 'Action must be approve or reject' });
 
-    const { PaymentReviewNaveen } = require('../../../services/schemas');
-    const parsed = PaymentReviewNaveen.safeParse(req.body);
+    const { PaymentReviewPrincipal } = require('../../../services/schemas');
+    const parsed = PaymentReviewPrincipal.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         error: 'Invalid input',
@@ -466,17 +466,17 @@ router.patch('/:id/naveen-review', requireAuth, requirePrincipal, asyncHandler(a
     if (action === 'approve') {
       const finance = await users.financeAdmins();
       for (const f of finance) {
-        await notifyWhatsApp(f.id, `Payment request approved by Naveen — ₹${parseFloat(pr.pmc_amount||pr.amount_requested).toLocaleString('en-IN')}. Ready to pay.`);
+        await notifyWhatsApp(f.id, `Payment request approved by Principal — ₹${parseFloat(pr.pmc_amount||pr.amount_requested).toLocaleString('en-IN')}. Ready to pay.`);
       }
     } else {
       await notifyWhatsApp(pr.requested_by, `Payment request rejected by principal. Reason: ${reviewBody.principal_notes || 'See app for details'}`);
-      await notifyWhatsApp(pr.pmc_reviewed_by, `Payment request rejected by Naveen. Reason: ${reviewBody.principal_notes || 'See app'}`);
+      await notifyWhatsApp(pr.pmc_reviewed_by, `Payment request rejected by Principal. Reason: ${reviewBody.principal_notes || 'See app'}`);
     }
 
-    res.json({ success: true, message: action === 'approve' ? 'Approved. Udupa notified.' : 'Rejected. Team notified.' });
+    res.json({ success: true, message: action === 'approve' ? 'Approved. Finance Admin notified.' : 'Rejected. Team notified.' });
   }));
 
-// ── PATCH /api/payment-requests/:id/confirm-payment — Udupa confirms payment made
+// ── PATCH /api/payment-requests/:id/confirm-payment — Finance Admin confirms payment made
 router.patch('/:id/confirm-payment',
   requireAuth,
   requirePermission('finance.payment-request.mark-paid'),
@@ -553,7 +553,7 @@ router.patch('/:id/confirm-payment',
     res.json({ success: true, message: `Payment confirmed. Vendor, requester and PMC notified.` });
   }));
 
-// ── GET /api/payment-requests/summary/weekly — Naveen's weekly recap
+// ── GET /api/payment-requests/summary/weekly — Principal's weekly recap
 router.get('/summary/weekly', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
     const [payments] = await db.query(
       `SELECT * FROM payment_requests
@@ -583,7 +583,7 @@ router.get('/summary/weekly', requireAuth, requirePrincipal, asyncHandler(async 
     });
   }));
 
-// ── PATCH /api/payment-requests/threshold/:project_id — Naveen sets per-project threshold
+// ── PATCH /api/payment-requests/threshold/:project_id — Principal sets per-project threshold
 router.patch('/threshold/:project_id', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
     const { threshold } = req.body;
     const { validateAmount, fmtRupee } = require('../../../services/payment-validation');

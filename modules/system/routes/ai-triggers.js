@@ -165,7 +165,7 @@ Return null for missing fields. Amounts as numbers without commas.`,
       extracted:    result || {},
       scan_path:    file.path,
       requires_pmc_review: true,
-      message:      'Invoice read. PMC must review before sending to Udupa.',
+      message:      'Invoice read. PMC must review before sending to Finance Admin.',
     });
   }));
 

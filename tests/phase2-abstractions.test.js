@@ -92,7 +92,7 @@ describe('C11 — sendDigest shape', () => {
 
   test('three digest types handled', () => {
     expect(digestSrc).toMatch(/morning_pmc/);
-    expect(digestSrc).toMatch(/naveen/);
+    expect(digestSrc).toMatch(/principal/);
     expect(digestSrc).toMatch(/closeout/);
   });
 });

@@ -1,5 +1,5 @@
 // generate-weekly-mom.js
-// Called by the app when Naveen/Ajay approves a weekly report
+// Called by the app when Principal/Design Principal approves a weekly report
 // Produces a MOM PDF matching nu associates format
 // Usage: node generate-weekly-mom.js <report_id>
 

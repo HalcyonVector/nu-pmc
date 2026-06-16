@@ -62,11 +62,11 @@ router.post('/templates', requireAuth, upload.single('excel'), asyncHandler(asyn
     res.json({
       success: true, id: result.insertId,
       status: isAutoApproved ? 'approved' : 'draft',
-      message: isAutoApproved ? 'Template created and approved.' : 'Template created — pending Naveen or PMC Head approval.',
+      message: isAutoApproved ? 'Template created and approved.' : 'Template created — pending Principal or PMC Head approval.',
     });
   }));
 
-// PATCH /api/forms/templates/:id/approve — Naveen or PMC Head approves
+// PATCH /api/forms/templates/:id/approve — Principal or PMC Head approves
 router.patch('/templates/:id/approve', requireAuth, requireRole(...PMC_ROLES), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const [[cur]] = await db.query('SELECT status FROM form_templates WHERE id=?', [req.params.id]);

@@ -17,7 +17,7 @@
 // "both" is no longer a supported value — v2 brief's P10.2 only allows
 // matrix XOR whatsapp. If anyone sets it, we warn and route to matrix.
 //
-// Lock-in by design (Naveen, May 2026): "If a user checks into matrix,
+// Lock-in by design (Principal, May 2026): "If a user checks into matrix,
 // they cannot get out — internal or external." No per-user opt-out.
 // users.notification_channel was dropped in v5.30.
 //
@@ -287,8 +287,8 @@ async function pollRoom(opts) {
 
 // Internal: which personal room does this user's role map to?
 //
-// Only two internal rooms exist by design: `internal_naveen` (for the
-// principals — Naveen and Ajay take coordination from this room) and
+// Only two internal rooms exist by design: `internal_principal` (for the
+// principals — Principal and Design Principal take coordination from this room) and
 // `internal_finance` (for finance_admin — bookkeeping/accounting). Other
 // roles (PMC head, design head, services head, site managers, etc.) are
 // matrix-room-less by intent: their notifications fan out to project rooms
@@ -306,7 +306,7 @@ async function pollRoom(opts) {
 // matrix tenant setup time, not lazily on first notify.
 function _internalRoomForRole(user) {
   if (!user) return null;
-  if (user.role === 'principal' || user.role === 'design_principal') return 'internal_naveen';
+  if (user.role === 'principal' || user.role === 'design_principal') return 'internal_principal';
   if (user.role === 'finance_admin') return 'internal_finance';
   return null;
 }

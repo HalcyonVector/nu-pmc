@@ -98,6 +98,46 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
 
   }));
 
+// GET /api/schedule/flags/all — all open flags across accessible projects (for Flags tab)
+// Must be declared BEFORE /:project_id/flags to avoid route param collision.
+router.get('/flags/all', requireAuth, asyncHandler(async (req, res) => {
+  const me = req.session.user;
+  const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
+  const isProjectScoped = PROJECT_SCOPED_ROLES.includes(me.role);
+
+  let projectFilter = '';
+  let params = [];
+
+  if (isProjectScoped) {
+    const [pRows] = await db.query(
+      `SELECT pa.project_id FROM project_assignments pa
+       JOIN projects p ON p.id = pa.project_id AND p.status = 'active'
+       WHERE pa.user_id = ? AND pa.is_active = 1`,
+      [me.id]
+    );
+    const pids = pRows.map(r => r.project_id);
+    if (!pids.length) return res.json({ flags: [] });
+    projectFilter = ' AND tu.project_id IN (?)';
+    params = [pids];
+  }
+
+  const [flags] = await db.query(
+    `SELECT st.id, st.task_name, st.trade, st.start_date, st.end_date,
+            tu.pct_complete, tu.flag_note, tu.report_date, tu.id AS update_id,
+            tu.project_id, p.name AS project_name,
+            u.full_name AS flagged_by_name
+     FROM task_updates tu
+     JOIN schedule_tasks st ON tu.task_id = st.id
+     JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+     JOIN projects p ON p.id = tu.project_id
+     LEFT JOIN users u ON tu.updated_by = u.id
+     WHERE tu.is_flagged = 1 AND tu.flag_resolved = 0${projectFilter}
+     ORDER BY tu.project_id, tu.report_date DESC`,
+    params
+  );
+  res.json({ flags });
+}));
+
 // GET /api/schedule/:project_id/flags — all currently flagged tasks (any date)
 router.get('/:project_id/flags', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
   const pid = req.params.project_id;
@@ -321,7 +361,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
     const drift   = Math.round((newEnd - r0End) / 86400000);
 
     // First schedule for a project auto-approves (no prior baseline)
-    // Subsequent uploads with drift need Naveen/Ajay approval
+    // Subsequent uploads with drift need Principal/Design Principal approval
     const [[priorCount]] = await db.query(
       'SELECT COUNT(*) AS c FROM schedule_versions WHERE project_id = ?',
       [project_id]
@@ -392,7 +432,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
       // reads only status='pending' rows, so it was pure write-noise.
       // D1 cleanup, May 2026.)
     } else {
-      // Create approval request for Naveen/Ajay
+      // Create approval request for Principal/Design Principal
       const principals = await users.principals();
       for (const p of principals) {
         await notif.notify(p.id, 'schedule_change', `Schedule v${nextVer} uploaded — ${drift} days drift from R0`);
@@ -409,14 +449,14 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
       drift_days: drift,
       needs_approval: needsApproval,
       message: needsApproval
-        ? `Schedule uploaded. Drift is ${drift} days — PMC Head must acknowledge and prepare mitigation note before Naveen reviews.`
+        ? `Schedule uploaded. Drift is ${drift} days — PMC Head must acknowledge and prepare mitigation note before Principal reviews.`
         : `Schedule uploaded and live. Drift ${drift} days — within threshold.`
     });
 
   }));
 
 // PATCH /api/schedule/:project_id/drift-acknowledge — PMC Head acknowledges drift
-// and prepares mitigation before Naveen reviews
+// and prepares mitigation before Principal reviews
 //
 // Optimistic-lock guard (B28 fix): two PMC heads (or a head + their deputy)
 // on the same project could otherwise concurrently acknowledge the same
@@ -454,7 +494,7 @@ router.patch('/:project_id/drift-acknowledge', requireAuth, requireProjectScope(
     audit.log({ userId: req.session.user.id, action: 'schedule.drift_acknowledge',
       entityType: 'schedule_versions', entityId: parseInt(version_id),
       details: { project_id: parseInt(req.params.project_id), mitigation_note }, req });
-    res.json({ success: true, row_version: parseInt(row_version) + 1, message: 'Drift acknowledged — Naveen and Ajay notified for review.' });
+    res.json({ success: true, row_version: parseInt(row_version) + 1, message: 'Drift acknowledged — Principal and Design Principal notified for review.' });
   }));
 
 // PATCH /api/schedule/:project_id/tasks/:task_id/progress — site manager updates progress

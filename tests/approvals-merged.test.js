@@ -28,7 +28,7 @@ jest.mock('../modules/auth/contract', () => ({
   functions: {
     getUsers: jest.fn(async () => new Map([
       [10, { id: 10, full_name: 'Pia' }],
-      [11, { id: 11, full_name: 'Naveen' }],
+      [11, { id: 11, full_name: 'Principal' }],
     ])),
   },
 }));

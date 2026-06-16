@@ -13,7 +13,7 @@
 //   Path A — notification_triggers DB table (governance-sheet editable).
 //            Used by services/notifications.js _notifyByEvent(). This is
 //            the CORRECT substrate when the question is "who gets notified
-//            for event X?" Naveen edits Sheet 3, reloads, behavior changes
+//            for event X?" Principal edits Sheet 3, reloads, behavior changes
 //            without code edits.
 //
 //   Path B — THIS FILE's helpers (principals, pmcHeads, financeAdmins,
@@ -27,7 +27,7 @@
 //   const principals = await users.principals();
 //   for (const p of principals) await notifyWhatsApp(p.id, msg);
 // That hardcodes the recipient role for a notification, bypassing the
-// governance-sheet routing in notification_triggers. If Naveen edits the
+// governance-sheet routing in notification_triggers. If Principal edits the
 // sheet to add or remove a recipient role, the route ignores the edit.
 //
 // CORRECT shape for notifications:
@@ -36,7 +36,7 @@
 // services/notifications.js that calls _notifyByEvent('event_key', fallback, …).
 //
 // 22 known drift sites as of May 2026; pinned in tests/recipient-lookup-lint.test.js
-// allowlist. Migration of each is blocked on Naveen seeding the right rows
+// allowlist. Migration of each is blocked on Principal seeding the right rows
 // in notification_triggers (governance-sheet decision). New code that adds
 // to the drift list will fail the lint guard.
 // ─────────────────────────────────────────────────────────────────────

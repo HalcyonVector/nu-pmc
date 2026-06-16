@@ -151,8 +151,8 @@ Open: http://localhost:5100
 
 After loading `nu-pmc-seed-example.sql`, these users are available (password: `Welcome@123`):
 
-- `naveen` — principal
-- `ajay` — design_principal
+- `principal` — principal
+- `design_principal` — design_principal
 - `admin1` — it_admin (password: `Welcome@123`)
 
 First login as `admin1` and go to **Settings → Account Setup** to set company details.

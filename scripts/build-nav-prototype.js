@@ -238,7 +238,7 @@ function dashPMC() {
 function dashDesign() {
   var stream = currentRole === 'design_head' ? 'Design' : 'Services';
   return '<div class="sec-label">Pending — ' + stream + ' Stream</div>' +
-    '<button class="action-item c-navy" style="min-height:44px"><div class="ai-icon">📐</div><div class="ai-body"><div class="ai-title">A-501 — Master Bathroom Layout</div><div class="ai-meta">Rev 4 · PV90 · submitted by Sahana</div></div><span class="badge b-amber">Approve</span></button>' +
+    '<button class="action-item c-navy" style="min-height:44px"><div class="ai-icon">📐</div><div class="ai-body"><div class="ai-title">A-501 — Master Bathroom Layout</div><div class="ai-meta">Rev 4 · PV90 · submitted by Team Lead</div></div><span class="badge b-amber">Approve</span></button>' +
     '<button class="action-item c-navy" style="min-height:44px"><div class="ai-icon">📐</div><div class="ai-body"><div class="ai-title">A-301 — Block A Section</div><div class="ai-meta">Rev 2 · PV90 · submitted by Sushmitha</div></div><span class="badge b-amber">Approve</span></button>' +
     '<div class="sec-label">Drawing Queries</div>' +
     '<div class="card"><div class="card-title" style="color:var(--red)">A-201 — door swing direction</div><div class="card-meta">Suleman · 4 days ago</div></div>' +
@@ -266,9 +266,9 @@ var SCREENS = {
   dashboard:     function() { return screenDashboard(); },
   monthly: function() {
     return '<div class="sec-label">May 2026 — All Projects</div>' +
-      '<div class="card"><div class="card-title">PV90 — Bangalore Penthouse</div><div class="card-meta">Site: Suleman · Design: Sahana · Spend: ₹14,32,000 / ₹85,00,000</div><div style="margin-top:8px"><span class="badge b-green">On track</span> <span class="badge b-amber">2 pending</span></div></div>' +
+      '<div class="card"><div class="card-title">PV90 — Bangalore Penthouse</div><div class="card-meta">Site: Suleman · Design: Team Lead · Spend: ₹14,32,000 / ₹85,00,000</div><div style="margin-top:8px"><span class="badge b-green">On track</span> <span class="badge b-amber">2 pending</span></div></div>' +
       '<div class="card"><div class="card-title">NW22 — Whitefield Villa</div><div class="card-meta">Site: Anjaneya · Design: Sushmitha · Spend: ₹3,80,000 / ₹62,00,000</div><div style="margin-top:8px"><span class="badge b-red">Report overdue</span></div></div>' +
-      '<div class="card"><div class="card-title">SR15 — Sarjapur Residence</div><div class="card-meta">Site: Prajwal · Design: Sahana · Spend: ₹22,15,000 / ₹98,00,000</div><div style="margin-top:8px"><span class="badge b-green">On track</span></div></div>';
+      '<div class="card"><div class="card-title">SR15 — Sarjapur Residence</div><div class="card-meta">Site: Prajwal · Design: Team Lead · Spend: ₹22,15,000 / ₹98,00,000</div><div style="margin-top:8px"><span class="badge b-green">On track</span></div></div>';
   },
   projects: function() {
     if (isSite()) return '<div class="sec-label">My Project</div><button class="card" style="display:block;width:100%;text-align:left;min-height:44px"><div class="card-title">PV90 — Bangalore Penthouse</div><div class="card-meta">Block A — slab in progress</div></button>';
@@ -330,7 +330,7 @@ var SCREENS = {
       '<div class="card"><div class="card-title">Material delay — terrazzo tile</div><div class="card-meta">Lead time 3 weeks · scheduling impact under review</div></div>' +
       '<div class="card"><div class="card-title">RFI #12 — kitchen counter height</div><div class="card-meta">Pending client confirmation · 2 days old</div></div>' +
       '<div class="sec-label" style="margin-top:14px">Resolved (this week)</div>' +
-      '<div class="card"><div class="card-title">Bathroom layout revision</div><div class="card-meta">Closed by Sahana · 1 May</div></div>';
+      '<div class="card"><div class="card-title">Bathroom layout revision</div><div class="card-meta">Closed by Team Lead · 1 May</div></div>';
   },
   issues_site: function() { return SCREENS.issues(); },
   meetings: function() {
@@ -471,7 +471,7 @@ var SCREENS = {
     var b = auditBanner();
     var canApprove = ['design_head','services_head','design_principal','principal'].includes(currentRole);
     return b +
-      (canApprove ? '<div class="action-item c-amber" style="min-height:44px;margin-bottom:12px"><div class="ai-icon">📐</div><div class="ai-body"><div class="ai-title">A-501 Rev 4 — pending approval</div><div class="ai-meta">Submitted by Sahana</div></div>' + approveBtn('Approve') + '</div>' : '') +
+      (canApprove ? '<div class="action-item c-amber" style="min-height:44px;margin-bottom:12px"><div class="ai-icon">📐</div><div class="ai-body"><div class="ai-title">A-501 Rev 4 — pending approval</div><div class="ai-meta">Submitted by Team Lead</div></div>' + approveBtn('Approve') + '</div>' : '') +
       '<div class="sec-label">Drawings — PV90</div>' +
       '<div class="card"><div class="card-title">A-101 — Floor Plan Block A</div><div class="card-meta">Rev 3 · issued 28 Apr</div><div style="margin-top:6px"><span class="badge b-green">Issued</span></div></div>' +
       '<div class="card"><div class="card-title">A-201 — Elevations</div><div class="card-meta">Rev 2 · query open from site</div><div style="margin-top:6px"><span class="badge b-amber">Query open</span></div></div>';
@@ -559,7 +559,7 @@ var SCREENS = {
   },
   users: function() {
     return auditBanner() + '<div class="sec-label">Users (38)</div>' +
-      ['naveen — Principal','udupa — Finance Admin','ajay — Design Principal','murugesan — PMC Head','sahana — Team Lead'].map(function(u) {
+      ['principal — Principal','finance_admin — Finance Admin','design_principal — Design Principal','pmc_head — PMC Head','team_lead — Team Lead'].map(function(u) {
         return '<div class="card"><div class="card-title">' + u + '</div><div class="card-meta">Active · last login 2 May</div></div>';
       }).join('') +
       (isPrincipal() || isITAdmin() ? '<button class="btn-primary" style="margin-top:14px;min-height:44px">+ Add User</button>' : '');

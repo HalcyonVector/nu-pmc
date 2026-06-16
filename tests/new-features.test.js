@@ -351,9 +351,9 @@ test('isValidPhone: rejects short number', () => assert.strictEqual(val.isValidP
 test('isValidPhone: rejects invalid prefix for 10 digits', () => assert.strictEqual(val.isValidPhone('1234567890'), false));
 test('isValidPhone: handles spaces and dashes', () => assert.strictEqual(val.isValidPhone('9886-050-673'), true));
 
-test('isValidEmail: valid', () => assert.strictEqual(val.isValidEmail('naveen@nuassociates.com'), true));
-test('isValidEmail: missing @', () => assert.strictEqual(val.isValidEmail('naveen.nuassociates.com'), false));
-test('isValidEmail: missing TLD', () => assert.strictEqual(val.isValidEmail('naveen@nu'), false));
+test('isValidEmail: valid', () => assert.strictEqual(val.isValidEmail('principal@nuassociates.com'), true));
+test('isValidEmail: missing @', () => assert.strictEqual(val.isValidEmail('principal.nuassociates.com'), false));
+test('isValidEmail: missing TLD', () => assert.strictEqual(val.isValidEmail('principal@nu'), false));
 test('isValidEmail: empty', () => assert.strictEqual(val.isValidEmail(''), false));
 
 test('isValidDateRange: valid forward', () => assert.strictEqual(val.isValidDateRange('2026-01-01','2026-12-31'), true));
@@ -365,7 +365,7 @@ test('isReasonableDate: current year', () => assert.strictEqual(val.isReasonable
 test('isReasonableDate: ancient date', () => assert.strictEqual(val.isReasonableDate('1905-01-01'), false));
 test('isReasonableDate: far future', () => assert.strictEqual(val.isReasonableDate('2099-12-31'), false));
 
-test('isSafeText: regular name', () => assert.strictEqual(val.isSafeText('Naveen Bhat'), true));
+test('isSafeText: regular name', () => assert.strictEqual(val.isSafeText('Principal Bhat'), true));
 test('isSafeText: rejects HTML', () => assert.strictEqual(val.isSafeText('<script>alert(1)</script>'), false));
 test('isSafeText: rejects purely numeric', () => assert.strictEqual(val.isSafeText('12345'), false));
 test('isSafeText: rejects javascript: URI', () => assert.strictEqual(val.isSafeText('javascript:alert(1)'), false));

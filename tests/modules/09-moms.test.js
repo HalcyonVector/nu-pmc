@@ -30,7 +30,7 @@ async function run() {
       meeting_date: new Date().toLocaleDateString('en-CA'),
       type:         'client',
       title:        'Site Review Meeting',
-      attendees_internal: 'Naveen, PMC Head',
+      attendees_internal: 'Principal, PMC Head',
       attendees_external: 'Client Representative',
       location:     'Site Office',
       agenda:       'Progress review, safety walkthrough, payment status',

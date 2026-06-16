@@ -191,7 +191,7 @@ CREATE TABLE company_entities (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
--- 36. CLIENTS (master data — Udupa manages)
+-- 36. CLIENTS (master data — Finance Admin manages)
 -- ============================================================
 CREATE TABLE clients (
   id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -216,7 +216,7 @@ CREATE TABLE clients (
   registered_address    TEXT NULL,
   is_interstate         TINYINT(1) NOT NULL DEFAULT 0,
   is_active             TINYINT(1) NOT NULL DEFAULT 1,
-  master_complete       TINYINT(1) NOT NULL DEFAULT 1,     -- 0 = stub from project setup, needs Udupa to complete
+  master_complete       TINYINT(1) NOT NULL DEFAULT 1,     -- 0 = stub from project setup, needs Finance Admin to complete
   stub_reason           VARCHAR(200) NULL,                 -- why was this created as stub (e.g. "auto from project WESCH")
   completed_by          INT UNSIGNED NULL,
   completed_at          DATETIME NULL,
@@ -248,7 +248,7 @@ CREATE TABLE projects (
   r0_end_date     DATE NOT NULL,                          -- locked at creation, NEVER changes
   jurisdiction    VARCHAR(100) NULL,                      -- BBMP, KIADB, ELCITA etc.
   contract_value  DECIMAL(14,2) NULL,                     -- contract value at award
-  payment_approval_threshold DECIMAL(14,2) NULL,          -- per-project Naveen-approval threshold (v3.1); NULL = use global default
+  payment_approval_threshold DECIMAL(14,2) NULL,          -- per-project Principal-approval threshold (v3.1); NULL = use global default
   start_date      DATE NULL,                              -- actual start (may differ from r0_start_date)
   completion_date DATE NULL,                              -- contractual completion
   status          ENUM('initialising','active','on_hold','completed') NOT NULL DEFAULT 'initialising',
@@ -336,7 +336,7 @@ CREATE TABLE schedule_tasks (
   end_date            DATE NOT NULL,
   depends_on_task_id  INT UNSIGNED NULL,                  -- FK to schedule_tasks.id
   is_milestone        TINYINT(1) NOT NULL DEFAULT 0,
-  is_payment_milestone TINYINT(1) NOT NULL DEFAULT 0, -- set by Naveen/Ajay separately
+  is_payment_milestone TINYINT(1) NOT NULL DEFAULT 0, -- set by Principal/Design Principal separately
   milestone_type      ENUM('schedule','payment','both','none') NOT NULL DEFAULT 'none',
   milestone_label     VARCHAR(200) NULL,                   -- short name shown in report
   display_order       INT UNSIGNED NOT NULL DEFAULT 0,
@@ -396,6 +396,10 @@ CREATE TABLE task_updates (
   notes           TEXT NULL,
   is_flagged      TINYINT(1) NOT NULL DEFAULT 0,
   flag_note       TEXT NULL,
+  flag_resolved   TINYINT(1) NOT NULL DEFAULT 0,          -- 1 when principal resolves flag
+  flag_resolved_by INT UNSIGNED NULL,
+  flag_resolved_at DATETIME NULL,
+  flag_resolution_note TEXT NULL,
   updated_by      INT UNSIGNED NOT NULL,                  -- site manager
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- Only one update per task per day per reporter
@@ -484,10 +488,10 @@ CREATE TABLE drawing_register (
   notes           TEXT NULL,
   -- Status: pending = never uploaded; in_progress = uploaded but not issued; issued = current version issued
   status          ENUM('pending','in_progress','issued') NOT NULL DEFAULT 'pending',
-  uploaded_by     INT UNSIGNED NOT NULL,                 -- Rajani or Srinath
+  uploaded_by     INT UNSIGNED NOT NULL,                 -- PMC Head or Services Head
   uploaded_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- Audit: sign-off that this register is the agreed master list
-  signed_off_by   INT UNSIGNED NULL,                     -- Naveen or Ajay
+  signed_off_by   INT UNSIGNED NULL,                     -- Principal or Design Principal
   signed_off_at   DATETIME NULL,
   UNIQUE KEY uq_reg_project_drawing (project_id, drawing_number),
   FOREIGN KEY (project_id) REFERENCES projects(id),
@@ -525,8 +529,8 @@ CREATE TABLE drawings (
 -- ============================================================
 -- 12. DRAWING VERSIONS (R0, R1, R2...)
 -- 3-level approval:
--- Design: detailing pool → detailing head → rajani → issued
--- Services: services engineer → srinath → issued
+-- Design: detailing pool → detailing head → pmc_head → issued
+-- Services: services engineer → services_head → issued
 -- ============================================================
 CREATE TABLE drawing_versions (
   id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -540,18 +544,18 @@ CREATE TABLE drawing_versions (
   -- Approval
   approval_level      TINYINT UNSIGNED NOT NULL DEFAULT 1, -- 1=detailing head, 2=stream head
   status              ENUM('pending_l1','pending_l2','issued','rejected','superseded') NOT NULL DEFAULT 'pending_l1',
-  -- Level 1 review (Sahana/Sushmitha or Srinath)
+  -- Level 1 review (Team Lead/Sushmitha or Services Head)
   l1_reviewed_by      INT UNSIGNED NULL,
   l1_reviewed_at      DATETIME NULL,
   l1_rejection_note   TEXT NULL,
-  -- Level 2 approval (Rajani or Srinath for services)
+  -- Level 2 approval (PMC Head or Services Head for services)
   l2_approved_by      INT UNSIGNED NULL,
   l2_approved_at      DATETIME NULL,
   l2_rejection_note   TEXT NULL,
   -- Issue
   issued_at           DATETIME NULL,
   is_current          TINYINT(1) NOT NULL DEFAULT 0,      -- only one current per drawing
-  -- Flag / hold (Ajay, Naveen, R, S, PMC)
+  -- Flag / hold (Design Principal, Principal, R, S, PMC)
   flag_comment        TEXT NULL,
   flag_by             INT UNSIGNED NULL,
   flag_at             DATETIME NULL,
@@ -879,29 +883,29 @@ CREATE TABLE password_reset_otps (
 -- ============================================================
 INSERT INTO users (username, password_hash, full_name, role, stream, managed_by) VALUES
 -- Principals (managed_by = NULL, managed by each other)
-('naveen',    '$2b$10$placeholder', 'Principal Admin',   'principal',         'all',      NULL),
-('ajay',      '$2b$10$placeholder', 'Design Principal',        'design_principal',  'all',      NULL),
--- PMC Heads (managed by naveen=1)
-('murugesan', '$2b$10$placeholder', 'PMC Head One',         'pmc_head',          'pmc',      1),
+('principal',    '$2b$10$placeholder', 'Principal Admin',   'principal',         'all',      NULL),
+('design_principal',      '$2b$10$placeholder', 'Design Principal',        'design_principal',  'all',      NULL),
+-- PMC Heads (managed by principal=1)
+('pmc_head', '$2b$10$placeholder', 'PMC Head One',         'pmc_head',          'pmc',      1),
 ('praveen',   '$2b$10$placeholder', 'PMC Head Two',       'pmc_head',          'pmc',      1),
--- Design Head (managed by ajay=2)
-('rajani',    '$2b$10$placeholder', 'Design Head',      'design_head',       'design',   2),
--- Services Head (managed by ajay=2)
-('srinath',   '$2b$10$placeholder', 'Srinath',             'services_head',     'services', 2),
--- Detailing Heads (managed by rajani=5)
-('sahana',    '$2b$10$placeholder', 'Sahana R',            'detailing_head',    'design',   5),
+-- Design Head (managed by design_principal=2)
+('pmc_head',    '$2b$10$placeholder', 'Design Head',      'design_head',       'design',   2),
+-- Services Head (managed by design_principal=2)
+('services_head',   '$2b$10$placeholder', 'Services Head',             'services_head',     'services', 2),
+-- Detailing Heads (managed by pmc_head=5)
+('team_lead',    '$2b$10$placeholder', 'Team Lead R',            'detailing_head',    'design',   5),
 ('sushmitha', '$2b$10$placeholder', 'Sushmitha H N',       'detailing_head',    'design',   5),
--- Jr Architects (managed by rajani=5)
+-- Jr Architects (managed by pmc_head=5)
 ('preethi',   '$2b$10$placeholder', 'Preethi R',           'jr_architect',      'design',   5),
 ('satish',    '$2b$10$placeholder', 'Satish Rajakumar',    'jr_architect',      'design',   5),
--- Detailing pool (managed by sahana=7 / sushmitha=8 — set to sahana as primary)
+-- Detailing pool (managed by team_lead=7 / sushmitha=8 — set to team_lead as primary)
 ('abhishek',  '$2b$10$placeholder', 'Abhishek K C',        'detailing',         'design',   7),
 ('bhumika',   '$2b$10$placeholder', 'Bhumika Y M',         'detailing',         'design',   7),
-('ajay_a',    '$2b$10$placeholder', 'Ajay Acharya',        'detailing',         'design',   7),
+('ajay_a',    '$2b$10$placeholder', 'Design Principal Acharya',        'detailing',         'design',   7),
 ('shreyas',   '$2b$10$placeholder', 'Shreyas Y Acharya',   'detailing',         'design',   7),
--- Services team (managed by srinath=6)
+-- Services team (managed by services_head=6)
 ('karthik',   '$2b$10$placeholder', 'Karthik',             'services_engineer', 'services', 6),
--- Site Managers (managed by murugesan=3)
+-- Site Managers (managed by pmc_head=3)
 ('anjaneya',  '$2b$10$placeholder', 'Anjaneya',            'site_manager',      'site',     3),
 ('suleman',   '$2b$10$placeholder', 'Suleman Saiyed',      'site_manager',      'site',     3),
 ('prajwal',   '$2b$10$placeholder', 'Prajwal S Thantry',   'site_manager',      'site',     3),
@@ -1047,7 +1051,7 @@ CREATE TABLE payment_requests (
   actual_paid         DECIMAL(14,2) NULL,
   payment_date        DATE NULL,
   utr_number          VARCHAR(50) NULL,
-  paid_by             INT UNSIGNED NULL,        -- Udupa
+  paid_by             INT UNSIGNED NULL,        -- Finance Admin
   -- M01 audit (v3.1): governance override markers
   principal_override  TINYINT(1) NOT NULL DEFAULT 0,   -- approved by non-finance role when finance was expected
   rs_override         TINYINT(1) NOT NULL DEFAULT 0,   -- approved without R/S when R/S was required
@@ -1499,7 +1503,7 @@ CREATE TABLE petty_cash_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
--- PRINCIPAL DIRECT PAYMENTS (Naveen UPI / cash)
+-- PRINCIPAL DIRECT PAYMENTS (Principal UPI / cash)
 -- ============================================================
 CREATE TABLE principal_direct_payments (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1783,7 +1787,7 @@ CREATE TABLE schedule_risk_narratives (
   narrative         TEXT NOT NULL,
   escalation_level  ENUM('amber','red','critical') NOT NULL DEFAULT 'amber',
   notified_pmc      TINYINT(1) NOT NULL DEFAULT 0,
-  notified_naveen   TINYINT(1) NOT NULL DEFAULT 0,
+  notified_principal   TINYINT(1) NOT NULL DEFAULT 0,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_project_trade_week (project_id, trade, week_ending),
   FOREIGN KEY (project_id) REFERENCES projects(id)
@@ -2057,7 +2061,7 @@ CREATE INDEX idx_dwg_ai_checks_version ON drawing_ai_checks(drawing_version_id);
 -- v2: UNIFIED DELEGATION MODEL
 -- One mechanism for every role-to-role delegation. Project-scoped
 -- delegations have project_id set; app-wide delegations leave it NULL.
--- Naveen ↔ Ajay permanent interchangeability is seeded at migration time.
+-- Principal ↔ Design Principal permanent interchangeability is seeded at migration time.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS delegations (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -2086,7 +2090,7 @@ CREATE INDEX idx_delegations_to     ON delegations(to_user_id, is_active);
 CREATE INDEX idx_delegations_from   ON delegations(from_user_id, is_active);
 CREATE INDEX idx_delegations_window ON delegations(is_active, start_at, end_at);
 
--- Seed permanent Naveen ↔ Ajay delegation (runs idempotently on migration)
+-- Seed permanent Principal ↔ Design Principal delegation (runs idempotently on migration)
 -- Will be inserted by scripts/v2-migration.js after users exist.
 
 CREATE INDEX idx_drawing_versions_drawing  ON drawing_versions(drawing_id);
@@ -2097,9 +2101,9 @@ CREATE INDEX idx_cn_status                 ON change_notices(status);
 CREATE INDEX idx_schedule_tasks_project    ON schedule_tasks(project_id, schedule_version_id);
 CREATE INDEX idx_daily_reports_project     ON daily_reports(project_id, report_date);
 
--- Udupa (finance) — system user for invoice notifications
+-- Finance Admin (finance) — system user for invoice notifications
 INSERT INTO users (username, password_hash, full_name, role, stream, managed_by) VALUES
-('udupa', '$2b$10$placeholder', 'Udupa', 'principal', 'all', 1);
+('finance_admin', '$2b$10$placeholder', 'Finance Admin', 'principal', 'all', 1);
 
 -- v2: composite indexes for dashboard hot paths
 CREATE INDEX IF NOT EXISTS idx_schedule_versions_proj_status ON schedule_versions (project_id, status);
@@ -2180,7 +2184,7 @@ CREATE TABLE matrix_rooms (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   project_id  INT UNSIGNED NULL,
   room_type   ENUM('site','finance','design','general',
-                   'internal_naveen','internal_finance','system_health')
+                   'internal_principal','internal_finance','system_health')
                 NOT NULL,
   room_id     VARCHAR(255) NOT NULL,
   room_alias  VARCHAR(255) NULL,
@@ -2216,7 +2220,7 @@ CREATE TABLE matrix_outbox (
 -- ============================================================
 -- 27. CLIENT BOQ VERSIONS
 -- Separate from internal BOQ — has client rates
--- Visible only to: Naveen, Ajay, M/P, Rajani, Srinath
+-- Visible only to: Principal, Design Principal, M/P, PMC Head, Services Head
 -- ============================================================
 CREATE TABLE client_boq_versions (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -2247,7 +2251,7 @@ CREATE TABLE client_boq_items (
   quantity        DECIMAL(12,3) NOT NULL DEFAULT 0,
   client_rate     DECIMAL(12,4) NOT NULL DEFAULT 0,  -- visible to 5 roles only
   display_order   INT UNSIGNED NOT NULL DEFAULT 0,
-  hsn_code        VARCHAR(10) NULL,     -- editable by R/S and Udupa
+  hsn_code        VARCHAR(10) NULL,     -- editable by R/S and Finance Admin
   is_active       TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (boq_version_id) REFERENCES client_boq_versions(id),
   FOREIGN KEY (project_id)     REFERENCES projects(id)
@@ -2367,7 +2371,7 @@ CREATE INDEX idx_claim_items_claim     ON claim_items(claim_id);
 
 -- ============================================================
 -- 35. PAYMENT APPROVAL AUTHORITY (project-level config)
--- Currently: principal_only (Naveen). Future: pmc_with_limit
+-- Currently: principal_only (Principal). Future: pmc_with_limit
 -- ============================================================
 ALTER TABLE projects ADD COLUMN payment_approval_authority
   ENUM('principal_only','pmc_with_limit') NOT NULL DEFAULT 'principal_only';

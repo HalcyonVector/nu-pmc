@@ -21,7 +21,7 @@
 //   - DO NOT add a new caller of email.send() expecting it to actually send.
 //     Use services/messaging.js (Matrix substrate) instead.
 //
-// If/when Naveen reverses the deferral: remove this block, wire the SES
+// If/when Principal reverses the deferral: remove this block, wire the SES
 // provider stub (lines ~50-65 below) to actually call SES, and reactivate
 // the retry worker call from scripts/overdue-checker.js.
 // ─────────────────────────────────────────────────────────────────────

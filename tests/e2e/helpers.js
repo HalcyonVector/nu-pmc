@@ -1,9 +1,9 @@
 // Shared helpers for Playwright tests
 const ROLES = {
-  principal:   { username: 'naveen',    password: 'NuPMC@2026' },
-  pmc_head:    { username: 'murugesan', password: 'NuPMC@2026' },
+  principal:   { username: 'principal',    password: 'NuPMC@2026' },
+  pmc_head:    { username: 'pmc_head', password: 'NuPMC@2026' },
   site_mgr:    { username: 'anjaneya',  password: 'NuPMC@2026' },
-  design_head: { username: 'rajani',    password: 'NuPMC@2026' },
+  design_head: { username: 'pmc_head',    password: 'NuPMC@2026' },
   trainee:     { username: 'test_trainee', password: 'NuPMC@2026' },  // create via seed if not present
 };
 

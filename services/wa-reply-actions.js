@@ -134,7 +134,7 @@ async function handleAnomalyAck(db, pending, reply) {
     return { handled: true, response: '✓ Anomaly acknowledged. Recorded in app.' };
   }
   if (reply === '2') {
-    // Escalate to Naveen
+    // Escalate to Principal
     const [principals] = await db.query(
       "SELECT id FROM users WHERE role IN ('principal','design_principal') AND is_active=1"
     );
@@ -146,7 +146,7 @@ async function handleAnomalyAck(db, pending, reply) {
         status: 'pending',
       });
     }
-    // Send deep-link to Naveen for escalated report
+    // Send deep-link to Principal for escalated report
     try {
       const waInt = require('./whatsapp-interactive');
       const [[report]] = await db.query('SELECT project_id FROM daily_reports WHERE id=?', [pending.ref_id]);
@@ -160,7 +160,7 @@ async function handleAnomalyAck(db, pending, reply) {
         }
       }
     } catch (e) { console.warn('[wa-reply-actions]', e.message); }
-    return { handled: true, response: '✓ Escalated to Naveen and Ajay.' };
+    return { handled: true, response: '✓ Escalated to Principal and Design Principal.' };
   }
   return { handled: false, response: 'Please reply 1 (acknowledge) or 2 (escalate).' };
 }

@@ -161,7 +161,7 @@ router.post('/send-wa/:userId', requireAuth, asyncHandler(async (req, res) => {
     `Username: ${target.username}\n` +
     `Temporary password: ${target.temp_password}\n\n` +
     `Sign in at the app and you will be asked to change this immediately.\n` +
-    `If you did not request this, contact ${caller.username} or Naveen.`;
+    `If you did not request this, contact ${caller.username} or Principal.`;
 
   try {
     const matrixAdapter = require('../../../services/matrix-adapter');

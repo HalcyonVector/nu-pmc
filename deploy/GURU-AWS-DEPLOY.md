@@ -1,6 +1,6 @@
 # nu PMC v4 — AWS Deployment Guide
 
-**For: Guru Udupa**
+**For: Guru Finance Admin**
 **Version: 2026-04-22 handoff**
 
 This guide gives you two deployment options. Both work. Pick one based on your
@@ -115,11 +115,11 @@ curl -I https://YOUR_DOMAIN
 Open `https://YOUR_DOMAIN` in a browser.
 
 Default users (all password `Test1234` — **CHANGE ON FIRST LOGIN**):
-- `naveen` (principal)
-- `ajay` (design_principal)
-- `murugesan`, `praveen` (pmc_head)
+- `principal` (principal)
+- `design_principal` (design_principal)
+- `pmc_head`, `praveen` (pmc_head)
 
-Have Naveen log in first and change his password before anyone else touches it.
+Have Principal log in first and change his password before anyone else touches it.
 
 ### Step 6 — Backups
 
@@ -224,8 +224,8 @@ Expected output:
 
 ## Emergency contacts
 
-- **Naveen Bhat** — principal, final decisions
-- **Guru Udupa** — you (AWS + deploy)
+- **Principal Bhat** — principal, final decisions
+- **Guru Finance Admin** — you (AWS + deploy)
 - **PMC team — site ops; your field testers
 
 If something's wrong and you need Claude help: copy the error, the `docker

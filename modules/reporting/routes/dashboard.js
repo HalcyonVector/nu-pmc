@@ -115,7 +115,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       `SELECT tu.id, tu.flag_note, tu.project_id, st.task_name, st.trade
        FROM task_updates tu
        JOIN schedule_tasks st ON tu.task_id = st.id
-       WHERE tu.is_flagged = 1${projFilter ? ' AND tu.project_id IN (?)' : ''}
+       WHERE tu.is_flagged = 1 AND tu.flag_resolved = 0${projFilter ? ' AND tu.project_id IN (?)' : ''}
        ORDER BY tu.created_at DESC`,
       projParams
     );

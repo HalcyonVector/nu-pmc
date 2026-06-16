@@ -139,7 +139,7 @@ describe('canApproveSchedule', () => {
     expect(canApproveSchedule({ role:'principal' }, 0)).toBe(true);
   });
 
-  test('design_principal cannot approve schedule (Naveen only)', () => {
+  test('design_principal cannot approve schedule (Principal only)', () => {
     expect(canApproveSchedule({ role:'design_principal' }, 2)).toBe(false);
   });
 

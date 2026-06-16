@@ -10,7 +10,7 @@
 const { createStateMachine } = require('./state-machine');
 
 // ── PAYMENT REQUEST ──────────────────────────────────────────
-// pending_pmc → principal_approved (fast-path, below threshold — PMC approves, no Naveen review)
+// pending_pmc → principal_approved (fast-path, below threshold — PMC approves, no Principal review)
 // pending_pmc → pending_principal → principal_approved → paid  (above threshold)
 // pending_pmc → pmc_approved  (urgent auto-approve — bypasses PMC review)
 // pending_pmc → pmc_rejected

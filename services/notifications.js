@@ -42,7 +42,7 @@
 //   modules/finance/routes/payments.js:118     (payment.exception event)
 //   modules/finance/routes/payments.js:597     (self-notification — edge)
 //   modules/finance/routes/payments.js:1009    (urgent-payment.utr-confirmed)
-// Migration is blocked on Naveen-input: each new event_key needs recipient
+// Migration is blocked on Principal-input: each new event_key needs recipient
 // roles seeded into notification_triggers (governance-sheet decision).
 // ─────────────────────────────────────────────────────────────────────
 // ===========================================================
@@ -146,7 +146,7 @@ async function _notifyByPhone(phone, messageType, content, opts = {}) {
 }
 
 // Note: an earlier _sendWhatsApp helper that posted to AiSensy was removed
-// after Naveen confirmed AiSensy is no longer in use (replaced by Twilio).
+// after Principal confirmed AiSensy is no longer in use (replaced by Twilio).
 // The only caller (sendOTP below) now uses services/whatsapp.send() directly.
 // The bug being fixed: the AiSensy call was passing TWILIO_AUTH_TOKEN as the
 // AiSensy apiKey field — wrong-credential reuse from a half-finished refactor.
@@ -183,7 +183,7 @@ async function _notifyByRole(roles, messageType, content, projectId = null) {
 // passed by the caller.
 //
 // This is the abstraction over the previously-scattered hardcoded role
-// arrays in this file. Naveen edits Sheet 3, reloads, behavior changes
+// arrays in this file. Principal edits Sheet 3, reloads, behavior changes
 // without code edits — same governance-driven principle as approvals.
 //
 // Errors querying the table fall back silently to the hardcoded list so
@@ -427,7 +427,7 @@ async function notifyUserApprovalNeeded(approverPhone, newUserName, role, initia
 }
 
 // ========================================================
-// OTP — uses services/whatsapp transport (was AiSensy until Naveen confirmed
+// OTP — uses services/whatsapp transport (was AiSensy until Principal confirmed
 // AiSensy was decommissioned). Twilio creds checked at call time so a
 // post-startup credential rotation or environment switch is honoured.
 // ========================================================

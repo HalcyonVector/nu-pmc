@@ -1,4 +1,4 @@
-// DESTRUCTIVE ACTION SAFETY — the Naveen #1 concern:
+// DESTRUCTIVE ACTION SAFETY — the Principal #1 concern:
 // "Click Edit → file goes to client"
 //
 // Verifies that buttons labelled as safe actions (Edit, View, Save draft) do NOT
@@ -73,7 +73,7 @@ test.describe('Destructive action safety', () => {
   test('GRN NCR flag requires FLAG_NCR confirmation string', async ({ request }) => {
     // Login as principal via API
     const loginRes = await request.post('/api/auth/login', {
-      data: { username: 'naveen', password: 'NuPMC@2026' }
+      data: { username: 'principal', password: 'NuPMC@2026' }
     });
     expect(loginRes.ok()).toBe(true);
 

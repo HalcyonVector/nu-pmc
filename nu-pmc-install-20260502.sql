@@ -3555,7 +3555,7 @@ CREATE TABLE `schedule_risk_narratives` (
   `narrative` text NOT NULL,
   `escalation_level` enum('amber','red','critical') NOT NULL DEFAULT 'amber',
   `notified_pmc` tinyint(1) NOT NULL DEFAULT 0,
-  `notified_naveen` tinyint(1) NOT NULL DEFAULT 0,
+  `notified_principal` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_project_trade_week` (`project_id`,`trade`,`week_ending`),
@@ -5103,7 +5103,7 @@ SELECT 1 AS v5_22_vendor_bank_protection_layers_2_3;
 --   'finance'          — #PV90-finance
 --   'design'           — #PV90-design
 --   'general'          — #PV90-general (encrypted, human-only)
---   'internal_naveen'  — #internal-naveen (project_id NULL)
+--   'internal_principal'  — #internal-principal (project_id NULL)
 --   'internal_finance' — #internal-finance (project_id NULL)
 --   'system_health'    — #system-health (project_id NULL)
 --
@@ -5115,7 +5115,7 @@ CREATE TABLE IF NOT EXISTS matrix_rooms (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   project_id  INT UNSIGNED NULL,                 -- NULL for system/personal rooms
   room_type   ENUM('site','finance','design','general',
-                   'internal_naveen','internal_finance','system_health')
+                   'internal_principal','internal_finance','system_health')
                 NOT NULL,
   room_id     VARCHAR(255) NOT NULL,             -- !abcdef:nuassociates.ems.host
   room_alias  VARCHAR(255) NULL,                 -- #PV90-site:nuassociates.ems.host
@@ -5374,7 +5374,7 @@ CREATE TABLE IF NOT EXISTS approval_signoffs (
 -- subset is in every legacy gate, so widening through Sheet 9 upload is
 -- always safe; narrowing is impossible without code-side knowledge.
 --
--- Naveen MUST review and widen each row before migrating its workflow.
+-- Principal MUST review and widen each row before migrating its workflow.
 -- The legacy approval routes (changes.js, weekly-signoff.js, payments.js,
 -- claims.js, etc.) remain authoritative until a workflow is moved over.
 INSERT INTO approval_type_config
@@ -5438,7 +5438,7 @@ VALUES
   ('budget_cost_head',
    JSON_ARRAY('principal','design_principal'), 1, 'project', 0,
    72, 'Budget cost head approval',
-   'PLACEHOLDER: principals only. No clear legacy handler — confirm signer list with Naveen before migrating.',
+   'PLACEHOLDER: principals only. No clear legacy handler — confirm signer list with Principal before migrating.',
    'sheet9_seed_v5.24', 1),
 
   -- Handover closure: multi-signer scheme (4 of: principal, design_principal,
@@ -5448,7 +5448,7 @@ VALUES
   ('handover_closure',
    JSON_ARRAY('principal','design_principal','pmc_head','finance_admin'), 4, 'project', 0,
    NULL, 'Project handover closure',
-   'PLACEHOLDER: 4-signer quorum design. Confirm signer list + quorum with Naveen before migrating.',
+   'PLACEHOLDER: 4-signer quorum design. Confirm signer list + quorum with Principal before migrating.',
    'sheet9_seed_v5.24', 1)
 ON DUPLICATE KEY UPDATE
   signer_roles_json = VALUES(signer_roles_json),
@@ -5482,11 +5482,11 @@ SELECT 1 AS v5_24_iteration1_vendor_onboarding;
 --
 -- Background: modules/finance/routes/payments.js had hardcoded thresholds
 -- (`if strikes === 0`, `else if strikes === 1`, else hard-block) and
--- hardcoded recipients (all principals on every strike). Naveen wanted:
+-- hardcoded recipients (all principals on every strike). Principal wanted:
 --   - Strike rules editable without a code change
 --   - Strike 1 → PMC head only (was: principals)
 --   - Strike 2 → PMC + finance_admin (was: hard-block, no alert)
---   - Strike 3 → principal sign-off required (matches: Naveen/Ajay override)
+--   - Strike 3 → principal sign-off required (matches: Principal/Design Principal override)
 --
 -- Per-project columns (matching the existing payment_approval_threshold
 -- pattern at projects.payment_approval_threshold).
@@ -5527,7 +5527,7 @@ ALTER TABLE projects
 -- underscore) and seed uses `claim.approved` (with dot), so even that
 -- one didn't match. Zero matches.
 --
--- Decision 1 (May 2026 — Naveen): rename the table to match code, not
+-- Decision 1 (May 2026 — Principal): rename the table to match code, not
 -- code to match table. Reason: code-naming wins on flexibility — when
 -- adding a new event, no dotted-naming convention to follow.
 --
@@ -5802,11 +5802,11 @@ SELECT 1 AS v5_27_matrix_pending_polls;
 -- ── v5.28-matrix-rooms-retypeenum.sql ─────────────────────────────────────────
 -- migrations/v5.28-matrix-rooms-retypeenum.sql
 -- ============================================================
--- Retype matrix_rooms.room_type enum per Naveen's May 2026 decision.
+-- Retype matrix_rooms.room_type enum per Principal's May 2026 decision.
 --
 -- v5.23 originally seeded the enum from brief §7.1's project room
 -- structure: site / finance / design / general (+ org-wide rooms).
--- Naveen's revised structure (recorded in MATRIX_MIGRATION_PLAN.md):
+-- Principal's revised structure (recorded in MATRIX_MIGRATION_PLAN.md):
 --   - 'coordination' (was 'site' + adds vendors)
 --   - 'internal'     (was 'design'; merges all internal-only streams)
 --   - 'finance'      (unchanged)
@@ -5818,7 +5818,7 @@ SELECT 1 AS v5_27_matrix_pending_polls;
 --   2. Replaces the enum definition
 --   3. Documents the change inline so a future reader sees both states
 --
--- Org-wide values (internal_naveen, internal_finance, system_health)
+-- Org-wide values (internal_principal, internal_finance, system_health)
 -- are unchanged and carried forward verbatim.
 --
 -- Idempotency: running twice is safe — UPDATE matches zero rows the
@@ -5849,7 +5849,7 @@ ALTER TABLE matrix_rooms
     'internal',
     'finance',
     -- Org-wide rooms (project_id NULL)
-    'internal_naveen',
+    'internal_principal',
     'internal_finance',
     'system_health',
     -- Legacy values — kept in enum so archived 'general' rows remain
@@ -5978,7 +5978,7 @@ CREATE TABLE IF NOT EXISTS notifications_config (
 
 INSERT INTO notifications_config (digest_type, send_time) VALUES
   ('morning_pmc',     '07:00:00'),  -- per-project digest to PMC heads
-  ('naveen_morning',  '08:00:00'),  -- cross-project digest to principals
+  ('principal_morning',  '08:00:00'),  -- cross-project digest to principals
   ('closeout',        '21:00:00');  -- end-of-day status digest
 
 -- ── 3. project_thresholds ────────────────────────────────────────────
@@ -6033,7 +6033,7 @@ CREATE TABLE IF NOT EXISTS security_config (
 
 INSERT INTO security_config (config_key, config_value, description) VALUES
   -- v2 P9.1's V7 vendor-bank-confirm cooling period.
-  -- Note: nu PMC uses V8 (peer-approval) per Naveen's May 2026 decision;
+  -- Note: nu PMC uses V8 (peer-approval) per Principal's May 2026 decision;
   -- this row is reserved for the day V7 might be revisited. Currently
   -- unread by code.
   ('vendor_bank_change_cooling_hours', '24',  'V7 vendor-confirm cooling window. UNUSED while V8 peer-approval model is in effect.'),
@@ -6086,7 +6086,7 @@ SELECT 1 AS v5_29_config_tables;
 --   One environment variable switches between Matrix and WhatsApp."
 --   No per-user override; channel is an ops-level decision only.
 --
--- Naveen's prior decision (May 2026): "If a user checks into matrix,
+-- Principal's prior decision (May 2026): "If a user checks into matrix,
 -- then he cannot get out, internal or external." Lock-in by design,
 -- no per-user opt-out — which is what this column was implementing.
 --
@@ -6229,9 +6229,9 @@ INSERT INTO signoff_workflows (workflow_type, signoff_type, quorum_required, clo
   ('snag_rectified',         'poll', 1, 60,   'pmc',                                    NULL),
   ('mom_acknowledgement',    'poll', 1, 1440, 'recipient',                              NULL),
   ('drawing_query_ack',      'poll', 1, 1440, 'pmc',                                    NULL),
-  ('payment_batch',          'poll', 2, NULL, 'finance,naveen',                         NULL),
+  ('payment_batch',          'poll', 2, NULL, 'finance,principal',                         NULL),
   ('weekly_report',          'poll', 2, NULL, 'pmc,principal',                          NULL),
-  ('final_settlement',       'poll', 3, NULL, 'finance,naveen,principal',               2.00),
+  ('final_settlement',       'poll', 3, NULL, 'finance,principal,principal',               2.00),
   ('dlp_signoff',            'poll', 3, NULL, 'design_lead,services_head,pmc',          NULL),
   -- change_notice base sequence: full ladder. Conditional skips/appends
   -- are applied by the gate via signoff_sequence_rules at trigger time
@@ -6556,7 +6556,7 @@ SELECT 1 AS v5_34_additional_signoff_workflows;
 -- ── v5.35-vendors-matrix-user.sql ─────────────────────────────────────────
 -- migrations/v5.35-vendors-matrix-user.sql
 -- ============================================================
--- Add Matrix addressing to vendors per v2 brief A4 + Naveen's decision
+-- Add Matrix addressing to vendors per v2 brief A4 + Principal's decision
 -- (May 2026): if vendor has Element X, dispatch via Matrix; else via
 -- WhatsApp using phone. The DB is the source of truth — no derivation,
 -- no cache, no provisioning step.
@@ -6592,7 +6592,7 @@ SELECT 1 AS v5_35_vendors_matrix_user;
 -- ============================================================
 -- Sign-off workflow for V8 vendor-bank-change peer approval.
 --
--- V8 (Naveen's May 2026 decision) requires a SECOND finance-admin /
+-- V8 (Principal's May 2026 decision) requires a SECOND finance-admin /
 -- principal to approve any bank-detail change before it commits. Today
 -- modules/onboarding/lib/vendor-bank-change.js writes the approval row
 -- and a vendor_alerts entry, but NO ONE GETS NOTIFIED — the peer
@@ -6636,7 +6636,7 @@ SELECT 1 AS v5_36_vendor_bank_peer_approve;
 -- vendor onboarding; project rooms in P6.2 relay code) but never
 -- codifies the split as a column. We do that here.
 --
--- The principle (Naveen's call, May 2026):
+-- The principle (Principal's call, May 2026):
 --   - Bank notifications and individual BOQ sign-offs are PERSONAL
 --     (1-1 to entity's matrix_room_id). Only that one entity sees it.
 --   - Everything else is COMMUNITY (project room or org room).
@@ -6648,14 +6648,14 @@ SELECT 1 AS v5_36_vendor_bank_peer_approve;
 --   destination_kind ENUM('personal','project','org') NOT NULL
 --     personal — DM the resolved entity in their own matrix_room_id
 --     project — post in #PV{code}-internal or #PV{code}-finance
---     org     — post in a fixed org-wide room (#internal-naveen, etc)
+--     org     — post in a fixed org-wide room (#internal-principal, etc)
 --
 --   destination_qualifier VARCHAR(50) NULL
 --     personal: the role token of the entity whose room to use
 --               ('recipient', 'vendor_rep', 'client_rep', etc).
 --               When NULL, defaults to the current approver's room.
 --     project:  'internal' | 'finance'
---     org:      'internal_naveen' | 'internal_finance' | 'system_health'
+--     org:      'internal_principal' | 'internal_finance' | 'system_health'
 --
 -- The dispatcher (services/signoff-gate.js _dispatchPoll) reads these
 -- and routes accordingly. project + community sends @mention the
@@ -6668,7 +6668,7 @@ ALTER TABLE signoff_workflows
   ADD COLUMN destination_qualifier VARCHAR(50) NULL
     COMMENT 'personal:role-token | project:internal/finance | org:room-name';
 
--- ── Backfill existing rows per Naveen's classification (May 2026) ────
+-- ── Backfill existing rows per Principal's classification (May 2026) ────
 
 -- Personal: bank-related + BOQ + personal digests + client 1-1 acks
 UPDATE signoff_workflows SET destination_kind = 'personal',
@@ -6706,12 +6706,12 @@ SELECT 1 AS v5_37_signoff_workflow_destinations;
 --
 -- A. Vendor bank confirmation workflow.
 --
---    Step 1 of the vendor bank flow (as decided by Naveen, May 2026):
+--    Step 1 of the vendor bank flow (as decided by Principal, May 2026):
 --    After finance proposes a bank-detail change, bot sends a poll to
 --    the VENDOR's personal Matrix room asking them to confirm.
 --    If vendor confirms → peer approval (vendor_bank_peer_approve) fires.
 --    If vendor rejects → proposal cancelled, finance alerted.
---    Step 3 (24hr Naveen window) is DROPPED.
+--    Step 3 (24hr Principal window) is DROPPED.
 --
 --    destination_kind = 'personal', qualifier = NULL (approver IS the
 --    vendor — their matrix_room_id is the dispatch address).
@@ -6799,11 +6799,11 @@ CREATE TABLE IF NOT EXISTS vendor_contacts (
 
 -- ── E. security_config — vendor_bank_alert_days ─────────────────────
 -- Window (in days) within which a payment to a recently-changed vendor
--- bank account triggers a Naveen FYI alert (V8 step 4). Configurable
+-- bank account triggers a Principal FYI alert (V8 step 4). Configurable
 -- so ops can tighten or widen without a code deploy.
 INSERT INTO security_config (config_key, config_value, description)
 VALUES ('vendor_bank_alert_days', '90',
-        'Days after a vendor bank change within which the first payment triggers a Naveen FYI alert.')
+        'Days after a vendor bank change within which the first payment triggers a Principal FYI alert.')
 ON DUPLICATE KEY UPDATE config_value = VALUES(config_value);
 
 SELECT 1 AS v5_38_vendor_bank_vendor_confirm;

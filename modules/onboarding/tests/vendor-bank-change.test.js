@@ -67,7 +67,7 @@ beforeEach(() => {
 // Acceptance #5 covers vendor disappearing from in-flight cycles.)
 describe('V8 acceptance #1 — finance_admin proposes IFSC change', () => {
   test('proposal accepted, approval row created, alert emitted', async () => {
-    const app = makeApp({ id: 10, role: 'finance_admin', full_name: 'Udupa' });
+    const app = makeApp({ id: 10, role: 'finance_admin', full_name: 'Finance Admin' });
 
     db.query
       // 1. service: SELECT vendors row (BEFORE snapshot)

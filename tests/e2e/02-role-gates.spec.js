@@ -48,7 +48,7 @@ test.describe('Role-based access control', () => {
 
   test('PMC head cannot approve client claims — principal only (403)', async ({ request }) => {
     await request.post('/api/auth/login', {
-      data: { username: 'murugesan', password: 'NuPMC@2026' }
+      data: { username: 'pmc_head', password: 'NuPMC@2026' }
     });
     const res = await request.post('/api/claims/1/1/approve');
     expect(res.status()).toBe(403);

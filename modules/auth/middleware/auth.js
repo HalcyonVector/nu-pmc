@@ -48,7 +48,7 @@ function requireRole(...roles) {
   };
 }
 
-// Principals — Naveen or Ajay
+// Principals — Principal or Design Principal
 function requirePrincipal(req, res, next) {
   const principals = ['principal', 'design_principal'];
   if (!req.session?.user) return res.status(401).json({ error: 'Not authenticated' });

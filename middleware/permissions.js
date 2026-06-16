@@ -21,7 +21,7 @@
 //     the firm grows, or has been a governance-sheet decision in the past.
 //     Examples: 'admin.vendor.update' (who can edit vendor master records?),
 //     'onboarding.boq.upload' (who can upload BOQs?), 'finance.payment.approve'
-//     (who can approve payments?). Naveen edits Sheet 1 → grant changes
+//     (who can approve payments?). Principal edits Sheet 1 → grant changes
 //     without redeploy.
 //
 //   requireRole('role1', 'role2', ...)        <-- middleware/auth.js
@@ -43,7 +43,7 @@
 //                                                 'design_principal')          // 3 roles
 // The /clear and /reject actions are FINANCE-OWNED post-creation steps —
 // only finance + principals do them, narrowly fixed in code. The /create
-// and /update actions are wider and Naveen-editable via the sheet.
+// and /update actions are wider and Principal-editable via the sheet.
 // ─────────────────────────────────────────────────────────────────────
 
 'use strict';

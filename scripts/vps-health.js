@@ -130,7 +130,7 @@ async function checkSSL() {
 //
 // The legacy ALERT_PHONE env var stays readable so an in-flight cron run
 // that hasn't yet had its env updated still logs the alert text loudly to
-// the journal. No silent drop. (Naveen — May 2026.)
+// the journal. No silent drop. (Principal — May 2026.)
 async function sendAlert(message) {
   // Always log, no matter what — the journal is the receipt of last resort.
   console.error('[vps-health] ALERT:', message);

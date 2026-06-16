@@ -62,7 +62,7 @@ router.post('/initiate', requireAuth, async (req, res) => {
       entityType: 'user_pending', entityId: r.insertId,
       details: { username: username.toLowerCase(), full_name, role, stream: stream || 'all' }, req });
 
-    // Notify Naveen and Ajay. Phone-based caller — notifyUserApprovalNeeded
+    // Notify Principal and Design Principal. Phone-based caller — notifyUserApprovalNeeded
     // triangulates phone→userId internally and routes via Matrix where
     // possible (May 2026 migration).
     const principals = await users.principalPhones();
@@ -70,14 +70,14 @@ router.post('/initiate', requireAuth, async (req, res) => {
       await notif.notifyUserApprovalNeeded(p.phone, full_name, role, me.full_name);
     }
 
-    res.json({ success: true, message: `${full_name} pending approval from Naveen/Ajay.` });
+    res.json({ success: true, message: `${full_name} pending approval from Principal/Design Principal.` });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Username already exists' });
     res.status(500).json({ error: 'Failed to initiate user' });
   }
 });
 
-// POST /api/user-management/:id/approve — Naveen/Ajay approves
+// POST /api/user-management/:id/approve — Principal/Design Principal approves
 router.post('/:id/approve', requireAuth, requirePrincipal, async (req, res) => {
   try {
     const [[pending]] = await db.query('SELECT * FROM user_pending WHERE id = ? AND status = ?', [req.params.id, 'pending']);

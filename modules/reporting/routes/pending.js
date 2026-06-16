@@ -267,7 +267,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
 
   // ─── NEEDS YOU (Principal / Design Principal / Audit) ──────────────
   if (['principal','design_principal','audit'].includes(role)) {
-    // PRs awaiting naveen review
+    // PRs awaiting principal review
     const [prs] = await db.query(
       `SELECT pr.id, pr.amount_requested, pr.vendor_id, pr.project_id,
               TIMESTAMPDIFF(DAY, pr.pmc_reviewed_at, NOW()) AS age_days

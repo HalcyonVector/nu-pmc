@@ -40,7 +40,7 @@ const R = Object.freeze({
 // Each constant below is a sealed array. Name describes the
 // SEMANTIC role it plays at the call site, not just who's in it.
 
-// The two people who founded the firm (Naveen + Ajay).
+// The two people who founded the firm (Principal + Design Principal).
 const PRINCIPALS = Object.freeze([R.PRINCIPAL, R.DESIGN_PRINCIPAL]);
 
 // Principals + the PMC Head. Used wherever "most senior decision-maker

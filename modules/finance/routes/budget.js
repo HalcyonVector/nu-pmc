@@ -207,7 +207,7 @@ router.post('/:project_id/custom-head', requireAuth, requireProjectScope(), requ
              `Custom budget head requested: ${body.name} (${body.code}) — ₹${body.sanctioned.toLocaleString('en-IN')}. Your approval needed.`);
         }
       } else {
-        // Common stream — notify Naveen
+        // Common stream — notify Principal
         const principals = await users.principals();
         for (const p of principals) {
           await notif.notify(p.id, 'budget_custom_head',

@@ -13,7 +13,7 @@
 // or-text). That's a V8-tier refactor, not a bug fix.
 //
 // ─── B22: SENDERS STAGED FOR SYSTEM ALERTS ────────────────────────────
-// Four senders below have ZERO current callers in the codebase. Naveen
+// Four senders below have ZERO current callers in the codebase. Principal
 // confirmed they are wiring points for upcoming system-alert features:
 //
 //   sendAnomalyAlert       — wire from: anomaly detector (weekly report drag,
@@ -74,7 +74,7 @@ const { tagByType } = require('./wa-headers');
  * list ("Reply 1 to Approve, 2 to Reject") so the recipient knows what to type.
  *
  * Real interactive buttons require provisioning Twilio Content Templates per
- * message-type and are tracked as a separate Naveen-side ticket.
+ * message-type and are tracked as a separate Principal-side ticket.
  *
  * buttons: [{ id, title }] — title max 20 chars
  */

@@ -2,7 +2,7 @@
 // ============================================================
 // Morning push to site managers — replaced Excel with Matrix DM.
 //
-// Naveen's decision (May 2026): drop the pre-filled Excel sent via
+// Principal's decision (May 2026): drop the pre-filled Excel sent via
 // WhatsApp. Site managers fill the daily report in the PWA. The 6AM
 // message is a reminder + deep link, not a data entry template.
 //

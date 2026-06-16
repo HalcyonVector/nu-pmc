@@ -328,7 +328,7 @@ router.get('/:project_id/:measurement_id/certificate', requireAuth, asyncHandler
     doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
     doc.moveDown(1);
 
-    // Sign-off block — NO Naveen, good faith
+    // Sign-off block — NO Principal, good faith
     const signY = doc.y;
     doc.fontSize(9).font('Helvetica-Bold');
     doc.text('Prepared by (PMC):', 50, signY);

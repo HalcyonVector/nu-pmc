@@ -7,28 +7,28 @@ async function run() {
   await agent.login('test_principal', 'NuPMC@2026');
 
   // Seed minimal data — client, project, vendor, engagement, payment request
-  const [[naveen]] = await db.query("SELECT id FROM users WHERE username='test_principal'");
+  const [[principal]] = await db.query("SELECT id FROM users WHERE username='test_principal'");
   const [c] = await db.query(
     `INSERT INTO clients (client_name, display_name, gstin, state_name, state_code, tally_party_ledger, created_by)
-     VALUES ('OL Test Client','OL','29TESTC1234A1Z5','Karnataka',29,'OL Test',?)`, [naveen.id]
+     VALUES ('OL Test Client','OL','29TESTC1234A1Z5','Karnataka',29,'OL Test',?)`, [principal.id]
   );
   const [p] = await db.query(
     `INSERT INTO projects (code, name, client, client_id, location, project_type, r0_start_date, r0_end_date, created_by, entity_id)
-     VALUES ('OL-TEST','OL Test Project','OL','`+c.insertId+`','Bengaluru','commercial','2026-01-01','2026-06-30',?,2)`, [naveen.id]
+     VALUES ('OL-TEST','OL Test Project','OL','`+c.insertId+`','Bengaluru','commercial','2026-01-01','2026-06-30',?,2)`, [principal.id]
   );
   const [v] = await db.query(
     `INSERT INTO vendors (trade, vendor_name, bank_account, bank_ifsc, registered_by)
-     VALUES ('Civil','OL Vendor','111222333','HDFC0001234',?)`, [naveen.id]
+     VALUES ('Civil','OL Vendor','111222333','HDFC0001234',?)`, [principal.id]
   );
   const [e] = await db.query(
     `INSERT INTO vendor_engagements (vendor_id, project_id, scope, contract_value, engaged_by)
      VALUES (?,?,?,?,?)`,
-    [v.insertId, p.insertId, 'Test scope', 1000000, naveen.id]
+    [v.insertId, p.insertId, 'Test scope', 1000000, principal.id]
   );
   const [pr] = await db.query(
     `INSERT INTO payment_requests (project_id, vendor_id, engagement_id, amount_requested, reason, payment_type, requested_by, status)
      VALUES (?,?,?,?,?,?,?,'pending_pmc')`,
-    [p.insertId, v.insertId, e.insertId, 50000, 'Test advance', 'mobilisation_advance', naveen.id]
+    [p.insertId, v.insertId, e.insertId, 50000, 'Test advance', 'mobilisation_advance', principal.id]
   );
   const prId = pr.insertId;
 

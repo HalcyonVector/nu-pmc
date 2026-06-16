@@ -59,7 +59,7 @@ describe('emergency-mail.sendEmergency', () => {
     process.env.EMERGENCY_SMTP_HOST = 'smtp.example.com';
     process.env.EMERGENCY_SMTP_USER = 'alerts@example.com';
     process.env.EMERGENCY_SMTP_PASS = 'app-password';
-    process.env.EMERGENCY_ALERT_TO  = 'naveen@example.com';
+    process.env.EMERGENCY_ALERT_TO  = 'principal@example.com';
 
     // Force require('nodemailer') to throw by stubbing the module loader.
     // Easiest reliable way: jest.doMock with a factory that throws.
@@ -90,7 +90,7 @@ describe('emergency-mail._config', () => {
     process.env.EMERGENCY_SMTP_HOST = 'smtp.example.com';
     process.env.EMERGENCY_SMTP_USER = 'alerts@example.com';
     process.env.EMERGENCY_SMTP_PASS = 'p';
-    process.env.EMERGENCY_ALERT_TO  = 'naveen@example.com';
+    process.env.EMERGENCY_ALERT_TO  = 'principal@example.com';
 
     const em = require('../services/emergency-mail');
     const { cfg, missing } = em._config();

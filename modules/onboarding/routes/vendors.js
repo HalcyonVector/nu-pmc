@@ -32,7 +32,7 @@
 //      service used by routes/vendors.js (issue) and routes/vendor-public.js
 //      (lookup + consume).
 //
-// Verified healthy split with Naveen during the Concept-Map Audit (May 2026).
+// Verified healthy split with Principal during the Concept-Map Audit (May 2026).
 // ============================================================
 const express = require('express');
 const db      = require('../../../middleware/db');
@@ -408,7 +408,7 @@ router.post('/master/upload', requireAuth, requirePMC, upload.single('vendors'),
       const contact = pick(row, 'Contact Person', 'contact_person');
       // Phone — route through normalisePhone for consistency with wa.me link
       // generation. Empty input → null. Garbled input → null with surfaced
-      // error so Naveen sees which row to fix.
+      // error so Principal sees which row to fix.
       const phoneRaw = (pick(row, 'Phone', 'Phone (WhatsApp)', 'WhatsApp', 'phone') || '').toString().trim();
       const phone    = phoneRaw ? waLink.normalisePhone(phoneRaw) : null;
       if (phoneRaw && !phone) { errors.push(`${name}: invalid phone '${phoneRaw}'`); skipped++; continue; }
@@ -524,7 +524,7 @@ router.patch('/master/:id', requireAuth, requirePermission('admin.vendor.update'
 
     // Bug B36: changing bank or GST identity fields effectively makes this a
     // different vendor for payment purposes. Re-trigger finance clearance so
-    // Udupa verifies the new bank/GST before any payment is raised against
+    // Finance Admin verifies the new bank/GST before any payment is raised against
     // the updated record. Phone/contact/notes don't reset clearance.
     const [[before]] = await db.query(
       `SELECT gst_number, bank_name, bank_account, bank_ifsc, clearance_status
@@ -954,7 +954,7 @@ router.post('/:project_id/engagements', requireAuth,
       }
     }
 
-    // Principals self-approve — if Naveen/Ajay initiates, skip the pending step.
+    // Principals self-approve — if Principal/Design Principal initiates, skip the pending step.
     const isPrincipal = ['principal','design_principal'].includes(me.role);
     const approvalStatus = isPrincipal ? 'approved' : 'pending';
     const approvedBy     = isPrincipal ? me.id      : null;

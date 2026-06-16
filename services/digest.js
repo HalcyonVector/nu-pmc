@@ -10,7 +10,7 @@
 // with different parameters read from notifications_config:
 //
 //   morning_pmc  07:00 — per-project digest to PMC heads
-//   naveen       08:00 — cross-project digest to Naveen / principal
+//   principal       08:00 — cross-project digest to Principal / principal
 //   closeout     21:00 — end-of-day status to PMC heads
 //
 // Content is assembled from DB queries. The DB (project_thresholds,
@@ -29,7 +29,7 @@ const DELIM = '──────────────────';
  * Send a digest message.
  *
  * @param {object} opts
- * @param {string} opts.digestType   'morning_pmc' | 'naveen' | 'closeout'
+ * @param {string} opts.digestType   'morning_pmc' | 'principal' | 'closeout'
  * @param {number} [opts.userId]     recipient user id (null = resolve from digestType)
  * @param {string} [opts.roomId]     Matrix room id (null = resolve from digestType)
  * @param {number[]} [opts.projectIds]  projects to include (null = all active)
@@ -47,8 +47,8 @@ async function sendDigest({ digestType, userId = null, roomId = null, projectIds
 
   if (digestType === 'morning_pmc') {
     await _sendMorningPMC({ projects, today });
-  } else if (digestType === 'naveen') {
-    await _sendNaveenDigest({ projects, today, userId, roomId });
+  } else if (digestType === 'principal') {
+    await _sendPrincipalDigest({ projects, today, userId, roomId });
   } else if (digestType === 'closeout') {
     await _sendCloseout({ projects, today });
   } else if (digestType === 'vendor_snag') {
@@ -111,17 +111,17 @@ async function _sendMorningPMC({ projects, today }) {
   }
 }
 
-// ── naveen — 8AM, cross-project, to principal(s) ────────────────────────
+// ── principal — 8AM, cross-project, to principal(s) ────────────────────────
 
-async function _sendNaveenDigest({ projects, today, userId, roomId }) {
+async function _sendPrincipalDigest({ projects, today, userId, roomId }) {
   // Resolve recipient
   let recipientId = userId;
   let recipientRoom = roomId;
   if (!recipientRoom) {
-    recipientRoom = await matrixAdapter.getInternalRoomId('internal_naveen');
+    recipientRoom = await matrixAdapter.getInternalRoomId('internal_principal');
   }
   if (!recipientRoom) {
-    console.warn('[digest.naveen] no internal_naveen room found');
+    console.warn('[digest.principal] no internal_principal room found');
     return;
   }
 
@@ -139,7 +139,7 @@ async function _sendNaveenDigest({ projects, today, userId, roomId }) {
     roomId: recipientRoom,
     body: lines.join('\n'),
     recipientUid: recipientId,
-  }).catch(e => console.warn('[digest.naveen]', e.message));
+  }).catch(e => console.warn('[digest.principal]', e.message));
 }
 
 // ── closeout — 9PM, per project, to PMC heads ───────────────────────────

@@ -609,7 +609,7 @@ router.get('/report', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(a
       ws.on('error', reject);
     });
 
-    // Notify Naveen and Ajay
+    // Notify Principal and Design Principal
     try {
       const { notify } = require('../../../services/notifications');
       const totalDecays = projectData.reduce((s, { health: h }) => {
@@ -636,7 +636,7 @@ router.get('/report', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(a
       file_name:  `WeeklyHealthReport_${weekEnd}.pdf`,
       week:       weekLabel,
       projects:   projects.length,
-      message:    'Report generated — Naveen and Ajay notified via WhatsApp'
+      message:    'Report generated — Principal and Design Principal notified via WhatsApp'
     });
 
   }));

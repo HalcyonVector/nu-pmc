@@ -446,13 +446,13 @@ describe('approvals.get()', () => {
       .mockResolvedValueOnce([[
         { id: 1, approval_id: 50, signer_id: 11, signer_role: 'principal',
           vote: 'approve', comment: null, voted_at: new Date(),
-          signer_name: 'Naveen' },
+          signer_name: 'Principal' },
       ]]);
 
     const r = await approvals.get(50);
     expect(r.approval.id).toBe(50);
     expect(r.signoffs).toHaveLength(1);
-    expect(r.signoffs[0].signer_name).toBe('Naveen');
+    expect(r.signoffs[0].signer_name).toBe('Principal');
     expect(r.config.quorum).toBe(1);
     expect(r.config.signer_roles).toEqual(['principal','design_principal']);
   });

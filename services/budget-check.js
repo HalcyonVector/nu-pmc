@@ -91,7 +91,7 @@ async function checkBudget(db, projectId, engagementId, boqItemId, newAmount, st
       if (strikeCount >= T.lineItem.strikes) {
         result.warnings.push({
           level: 'line_item_escalation', trade: item.trade,
-          message: `${item.item_name} has been flagged ${strikeCount} times — escalating to Naveen`,
+          message: `${item.item_name} has been flagged ${strikeCount} times — escalating to Principal`,
         });
       }
     }
@@ -151,15 +151,15 @@ async function checkBudget(db, projectId, engagementId, boqItemId, newAmount, st
       result.allowed = false;
       result.blocks.push({
         level: 'project', pctOver: (projPctOver*100).toFixed(1),
-        message: `Project total is ${(projPctOver*100).toFixed(1)}% over budget — HARD BLOCK. Naveen must approve.`,
+        message: `Project total is ${(projPctOver*100).toFixed(1)}% over budget — HARD BLOCK. Principal must approve.`,
       });
-      // Alert principals via Matrix — #internal-naveen (org-wide, personal digests).
+      // Alert principals via Matrix — #internal-principal (org-wide, personal digests).
       try {
         const matrixAdapter = require('./matrix-adapter');
-        const naveenRoom = await matrixAdapter.getInternalRoomId('internal_naveen');
-        if (naveenRoom) {
+        const principalRoom = await matrixAdapter.getInternalRoomId('internal_principal');
+        if (principalRoom) {
           await matrixAdapter.sendText({
-            roomId: naveenRoom,
+            roomId: principalRoom,
             body: `🔴 BUDGET HARD BLOCK — Project ${projectId} — ${(projPctOver*100).toFixed(1)}% over budget. Payment blocked.`,
           }).catch(e => console.warn('[budget-check] Matrix alert failed:', e.message));
         }
@@ -167,7 +167,7 @@ async function checkBudget(db, projectId, engagementId, boqItemId, newAmount, st
     } else if (projPctOver >= T.project.amber) {
       result.warnings.push({
         level: 'project', pctOver: (projPctOver*100).toFixed(1),
-        message: `Project total is ${(projPctOver*100).toFixed(1)}% over budget — amber flag to Naveen`,
+        message: `Project total is ${(projPctOver*100).toFixed(1)}% over budget — amber flag to Principal`,
       });
     }
   }
@@ -230,7 +230,7 @@ async function persistAndNotify(db, projectId, engagementId, checkResult, trigge
       }
     }
 
-    // 3rd strike or project hard block — notify Naveen
+    // 3rd strike or project hard block — notify Principal
     if (strikeNum >= 3 || checkResult.blocks.some(b=>b.level==='project')) {
       const [principals] = await db.query(
         "SELECT id FROM users WHERE role IN ('principal','design_principal') AND is_active=1"
@@ -242,14 +242,14 @@ async function persistAndNotify(db, projectId, engagementId, checkResult, trigge
           body: `BUDGET ESCALATION — ${checkResult.blocks.concat(checkResult.warnings).map(w=>w.message).join(' | ')}`,
           status: 'pending',
         });
-        // Matrix alert to #internal-naveen
+        // Matrix alert to #internal-principal
         const matrixAdapter = require('./matrix-adapter');
-        const naveenRoom = await matrixAdapter.getInternalRoomId('internal_naveen');
-        if (naveenRoom) {
+        const principalRoom = await matrixAdapter.getInternalRoomId('internal_principal');
+        if (principalRoom) {
           const blockMsg = checkResult.blocks.find(b => b.level === 'project');
           if (blockMsg) {
             await matrixAdapter.sendText({
-              roomId: naveenRoom,
+              roomId: principalRoom,
               body: `🔴 BUDGET ESCALATION — ${projInfo?.name || 'Project'} — ${blockMsg.message}`,
             }).catch(e => console.warn('[budget-check.persistAndNotify] Matrix failed:', e.message));
           }

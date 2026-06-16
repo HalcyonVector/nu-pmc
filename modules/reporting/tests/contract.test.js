@@ -72,7 +72,7 @@ describe('M6 Reporting — route mounts respond', () => {
     app.use(express.json());
     app.use(session({ secret: 'x'.repeat(40), resave: false, saveUninitialized: false }));
     app.use((req, res, next) => {
-      req.session.user = { id: 1, username: 'naveen', full_name: 'N', role, stream: 'all' };
+      req.session.user = { id: 1, username: 'principal', full_name: 'N', role, stream: 'all' };
       next();
     });
     app.use('/api/dashboard',      Reporting.routes.dashboard);

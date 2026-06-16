@@ -259,7 +259,7 @@ router.patch('/:id/deactivate', requireAuth, asyncHandler(async (req, res) => {
 
   }));
 
-// POST /api/users/bulk-upload — Naveen uploads Excel with all team members
+// POST /api/users/bulk-upload — Principal uploads Excel with all team members
 router.post('/bulk-upload', requireAuth, upload.single('users'), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const { can } = require('../../../middleware/permissions');

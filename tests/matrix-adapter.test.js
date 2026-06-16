@@ -208,9 +208,9 @@ describe('matrix-adapter — getProjectRoomId / getInternalRoomId', () => {
 
   test('internal room: project_id IS NULL', async () => {
     const adapter = freshAdapter();
-    db.query.mockResolvedValueOnce([[{ room_id: '!naveen:test' }]]);
-    const r = await adapter.getInternalRoomId('internal_naveen');
-    expect(r).toBe('!naveen:test');
+    db.query.mockResolvedValueOnce([[{ room_id: '!principal:test' }]]);
+    const r = await adapter.getInternalRoomId('internal_principal');
+    expect(r).toBe('!principal:test');
     expect(db.query.mock.calls[0][0]).toMatch(/project_id IS NULL/);
   });
 });

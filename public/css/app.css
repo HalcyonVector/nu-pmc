@@ -1073,6 +1073,27 @@ body {
 .btn-sm.navy      { border-color: rgba(29,61,98,.3); color: var(--navy); }
 .btn-sm.flagged   { border-color: var(--amber-br); color: var(--amber); }
 
+/* ── FILTER CHIPS — used in Flags tab project filter strip ── */
+.chip {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: all .15s;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--steel); color: var(--text); }
+.chip.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--white);
+  font-weight: 600;
+}
+
 /* ── BUTTONS ── */
 .btn-primary {
   background: var(--navy);

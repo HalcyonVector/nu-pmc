@@ -53,7 +53,7 @@ function makeApp(role = 'principal') {
   app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
   app.use((req, _res, next) => {
     req.session.user = {
-      id: 1, username: 'naveen', full_name: 'Naveen Kumar Bhat',
+      id: 1, username: 'principal', full_name: 'Principal Kumar Bhat',
       role, stream: 'all',
       projects: [{ id: 1, name: 'Test Project' }],
       projects_at: Date.now(),
@@ -354,7 +354,7 @@ describe('GET /api/gantt/:project_id', () => {
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id: 1, username: 'naveen', full_name: 'Naveen', role, stream: 'all', projects: [{id:1}], projects_at: Date.now() };
+      req.session.user = { id: 1, username: 'principal', full_name: 'Principal', role, stream: 'all', projects: [{id:1}], projects_at: Date.now() };
       next();
     });
     app.use('/api/gantt', require('../modules/reporting/routes/gantt'));
@@ -408,7 +408,7 @@ describe('PATCH /api/client-boq/:project_id/items/:id/hsn', () => {
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id: 1, username: 'naveen', full_name: 'Naveen', role, stream: 'all', projects: [{id:1}], projects_at: Date.now() };
+      req.session.user = { id: 1, username: 'principal', full_name: 'Principal', role, stream: 'all', projects: [{id:1}], projects_at: Date.now() };
       next();
     });
     app.use('/api/client-boq', require('../modules/onboarding/routes/client-boq'));
@@ -432,8 +432,8 @@ describe('PATCH /api/client-boq/:project_id/items/:id/hsn', () => {
   });
 
   test('accepts 4-digit HSN', async () => {
-    const app = makeHSNApp('rajani');
-    // rajani has design_head role
+    const app = makeHSNApp('pmc_head');
+    // pmc_head has design_head role
     const app2 = makeHSNApp('design_head');
     db.query.mockResolvedValueOnce([[{ status: 'active' }]]);  // requireProjectScope
     db.query.mockResolvedValueOnce([{}]).mockResolvedValueOnce([{}]);
@@ -465,7 +465,7 @@ describe('PATCH /api/client-boq/:project_id/items/:id/hsn', () => {
 
 // ── CLIENT MASTER
 describe('GET /api/clients', () => {
-  function makeClientApp(role = 'principal', username = 'naveen') {
+  function makeClientApp(role = 'principal', username = 'principal') {
     const app = express();
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
@@ -487,19 +487,19 @@ describe('GET /api/clients', () => {
     expect(res.body.clients).toBeDefined();
   });
 
-  test('udupa can view clients', async () => {
-    const app = makeClientApp('principal', 'udupa');
+  test('finance_admin can view clients', async () => {
+    const app = makeClientApp('principal', 'finance_admin');
     db.query.mockResolvedValueOnce([[{ id:1, client_name:'TLD MAINI' }]]);
     const res = await request(app).get('/api/clients');
     expect(res.status).toBe(200);
   });
 
   test.skip('pmc_head cannot view clients [PRODUCT QUESTION — see SHIP_READINESS_REPORT gap 8]', async () => {
-    // Test asserts firm-level client master is Naveen+Udupa only.
+    // Test asserts firm-level client master is Principal+Finance Admin only.
     // Current GET /api/clients only requires auth. EITHER the implementation
     // should add a role gate (principal+design_principal+finance_admin), OR
-    // this test should be relaxed. Park for Naveen decision.
-    const app = makeClientApp('pmc_head', 'murugesan');
+    // this test should be relaxed. Park for Principal decision.
+    const app = makeClientApp('pmc_head', 'pmc_head');
     const res = await request(app).get('/api/clients');
     expect(res.status).toBe(403);
   });
@@ -512,7 +512,7 @@ describe('GET /api/clients', () => {
 });
 
 describe('POST /api/clients', () => {
-  function makeClientApp(role = 'principal', username = 'naveen') {
+  function makeClientApp(role = 'principal', username = 'principal') {
     const app = express();
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
@@ -570,7 +570,7 @@ describe('POST /api/clients', () => {
   });
 
   test('design_principal can create client', async () => {
-    const app = makeClientApp('design_principal', 'ajay');
+    const app = makeClientApp('design_principal', 'design_principal');
     db.query.mockResolvedValueOnce([{ insertId: 4 }]);
     const res = await request(app).post('/api/clients').send({
       client_name: 'Test', gstin: '29XXXXX1234X1Z5', state_code: 29, state_name: 'Karnataka'
@@ -586,7 +586,7 @@ describe.skip('[V5 REMOVED] POST /api/vendors/:id/nonboq', () => {
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id: 3, username: 'murugesan', full_name: 'Murugesan', role, stream: 'pmc', projects: [{id:1}], projects_at: Date.now() };
+      req.session.user = { id: 3, username: 'pmc_head', full_name: 'PMC Head', role, stream: 'pmc', projects: [{id:1}], projects_at: Date.now() };
       next();
     });
     app.use('/api/vendors', require('../modules/onboarding/routes/vendors'));
@@ -630,7 +630,7 @@ describe.skip('[V5 REMOVED] POST /api/vendors/provisional-boq/:id/ratify', () =>
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id: 5, username: 'rajani', full_name: 'Rajani', role, stream: 'design', projects: [{id:1}], projects_at: Date.now() };
+      req.session.user = { id: 5, username: 'pmc_head', full_name: 'PMC Head', role, stream: 'design', projects: [{id:1}], projects_at: Date.now() };
       next();
     });
     app.use('/api/vendors', require('../modules/onboarding/routes/vendors'));
@@ -683,7 +683,7 @@ describe('GET /api/weekly-health/schedule', () => {
     app.use(express.json());
     app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id:1, username:'naveen', full_name:'Naveen', role, stream:'all', projects: [{id:1}], projects_at: Date.now() };
+      req.session.user = { id:1, username:'principal', full_name:'Principal', role, stream:'all', projects: [{id:1}], projects_at: Date.now() };
       next();
     });
     app.use('/api/weekly-health', require('../modules/reporting/routes/weekly-health'));

@@ -2,7 +2,7 @@
 // ============================================================
 // Sign-off gate — single entry point for all workflow sign-offs.
 //
-// Per nu-pmc-signoff-delta-brief.docx (1 May 2026) and Naveen's
+// Per nu-pmc-signoff-delta-brief.docx (1 May 2026) and Principal's
 // abstraction principle ("we want to abstract and avoid many paths"):
 //
 //   ONE function:    triggerSignoff(workflowType, documentId, projectId)
@@ -140,7 +140,7 @@ const _SOURCE_ROLE_MAP = {
   client:    'client_rep',  // not in any base ladder, no-op
   site:      'site_manager',
   design:    'design_lead',
-  statutory: 'design_lead', // statutory CNs flow through design (Naveen, May 2026)
+  statutory: 'design_lead', // statutory CNs flow through design (Principal, May 2026)
 };
 
 function _initiatorRoleFromDoc(documentRow, initiatorUser) {
@@ -283,7 +283,7 @@ const APPROVER_RESOLVERS = {
   recipient:        { strategy: 'from_doc' },   // defaults: users via raised_by/created_by/user_id
   vendor_rep:       { strategy: 'from_doc', docField: 'vendor_id', table: 'vendors', activeCol: 'is_active', selectShape: 'vendor' },
   client_rep:       { strategy: 'from_client_master' },
-  naveen:           { strategy: 'role_global_any', roles: ['principal','design_principal'] },
+  principal:           { strategy: 'role_global_any', roles: ['principal','design_principal'] },
   pmc:              { strategy: 'role_in_project', role: 'pmc_head' },
   pmc_head:         { strategy: 'role_in_project', role: 'pmc_head' },
   site_manager:     { strategy: 'role_in_project', role: 'site_manager' },
@@ -696,7 +696,7 @@ async function _runPostCompletionHooks(instance) {
 // matrix_user_id to @-mention in the message body (for community rooms;
 // null for personal rooms since only one recipient sees them).
 //
-// Naveen's call (May 2026): bank notifications + individual BOQ sign-offs
+// Principal's call (May 2026): bank notifications + individual BOQ sign-offs
 // = personal. Everything else = community. The right room with the
 // smallest audience that needs to see the message.
 //
@@ -722,7 +722,7 @@ const DESTINATION_RESOLVERS = {
     return { roomId, mention: approver?.matrix_user_id || null };
   },
 
-  // Org-wide room: #internal-naveen, #internal-finance, etc. qualifier =
+  // Org-wide room: #internal-principal, #internal-finance, etc. qualifier =
   // room_type slug. Also a multi-recipient room → @mention the approver.
   org: async ({ qualifier, approver }) => {
     if (!qualifier) {

@@ -1218,7 +1218,7 @@ Tomorrow: start formwork on next bay."
     if (ac.overdue_materials.length)
       html += addItem('','Materials overdue',`${ac.overdue_materials.length} past needed-by date`,'red','red','OVERDUE',"APP.showActionTriage('overdue_materials')");
     if (ac.pending_approvals.length)
-      html += addItem('','Approvals pending',`${ac.pending_approvals.length} awaiting Naveen / Ajay`,'amber','amber','PENDING',"APP.showActionTriage('pending_approvals')");
+      html += addItem('','Approvals pending',`${ac.pending_approvals.length} awaiting Principal / Design Principal`,'amber','amber','PENDING',"APP.showActionTriage('pending_approvals')");
     if (ac.fresh_queries.length)
       html += addItem('','Drawing queries — open',`${ac.fresh_queries.length} within 3 days`,'amber','amber','OPEN',"APP.showActionTriage('fresh_queries')");
     if (ac.pending_changes.length)
@@ -1359,10 +1359,11 @@ Tomorrow: start formwork on next bay."
     } else {
       const stats = p.stats || {};
       const navTo = (tab) => `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP._tryNav('${tab}')"`;
+      const navToFlags = `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP.state.flagFilterProject=${p.id};APP._tryNav('flags')"`;
       html += `<div class="pc-stats">
         <div class="pc-stat" style="cursor:pointer" ${navTo('tasks,schedule')}><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
         <div class="pc-stat" style="cursor:pointer" ${navTo('issues')}><span class="pc-stat-val${stats.open_queries>0?' amber':''}">${stats.open_queries||0}</span><span class="pc-stat-lbl">Queries</span></div>
-        <div class="pc-stat" style="cursor:pointer" ${navTo('flags,tasks,schedule')}><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
+        <div class="pc-stat" style="cursor:pointer" ${navToFlags}><span class="pc-stat-val${stats.flagged_tasks>0?' red':''}">${stats.flagged_tasks||0}</span><span class="pc-stat-lbl">Flags</span></div>
         <div class="pc-stat"><span class="pc-stat-val${stats.overdue_materials>0?' red':''}">${stats.overdue_materials||0}</span><span class="pc-stat-lbl">Overdue</span></div>
       </div>`;
 
@@ -2088,7 +2089,7 @@ Tomorrow: start formwork on next bay."
         <input type="hidden" id="dwg-type" value="main">
 
         <div id="dwg-type-info" style="font-size:12px;color:#666;background:#faf8f3;padding:10px 12px;border-radius:8px;margin-bottom:14px;line-height:1.5">
-          <strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. Rajani or Srinath pre-registers every main drawing at project start.
+          <strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. PMC Head or Services Head pre-registers every main drawing at project start.
         </div>
 
         <div class="field-row"><label class="field-label" for="dwg-proj">Project</label>
@@ -2155,8 +2156,8 @@ Tomorrow: start formwork on next bay."
     );
 
     const awaiting = d.version_status === 'pending_l1'
-      ? (d.stream === 'design' ? 'Sahana / Sushmitha' : 'Srinath')
-      : d.version_status === 'pending_l2' ? 'Rajani' : '';
+      ? (d.stream === 'design' ? 'Team Lead / Sushmitha' : 'Services Head')
+      : d.version_status === 'pending_l2' ? 'PMC Head' : '';
 
     return `<div class="drawing-item${myTurn?' '+''  :''}" style="${myTurn?'border-color:var(--steel)':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
@@ -2263,7 +2264,7 @@ Tomorrow: start formwork on next bay."
 
     if (info) {
       if (t === 'main') {
-        info.innerHTML = '<strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. Rajani or Srinath pre-registers every main drawing at project start.';
+        info.innerHTML = '<strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. PMC Head or Services Head pre-registers every main drawing at project start.';
       } else if (t === 'detail') {
         info.innerHTML = '<strong style="color:#1a2e44">Detail drawing</strong> — select the parent drawing this detail belongs to. You can also type a custom number.';
       } else {
@@ -2374,7 +2375,7 @@ Tomorrow: start formwork on next bay."
     // Per Sprint 2 Item 9: Principal + Design Principal see Register in the
     // More bucket as a READ-ONLY summary — counts + list + sign-off only.
     // They no longer upload or amend the register (that's design_head /
-    // services_head territory — Rajani and Srinath). Removing them from
+    // services_head territory — PMC Head and Services Head). Removing them from
     // canUpload auto-hides the Upload block and per-row Remove buttons.
     const canUpload = ['design_head','services_head'].includes(role);
     const canSignOff = ['principal','design_principal'].includes(role);
@@ -2397,7 +2398,7 @@ Tomorrow: start formwork on next bay."
       <div class="drawings-page">
       <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Drawing Register</div>
-        <div style="font-size:13px;color:#666;line-height:1.5">Master list of every main drawing expected on this project. Uploaded at project initiation by Rajani (design) and Srinath (services). Only drawings on the register can be uploaded as <strong>main</strong>.</div>
+        <div style="font-size:13px;color:#666;line-height:1.5">Master list of every main drawing expected on this project. Uploaded at project initiation by PMC Head (design) and Services Head (services). Only drawings on the register can be uploaded as <strong>main</strong>.</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px">
           <div style="text-align:center;padding:10px;background:#faf8f3;border-radius:8px">
             <div style="font-size:22px;font-weight:700;color:#1a2e44;line-height:1">${sum.total||0}</div>
@@ -2446,7 +2447,7 @@ Tomorrow: start formwork on next bay."
             <div>
               <div style="font-size:14px;font-weight:700;color:#1a2e44">${title} — ${list.length} drawings</div>
               ${unsigned && canSignOff ? `<div style="font-size:11px;color:#8a6320;margin-top:2px">${list.filter(r=>!r.signed_off_by).length} awaiting your sign-off</div>` : ''}
-              ${unsigned && !canSignOff ? `<div style="font-size:11px;color:#888;margin-top:2px">Awaiting Naveen/Ajay sign-off</div>` : ''}
+              ${unsigned && !canSignOff ? `<div style="font-size:11px;color:#888;margin-top:2px">Awaiting Principal/Design Principal sign-off</div>` : ''}
             </div>
             ${unsigned && canSignOff ? `<button class="btn-sm gold" style="padding:8px 14px" onclick="APP.signOffRegister(${pid},'${stream}')">Sign off all</button>` : ''}
           </div>
@@ -2956,9 +2957,16 @@ Tomorrow: start formwork on next bay."
       </div>`;
     }
 
-    // Summary stat row
+    // Fetch open flags for summary display
+    let openFlagsData = null;
+    if (['principal','pmc_head','design_principal','audit'].includes(APP.user.role)) {
+      openFlagsData = await API.get('/schedule/flags/all').catch(() => null);
+    }
+    const openFlagsAll = openFlagsData?.flags || [];
+
+    // Summary stat row (include flags in the count)
     const pendingTotal = blocked.length + needsYou.length + navDrafts.length;
-    html += `<div class="stat-row" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+    html += `<div class="stat-row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:16px">
       <div class="stat-card">
         <span class="stat-val ${blocked.length?'red':''}">${blocked.length}</span>
         <span class="stat-lbl">Blocked</span>
@@ -2967,7 +2975,31 @@ Tomorrow: start formwork on next bay."
         <span class="stat-val ${(needsYou.length+navDrafts.length)?'navy':''}">${needsYou.length + navDrafts.length}</span>
         <span class="stat-lbl">Needs You</span>
       </div>
+      <div class="stat-card" style="cursor:pointer" onclick="APP.state.flagFilterProject=null;APP.switchTab('flags')">
+        <span class="stat-val ${openFlagsAll.length?'red':''}">${openFlagsAll.length}</span>
+        <span class="stat-lbl">Open Flags</span>
+      </div>
     </div>`;
+
+    // ── Open Flags summary (shown in Pending tab as a call-to-action)
+    if (openFlagsAll.length) {
+      html += `<div class="sec-label" style="color:var(--red)">⚑ Open Site Flags (${openFlagsAll.length})</div>`;
+      // Group by project
+      const flagsByProject = {};
+      openFlagsAll.forEach(f => {
+        if (!flagsByProject[f.project_id]) flagsByProject[f.project_id] = { name: f.project_name, flags: [] };
+        flagsByProject[f.project_id].flags.push(f);
+      });
+      Object.values(flagsByProject).forEach(grp => {
+        const first = grp.flags[0];
+        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--red);width:100%;text-align:left"
+                     onclick="APP.state.flagFilterProject=${grp.flags[0].project_id};APP.switchTab('flags')">
+          <div class="card-title" style="font-size:13px;color:var(--red)">${UI.escapeText(grp.name)}</div>
+          <div class="card-meta">${grp.flags.length} open flag${grp.flags.length===1?'':'s'} · ${UI.escapeText((first.flag_note||'').substring(0,60))}${(first.flag_note||'').length>60?'…':''}</div>
+        </button>`;
+      });
+      html += `<button class="btn-sm" style="width:100%;margin-bottom:16px" onclick="APP.state.flagFilterProject=null;APP.switchTab('flags')">View all flags →</button>`;
+    }
 
     // ── Nav change drafts (Principal only) — shown first since they're rare + urgent
     if (navDrafts.length) {
@@ -3001,11 +3033,11 @@ Tomorrow: start formwork on next bay."
       html += `<div class="sec-label">Blocked — waiting on others</div>`;
       blocked.forEach(b => {
         const ageStyle = b.age_days >= 7 ? 'color:var(--red)' : b.age_days >= 3 ? 'color:var(--amber)' : 'color:var(--muted)';
-        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer"
-                     "APP.switchTab('${b.tab}')">
+        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left"
+                     onclick="APP.switchTab('${b.tab}')">
           <div class="card-title" style="font-size:13px">${UI.escapeText(b.label)}</div>
           <div class="card-meta" style="${ageStyle}">${UI.escapeText(b.sub)}</div>
-        </div>`;
+        </button>`;
       });
     }
 
@@ -3013,11 +3045,11 @@ Tomorrow: start formwork on next bay."
     if (needsYou.length) {
       html += `<div class="sec-label" style="margin-top:14px">Needs your action</div>`;
       needsYou.forEach(n => {
-        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--navy)"
-                     "APP.switchTab('${n.tab}')">
+        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--navy);width:100%;text-align:left"
+                     onclick="APP.switchTab('${n.tab}')">
           <div class="card-title" style="font-size:13px">${UI.escapeText(n.label)}</div>
           <div class="card-meta">${UI.escapeText(n.sub)}</div>
-        </div>`;
+        </button>`;
       });
     }
 
@@ -3040,29 +3072,90 @@ Tomorrow: start formwork on next bay."
     else UI.toast(res?.error || 'Failed');
   },
 
-  // ── FLAGS MODULE — dedicated tab for reviewing flagged tasks
+  // ── FLAGS MODULE — dedicated tab for reviewing flagged tasks across all projects
   async renderFlags() {
     const el = UI.contentEl();
-    const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('', 'Select a project first'); return; }
-
     UI.loading(el);
-    const data = await API.get(`/schedule/${pid}/flags`);
-    const flags = data?.flags || [];
 
-    let html = `<div class="sec-label">Flagged Tasks (${flags.length})</div>`;
+    // Support filtering to a specific project (set by project card click)
+    const filterPid = APP.state.flagFilterProject || null;
 
-    if (!flags.length) {
-      html += UI.empty('', 'No open flags — all clear');
+    // Load all flags from the global endpoint
+    const data = await API.get('/schedule/flags/all').catch(() => null);
+    if (!data) { el.innerHTML = UI.empty('⚠', 'Failed to load flags'); return; }
+
+    let allFlags = data?.flags || [];
+
+    // Get list of unique projects from flags
+    const projectMap = {};
+    allFlags.forEach(f => { projectMap[f.project_id] = f.project_name; });
+    const projects = Object.entries(projectMap).map(([id, name]) => ({ id: parseInt(id), name }));
+
+    // Apply project filter if set
+    const displayFlags = filterPid
+      ? allFlags.filter(f => f.project_id === filterPid)
+      : allFlags;
+
+    // Build project filter chips
+    const totalCount = allFlags.length;
+    let filterHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">`;
+    filterHtml += `<button class="chip${!filterPid ? ' active' : ''}" onclick="APP.state.flagFilterProject=null;APP.renderFlags()" style="font-size:12px">All (${totalCount})</button>`;
+    projects.forEach(p => {
+      const cnt = allFlags.filter(f => f.project_id === p.id).length;
+      const isActive = filterPid === p.id;
+      filterHtml += `<button class="chip${isActive ? ' active' : ''}" onclick="APP.state.flagFilterProject=${p.id};APP.renderFlags()" style="font-size:12px">${UI.escapeText(p.name)} (${cnt})</button>`;
+    });
+    filterHtml += `</div>`;
+
+    // Header
+    let html = `
+      <div class="sec-label" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--red)">⚑</span>
+        Open Flags (${displayFlags.length})
+        ${filterPid ? `<span style="font-size:11px;color:var(--muted);font-weight:400">— ${projectMap[filterPid] || ''}</span>` : ''}
+      </div>
+      ${filterHtml}`;
+
+    if (!displayFlags.length) {
+      html += UI.empty('✓', filterPid ? 'No open flags for this project' : 'No open flags — all clear');
     } else {
-      flags.forEach(f => {
-        html += `<div class="action-item c-red" style="margin-bottom:8px">
-          <div class="ai-body">
-            <div class="ai-title">${UI.escapeText(f.task_name)} (${UI.escapeText(f.trade || '—')})</div>
-            <div class="ai-meta">${UI.escapeText(f.flag_note || 'Auto-flagged: behind plan')} · ${f.pct_complete || 0}% complete · ${f.flagged_by_name || '—'} · ${f.report_date || ''}</div>
-          </div>
-          <button class="btn-sm" onclick="APP.resolveFlag(${pid},${f.update_id})">Resolve</button>
-        </div>`;
+      // Group by project
+      const grouped = {};
+      displayFlags.forEach(f => {
+        if (!grouped[f.project_id]) grouped[f.project_id] = { name: f.project_name, flags: [] };
+        grouped[f.project_id].flags.push(f);
+      });
+
+      Object.values(grouped).forEach(grp => {
+        // Only show project header if showing multiple projects
+        if (!filterPid && projects.length > 1) {
+          html += `<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase;margin:14px 0 8px">${UI.escapeText(grp.name)}</div>`;
+        }
+
+        grp.flags.forEach(f => {
+          const daysAgo = f.report_date ? Math.round((Date.now() - new Date(f.report_date)) / 86400000) : null;
+          const ageStr = daysAgo !== null ? (daysAgo === 0 ? 'Today' : `${daysAgo}d ago`) : '';
+          const tradeBadge = f.trade ? `<span style="font-size:10px;background:rgba(200,112,96,0.15);color:var(--red);padding:2px 6px;border-radius:10px;font-weight:600">${UI.escapeText(f.trade)}</span>` : '';
+          const pctBadge = `<span style="font-size:10px;color:var(--muted)">${f.pct_complete || 0}% done</span>`;
+
+          html += `<div class="action-item c-red" style="margin-bottom:10px;border-left:3px solid var(--red)">
+            <div class="ai-body" style="flex:1">
+              <div class="ai-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                ${UI.escapeText(f.task_name)}
+                ${tradeBadge}
+              </div>
+              <div class="ai-meta" style="margin-top:4px;line-height:1.5">
+                ${UI.escapeText(f.flag_note || 'Auto-flagged: behind plan')}
+              </div>
+              <div style="display:flex;gap:10px;margin-top:6px;align-items:center">
+                ${pctBadge}
+                ${f.flagged_by_name ? `<span style="font-size:10px;color:var(--muted)">by ${UI.escapeText(f.flagged_by_name)}</span>` : ''}
+                ${ageStr ? `<span style="font-size:10px;color:var(--muted)">${ageStr}</span>` : ''}
+              </div>
+            </div>
+            <button class="btn-sm" style="flex-shrink:0;margin-left:8px" onclick="APP.resolveFlag(${f.project_id},${f.update_id})">Resolve</button>
+          </div>`;
+        });
       });
     }
 
@@ -4995,7 +5088,7 @@ APP.submitChangePassword = async function() {
 };
 
 // NOTE: APP.showForgotPassword / APP.sendOTP / APP.verifyOTP deleted 2026-04-21.
-// Self-service password reset removed. Users ask manager or Naveen/Ajay to reset
+// Self-service password reset removed. Users ask manager or Principal/Design Principal to reset
 // via Users tab → Reset pw. See HIGH-6 in AUDIT-M04-M13.md.
 
 // ── BOOT
@@ -5448,7 +5541,7 @@ APP.initiateUser = async function() {
   const role      = document.getElementById('nu-role')?.value;
   if (!full_name||!username||!role) { UI.toast('Fill all required fields'); return; }
   const res = await API.call('POST', '/user-management/initiate', { full_name, username, phone, role });
-  if (res?.success) { UI.closeModal(); UI.toast('Request submitted — pending Naveen/Ajay approval ✓'); }
+  if (res?.success) { UI.closeModal(); UI.toast('Request submitted — pending Principal/Design Principal approval ✓'); }
   else UI.toast(res?.error || 'Failed');
 };
 
@@ -6449,7 +6542,7 @@ APP.renderIssues = async function() {
     });
   }
 
-  const typeFilters = ['all','quality','design','rfi','safety','compliance'];
+  const typeFilters = ['all','needs_you','quality','design','rfi','safety','compliance'];
   const cur = APP.state.issueFilter || 'all';
   html += `<div class="sec-hdr-row">
     <div class="sec-label" style="margin:0;flex:1">Issues Register</div>
@@ -6458,15 +6551,26 @@ APP.renderIssues = async function() {
   ${canRaise ? `<button class="btn-primary sec-action-mobile" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
   ${APP._sortToggleHTML('issues', ['default','urgency','age'])}
   <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px">
-    ${typeFilters.map(f => `<button style="min-height:44px;flex-shrink:0;padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;border:1px solid ${f===cur?'var(--navy)':'var(--border)'};background:${f===cur?'var(--navy)':'var(--white)'};color:${f===cur?'var(--white)':'var(--muted)'}" onclick="APP.state.issueFilter='${f}';APP.renderIssues()">${f}</button>`).join('')}
+    ${typeFilters.map(f => `<button style="min-height:44px;flex-shrink:0;padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;border:1px solid ${f===cur?'var(--navy)':'var(--border)'};background:${f===cur?'var(--navy)':'var(--white)'};color:${f===cur?'var(--white)':'var(--muted)'}" onclick="APP.state.issueFilter='${f}';APP.renderIssues()">${f.replace('_', ' ')}</button>`).join('')}
   </div>`;
 
-  let filtered = cur === 'all' ? issues.filter(i => i.status !== 'draft') : issues.filter(i => i.issue_type === cur && i.status !== 'draft');
+  let filtered;
+  if (cur === 'needs_you') {
+    filtered = issues.filter(i => 
+      (i.assigned_to === APP.user.id || i.assigned_to_site === APP.user.id) ||
+      (i.status === 'draft' && canConfirm)
+    );
+  } else if (cur === 'all') {
+    filtered = issues.filter(i => i.status !== 'draft');
+  } else {
+    filtered = issues.filter(i => i.issue_type === cur && i.status !== 'draft');
+  }
+
   filtered = APP._applySort(filtered, APP._getSortMode('issues'), { urgencyField:'issue_type', ageField:'raised_at' });
   if (!filtered.length) { html += UI.empty('','No issues in this category'); }
   else filtered.slice(0,20).forEach(i => {
     const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
-    html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer" onclick="APP.openIssueDetail(${i.id})">
+    html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer;width:100%;text-align:left;display:block" onclick="APP.openIssueDetail(${i.id})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
         <div style="flex:1;min-width:0">
           <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
@@ -7008,7 +7112,7 @@ APP.renderBudget = async function() {
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
-// ── PAYMENTS — Naveen Saturday batch approval.
+// ── PAYMENTS — Principal Saturday batch approval.
 // Design Head / Services Head only see advance + final bills (Sprint 2 Item 4).
 // They have design-stream oversight on these but not on weekly labour/material cycles.
 APP.renderPayments = async function() {
@@ -7089,7 +7193,7 @@ APP.batchApprovePayments = async function(pid) {
   }
 };
 
-// ── PAYMENTS FINANCE — Udupa view (Saturday workflow)
+// ── PAYMENTS FINANCE — Finance Admin view (Saturday workflow)
 APP.renderPaymentsFin = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
@@ -7275,13 +7379,13 @@ APP.submitRaisePI = async function(pid) {
   if (res?.code === 'CLIENT_INCOMPLETE' && res?.client_id) {
     UI.closeModal();
     if (APP.user.role === 'finance_admin') {
-      // Udupa: offer to complete master right now
+      // Finance Admin: offer to complete master right now
       const name = (res.error || '').match(/"([^"]+)"/)?.[1] || 'this client';
       if (confirm(`${res.error}\n\nOpen completion form now?`)) {
         APP.showCompleteClient(res.client_id, name);
       }
     } else {
-      UI.toast('Client master incomplete — ask Udupa (finance) to complete it before raising PI');
+      UI.toast('Client master incomplete — ask Finance Admin (finance) to complete it before raising PI');
     }
     return;
   }
@@ -7293,7 +7397,7 @@ APP.submitRaisePI = async function(pid) {
   UI.toast(res?.error || 'Failed to raise PI');
 };
 
-// ── PETTY CASH — Udupa
+// ── PETTY CASH — Finance Admin
 APP.renderPettyCash = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
@@ -7330,7 +7434,7 @@ APP.renderPettyCash = async function() {
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
-// ── USERS — Naveen user management
+// ── USERS — Principal user management
 APP.renderUsers = async function() {
   const el = UI.contentEl();
 
@@ -8782,7 +8886,7 @@ APP.submitSubmittal = async function() {
 };
 
 // ── PMC DEPUTY — declare unavailable / return
-// ── WEEKLY HEALTH REPORT — Naveen consolidated view
+// ── WEEKLY HEALTH REPORT — Principal consolidated view
 APP.renderWeeklyHealth = async function() {
   const el = UI.contentEl();
   const data = await API.get('/weekly-health/summary');
@@ -8963,15 +9067,15 @@ APP.renderProjectDetail = async function() {
   <div class="sec-label">Key Dates</div>
   <div class="card" style="margin-bottom:16px">
     <div class="prog-row">
-      <div class="prog-label">Start</div>
+      <div class="prog-label" style="width:110px">Start</div>
       <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${UI.fmtDate(p.start_date)}</div>
     </div>
     <div class="prog-row">
-      <div class="prog-label">Completion</div>
+      <div class="prog-label" style="width:110px">Completion</div>
       <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${UI.fmtDate(p.completion_date)}</div>
     </div>
     <div class="prog-row">
-      <div class="prog-label">Contract</div>
+      <div class="prog-label" style="width:110px">Contract</div>
       <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--navy)">${Money.formatRupee(p.contract_value||0)}</div>
     </div>
   </div>`;
@@ -8984,14 +9088,14 @@ APP.renderProjectDetail = async function() {
   <div class="sec-label">PMC Assignment</div>
   <div class="card" style="margin-bottom:16px">
     <div class="prog-row">
-      <div class="prog-label">Primary</div>
+      <div class="prog-label" style="width:110px">Primary</div>
       <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600">
         ${pmc.primary_name || '<span style="color:var(--muted);font-weight:400">— Not assigned —</span>'}
       </div>
       ${canChange ? `<button class="btn-sm" onclick="APP.openChangePmc(${pid},'primary')" style="margin-left:8px">Change</button>` : ''}
     </div>
     <div class="prog-row">
-      <div class="prog-label">Backup</div>
+      <div class="prog-label" style="width:110px">Backup</div>
       <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--text2)">
         ${pmc.backup_name || '<span style="color:var(--muted)">— Optional, for leave cover —</span>'}
       </div>
@@ -9113,7 +9217,7 @@ APP.openChangePmc = async function(pid, kind) {
       </div>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Note <span style="color:var(--muted2)">(optional)</span></label>
-        <input id="pmc-assign-note" type="text" placeholder="e.g. Murugesan on leave Apr 25 – May 2"
+        <input id="pmc-assign-note" type="text" placeholder="e.g. PMC Head on leave Apr 25 – May 2"
           style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r2);font-size:14px">
       </div>
       <div class="btn-row" style="margin-top:14px">
@@ -9236,7 +9340,7 @@ APP._revertSla = async function(itemType) {
   }
 };
 
-// ── CLIENT RECEIPTS — Udupa logs incoming payments
+// ── CLIENT RECEIPTS — Finance Admin logs incoming payments
 APP.renderClientReceipts = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
@@ -9292,7 +9396,7 @@ APP.submitReceipt = async function() {
   if (res?.success) { APP.closeModal(); UI.toast('Receipt logged ✓'); APP.renderClientReceipts(); }
 };
 
-// ── TALLY XML EXPORT — Udupa
+// ── TALLY XML EXPORT — Finance Admin
 APP.renderTallyExport = async function() {
   const el = UI.contentEl();
   const pid = APP.state.selectedProject;
@@ -9493,6 +9597,8 @@ APP.showActionTriage = function(key) {
     const label = UI.escapeText(meta.label(it));
     const sub   = UI.escapeText(meta.sub(it));
     const pid = it.project_id || APP.state.selectedProject || '';
+    // For flags, also set flagFilterProject so the Flags tab pre-filters to this project
+    const extraState = key === 'open_flags' ? `APP.state.flagFilterProject=${pid};` : '';
     return `
       <div class="triage-row">
         <div class="triage-row-icon">${meta.icon}</div>
@@ -9500,7 +9606,7 @@ APP.showActionTriage = function(key) {
           <div class="triage-row-label">${label}</div>
           <div class="triage-row-sub">${sub}</div>
         </div>
-        <button class="btn-sm navy" onclick="UI.closeModal();APP.state.selectedProject=${pid};APP._tryNav('${meta.tab}');">Review →</button>
+        <button class="btn-sm navy" onclick="UI.closeModal();APP.state.selectedProject=${pid};${extraState}APP._tryNav('${meta.tab}');">Review →</button>
       </div>`;
   };
 
@@ -9768,7 +9874,7 @@ APP.renderFinanceDashboard = async function() {
       <div class="ai-icon"></div>
       <div class="ai-body">
         <div class="ai-title">Payment Excel ready</div>
-        <div class="ai-meta">Naveen has approved — download and upload to ICICI</div>
+        <div class="ai-meta">Principal has approved — download and upload to ICICI</div>
       </div>
       <span class="badge b-green">Ready</span>
     </div>`;
@@ -9880,7 +9986,7 @@ APP.modalOverlayClick = function(e) {
 };
 
 // ── WHO + WHERE in topbar (Fix 4, video review) ──
-// Shows: "Naveen · Principal" on line 1, project name on line 2.
+// Shows: "Principal · Principal" on line 1, project name on line 2.
 // tb-ctx uses innerHTML so both lines render.
 APP._updateTopbar = function() {
   const ctx = document.getElementById('tb-ctx');
@@ -10455,7 +10561,7 @@ APP.uploadVendorExcel = async function(input) {
   APP.renderVendorsMaster();
 };
 
-// ── Finance Clearance tab — Udupa reviews and clears pending vendors
+// ── Finance Clearance tab — Finance Admin reviews and clears pending vendors
 APP.renderFinanceClearance = async function() {
   const el = UI.contentEl();
   UI.loading(el);

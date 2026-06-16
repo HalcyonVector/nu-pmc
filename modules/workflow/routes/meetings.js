@@ -314,7 +314,7 @@ router.post('/:id/reissue', requireAuth, requirePMC, upload.single('doc'), async
     const [[curr]] = await db.query(
       'SELECT * FROM meeting_revisions WHERE meeting_id = ? ORDER BY version DESC LIMIT 1', [req.params.id]);
     if (!curr) return res.status(400).json({ error: 'No revision record found' });
-    if (curr.locked) return res.status(400).json({ error: 'MOM is locked — Naveen or Ajay must unlock first' });
+    if (curr.locked) return res.status(400).json({ error: 'MOM is locked — Principal or Design Principal must unlock first' });
 
     // Check window has not expired
     if (new Date() > new Date(curr.lock_deadline)) {
@@ -361,7 +361,7 @@ router.post('/:id/reissue', requireAuth, requirePMC, upload.single('doc'), async
     });
   }));
 
-// ── POST /api/meetings/:id/unlock — Naveen/Ajay only
+// ── POST /api/meetings/:id/unlock — Principal/Design Principal only
 router.post('/:id/unlock', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
     const { reason } = req.body;
     if (!reason) return res.status(400).json({ error: 'Reason required to unlock MOM' });

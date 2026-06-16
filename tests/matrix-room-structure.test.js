@@ -5,7 +5,7 @@
 //
 // Lock in:
 //   - Per project: coordination + internal + finance (3 rooms)
-//   - Org-wide:   internal_naveen + internal_finance + system_health
+//   - Org-wide:   internal_principal + internal_finance + system_health
 //   - 'general' is NOT a project room type (Element X covers personal chat)
 //   - 'system_health' is org-wide ONLY (project_id NULL) — NOT replicated
 //
@@ -52,7 +52,7 @@ describe('Matrix room structure (May 2026 decision)', () => {
 
     // Active project room types
     expect(block).toMatch(/type:\s*'coordination'/);
-    expect(block).toMatch(/type:\s*'internal'(?!_)/);   // not 'internal_naveen'
+    expect(block).toMatch(/type:\s*'internal'(?!_)/);   // not 'internal_principal'
     expect(block).toMatch(/type:\s*'finance'/);
 
     // Removed / dropped — must NOT appear as active project types
@@ -72,7 +72,7 @@ describe('Matrix room structure (May 2026 decision)', () => {
     expect(m).not.toBeNull();
     const block = m[1];
 
-    expect(block).toMatch(/type:\s*'internal_naveen'/);
+    expect(block).toMatch(/type:\s*'internal_principal'/);
     expect(block).toMatch(/type:\s*'internal_finance'/);
     expect(block).toMatch(/type:\s*'system_health'/);
 

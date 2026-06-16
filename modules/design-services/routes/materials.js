@@ -71,7 +71,7 @@ router.get('/:project_id/boq', requireAuth,
 
   }));
 
-// POST /api/materials/:project_id/boq/upload — Rajani/Srinath uploads BOQ Excel
+// POST /api/materials/:project_id/boq/upload — PMC Head/Services Head uploads BOQ Excel
 router.post('/:project_id/boq/upload', requireAuth, requireProjectScope(),
   requirePermission('onboarding.boq.upload'),
   upload.single('boq'), asyncHandler(async (req, res) => {

@@ -151,11 +151,11 @@ router.post('/:report_id/sign', requireAuth, asyncHandler(async (req, res) => {
     res.json({
       success: true,
       all_signed: !!allSigned,
-      message: allSigned ? 'All 3 signatures collected — sent to Naveen/Ajay for final approval.' : `${section} section signed.`
+      message: allSigned ? 'All 3 signatures collected — sent to Principal/Design Principal for final approval.' : `${section} section signed.`
     });
   }));
 
-// POST /api/weekly-signoff/:report_id/principal-approve — Naveen/Ajay final approval
+// POST /api/weekly-signoff/:report_id/principal-approve — Principal/Design Principal final approval
 router.post('/:report_id/principal-approve', requireAuth, requireRole(...PRINCIPALS), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const [[report]] = await db.query('SELECT * FROM weekly_reports WHERE id = ?', [req.params.report_id]);

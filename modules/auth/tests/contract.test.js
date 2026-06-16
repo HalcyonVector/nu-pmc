@@ -123,7 +123,7 @@ describe('M1 Auth — getUsersByRole function', () => {
 
   test('returns all users with given role when no project', async () => {
     db.query.mockResolvedValueOnce([[
-      { id: 1, username: 'naveen', full_name: 'Naveen', role: 'principal' },
+      { id: 1, username: 'principal', full_name: 'Principal', role: 'principal' },
       { id: 22, username: 'test_principal', full_name: 'Test Principal', role: 'principal' },
     ]]);
     const rows = await Auth.functions.getUsersByRole('principal');
@@ -166,9 +166,9 @@ describe('M1 Auth — login route (smoke test)', () => {
     const bcrypt = require('bcryptjs');
     const hash = bcrypt.hashSync('right-password', 10);
     db.query.mockResolvedValueOnce([[
-      { id: 1, username: 'naveen', password_hash: hash, full_name: 'Naveen', role: 'principal', stream: 'all', is_active: 1, force_password_change: 0 },
+      { id: 1, username: 'principal', password_hash: hash, full_name: 'Principal', role: 'principal', stream: 'all', is_active: 1, force_password_change: 0 },
     ]]);
-    const r = await request(makeApp()).post('/api/auth/login').send({ username: 'naveen', password: 'wrong-password' });
+    const r = await request(makeApp()).post('/api/auth/login').send({ username: 'principal', password: 'wrong-password' });
     expect(r.status).toBe(401);
   });
 });
@@ -190,16 +190,16 @@ describe('M1 Auth — getUsers (bulk)', () => {
 
   test('returns Map keyed by id', async () => {
     db.query.mockResolvedValueOnce([[
-      { id: 1, full_name: 'Naveen', phone: '9000000001' },
-      { id: 2, full_name: 'Ajay',   phone: '9000000002' },
+      { id: 1, full_name: 'Principal', phone: '9000000001' },
+      { id: 2, full_name: 'Design Principal',   phone: '9000000002' },
     ]]);
     const m = await Auth.functions.getUsers([1, 2]);
-    expect(m.get(1).full_name).toBe('Naveen');
-    expect(m.get(2).full_name).toBe('Ajay');
+    expect(m.get(1).full_name).toBe('Principal');
+    expect(m.get(2).full_name).toBe('Design Principal');
   });
 
   test('dedupes ids and skips falsy', async () => {
-    db.query.mockResolvedValueOnce([[{ id: 1, full_name: 'Naveen' }]]);
+    db.query.mockResolvedValueOnce([[{ id: 1, full_name: 'Principal' }]]);
     await Auth.functions.getUsers([1, null, 1, undefined, 0]);
     // IN (?) expects unique ids — verify by checking what was sent
     expect(db.query.mock.calls[0][1]).toEqual([[1]]);

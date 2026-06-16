@@ -66,7 +66,7 @@ router.post('/:project_id/petty-cash/replenish', requireAuth, requireProjectScop
       const me = req.session.user;
       if (!['principal','design_principal'].includes(me.role)) {
         return res.status(403).json({
-          error: `Replenishment above ₹${PETTY_CASH_THRESHOLD.toLocaleString('en-IN')} requires Naveen or Ajay approval.`,
+          error: `Replenishment above ₹${PETTY_CASH_THRESHOLD.toLocaleString('en-IN')} requires Principal or Design Principal approval.`,
           requires_principal: true,
         });
       }

@@ -118,7 +118,7 @@ describe('Tier 3 — bug fixes', () => {
   test('S-7: notifications.js no longer references AiSensy', () => {
     const src = read('services/notifications.js');
     expect(src.toLowerCase()).not.toMatch(/aisensy\.com/);
-    // Per Naveen — replaced by Twilio via services/whatsapp
+    // Per Principal — replaced by Twilio via services/whatsapp
     expect(src).toMatch(/sendOTP/);
   });
 });

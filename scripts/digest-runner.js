@@ -6,7 +6,7 @@
 //
 // Called by cron three times daily. Cron times must match notifications_config:
 //   0  7 * * * /usr/bin/node /path/to/scripts/digest-runner.js morning_pmc
-//   0  8 * * * /usr/bin/node /path/to/scripts/digest-runner.js naveen
+//   0  8 * * * /usr/bin/node /path/to/scripts/digest-runner.js principal
 //   0 21 * * * /usr/bin/node /path/to/scripts/digest-runner.js closeout
 //
 // Per v2 brief C11: "One function, three database configurations.
@@ -21,7 +21,7 @@ const { sendDigest } = require('../services/digest');
 async function main() {
   const digestType = process.argv[2];
   if (!digestType) {
-    console.error('Usage: digest-runner.js <morning_pmc|naveen|closeout>');
+    console.error('Usage: digest-runner.js <morning_pmc|principal|closeout>');
     process.exit(1);
   }
 

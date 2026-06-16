@@ -1,4 +1,4 @@
-// routes/clients.js — Client master (Udupa/finance manages)
+// routes/clients.js — Client master (Finance Admin/finance manages)
 const express = require('express');
 const db      = require('../../../middleware/db');
 const path    = require('path');
@@ -12,7 +12,7 @@ const xl       = require('../../../middleware/excel');
 const { upload } = require('../../../middleware/upload');
 const users   = require('../../../services/users-lookup');
 
-// Only Naveen, Ajay, and Udupa (finance role) can access
+// Only Principal, Design Principal, and Finance Admin (finance role) can access
 const { can } = require('../../../middleware/permissions');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
@@ -307,7 +307,7 @@ router.post('/:id/tally-xml/:claim_id', requireAuth, asyncHandler(async (req, re
     const outPath  = path.join(UPLOAD_DIR, 'documents', fileName);
     fs.writeFileSync(outPath, xml, 'utf8');
 
-    // Notify finance admins via WhatsApp (role-based — was hardcoded username='udupa')
+    // Notify finance admins via WhatsApp (role-based — was hardcoded username='finance_admin')
     try {
       const { notify } = require('../../../services/notifications');
       const recipients = await users.financeAdmins('id');

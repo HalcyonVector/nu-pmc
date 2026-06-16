@@ -6,7 +6,7 @@
 //
 // Usage:
 //   node scripts/matrix-provision-rooms.js --project <id>
-//   node scripts/matrix-provision-rooms.js --internal              # creates internal_naveen, internal_finance, system_health
+//   node scripts/matrix-provision-rooms.js --internal              # creates internal_principal, internal_finance, system_health
 //   node scripts/matrix-provision-rooms.js --project 5 --dry-run   # log only, no DB writes, no Matrix calls
 //
 // Pre-requisites:
@@ -20,7 +20,7 @@
 //   2. Records each as a row in matrix_rooms (project_id, room_type, room_id)
 //   3. All three rooms created with encryption OFF (polls don't work in
 //      encrypted rooms — brief §6.2, §7.2)
-//   4. For --internal: creates org-wide rooms internal_naveen,
+//   4. For --internal: creates org-wide rooms internal_principal,
 //      internal_finance, system_health (project_id NULL)
 //
 // What this script does NOT do:
@@ -44,7 +44,7 @@ const BOT_TOKEN  = process.env.MATRIX_BOT_TOKEN  || '';
 // Project rooms — created per project. Encryption explicitly OFF for bot
 // rooms (Matrix polls don't work in encrypted rooms — brief §6.2/§7.2).
 //
-// Updated per Naveen May 2026 decision (see MATRIX_MIGRATION_PLAN.md):
+// Updated per Principal May 2026 decision (see MATRIX_MIGRATION_PLAN.md):
 // supersedes brief §7.1's site/finance/design/general split. Reasons:
 //   - 'coordination' adds vendors to the room (bridged via wa.me / EMS
 //     WhatsApp bridge), so bot+vendors+team share one project channel
@@ -52,7 +52,7 @@ const BOT_TOKEN  = process.env.MATRIX_BOT_TOKEN  || '';
 //     -site/-design did separately
 //   - 'general' (encrypted human-only) DROPPED — Element X covers
 //     personal team chat without per-project replication
-//   - 'finance' unchanged — Naveen + Principal + Finance, bot posts
+//   - 'finance' unchanged — Principal + Principal + Finance, bot posts
 //     payment requests, batch approvals, UTR confirmations
 //
 // Three rooms per project. At 10 projects → 30 project rooms +
@@ -61,12 +61,12 @@ const BOT_TOKEN  = process.env.MATRIX_BOT_TOKEN  || '';
 const PROJECT_ROOM_TYPES = [
   { type: 'coordination', encrypted: 0, suffix: 'coordination', description: 'Internal team + vendors — bot posts here' },
   { type: 'internal',     encrypted: 0, suffix: 'internal',     description: 'Internal team only (no vendors) — bot posts here' },
-  { type: 'finance',      encrypted: 0, suffix: 'finance',      description: 'Finance + Naveen + Principal — bot posts here' },
+  { type: 'finance',      encrypted: 0, suffix: 'finance',      description: 'Finance + Principal + Principal — bot posts here' },
 ];
 
 // Internal rooms — project_id NULL, one per type globally
 const INTERNAL_ROOM_TYPES = [
-  { type: 'internal_naveen',  encrypted: 0, alias: 'internal-naveen',  description: 'Naveen only — personal digests' },
+  { type: 'internal_principal',  encrypted: 0, alias: 'internal-principal',  description: 'Principal only — personal digests' },
   { type: 'internal_finance', encrypted: 0, alias: 'internal-finance', description: 'Finance only — payment alerts' },
   { type: 'system_health',    encrypted: 0, alias: 'system-health',    description: 'Admin / Guru only — canary alerts' },
 ];
@@ -94,7 +94,7 @@ Usage:
 
 Flags:
   --project <id>   Provision rooms for a specific project
-  --internal       Provision internal_naveen, internal_finance, system_health
+  --internal       Provision internal_principal, internal_finance, system_health
   --dry-run        Print intent only, no DB writes, no Matrix calls
 
 Env required:
@@ -175,7 +175,7 @@ async function provisionProject(projectId, dryRun) {
   // Project code comes from projects.code (set at project creation, see
   // routes/projects.js). Earlier this function derived a code via name-regex
   // ("PV 90 Production Line" → "PV90PL") which was fragile and could drift
-  // from Naveen's actual project-code convention. Use the real column.
+  // from Principal's actual project-code convention. Use the real column.
   // Fall back to "P{id}" only if the row somehow lacks a code.
   const code = (project.code && project.code.trim()) || `P${projectId}`;
   console.log(`\n=== Provisioning rooms for ${project.name} (project ${projectId}, code ${code}) ===`);

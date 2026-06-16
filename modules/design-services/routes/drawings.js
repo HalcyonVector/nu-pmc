@@ -142,7 +142,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
         );
         return res.status(400).json({
           error: 'drawing_not_on_register',
-          message: `Drawing "${drawing_number}" is not on the approved drawing register for this project.\n\nOnly drawings pre-registered by Design Head (Rajani) or Services Head (Srinath) at project initiation can be uploaded as main drawings.\n\nIf this is a detail drawing, upload it under "Detail Drawing" instead. If it is a response to an RFI, use the RFI reply flow.\n\nIf it should be on the register, ask Rajani or Srinath to add it first.`,
+          message: `Drawing "${drawing_number}" is not on the approved drawing register for this project.\n\nOnly drawings pre-registered by Design Head (PMC Head) or Services Head (Services Head) at project initiation can be uploaded as main drawings.\n\nIf this is a detail drawing, upload it under "Detail Drawing" instead. If it is a response to an RFI, use the RFI reply flow.\n\nIf it should be on the register, ask PMC Head or Services Head to add it first.`,
           hint: {
             stream,
             valid_drawing_numbers_on_register: allEntries.map(e => e.drawing_number)
@@ -165,8 +165,8 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
     }
 
     // Determine initial status based on uploader role
-    // Services: services_engineer → pending_l1 (srinath reviews)
-    // Design: jr_engineer → pending_l1 (sahana/sushmitha review), team_lead/team_lead → pending_l2 (rajani), design_head/principal → issued
+    // Services: services_engineer → pending_l1 (services_head reviews)
+    // Design: jr_engineer → pending_l1 (team_lead/sushmitha review), team_lead/team_lead → pending_l2 (pmc_head), design_head/principal → issued
     let initStatus = 'pending_l1';
     if (['principal','design_principal'].includes(me.role)) initStatus = 'issued';
     else if (me.role === 'design_head') initStatus = 'issued';
@@ -602,7 +602,7 @@ router.post('/version/:version_id/reject', requireAuth, asyncHandler(async (req,
 
   }));
 
-// POST /api/drawings/version/:version_id/flag — Ajay/Naveen/R/S flag with comment
+// POST /api/drawings/version/:version_id/flag — Design Principal/Principal/R/S flag with comment
 // Does not reject — holds drawing for review. Notifies uploader.
 router.post('/version/:version_id/flag', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
@@ -622,7 +622,7 @@ router.post('/version/:version_id/flag', requireAuth, asyncHandler(async (req, r
       }
     }
     if (!canFlagDrawing(me, dv)) {
-      return res.status(403).json({ error: 'Only Naveen, Ajay, Rajani, Srinath or PMC Head can flag drawings' });
+      return res.status(403).json({ error: 'Only Principal, Design Principal, PMC Head, Services Head or PMC Head can flag drawings' });
     }
     const { comment, hold } = req.body;
     if (!comment) return res.status(400).json({ error: 'Comment required when flagging a drawing' });

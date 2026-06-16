@@ -26,10 +26,10 @@ async function run() {
   const is4PM      = hour === 16;
   const is5PM      = hour === 17;
 
-  // Naveen 4PM Saturday — payment approval digest
-  if (isSaturday && is4PM) { await sendNaveen4PMPayments(db); }
+  // Principal 4PM Saturday — payment approval digest
+  if (isSaturday && is4PM) { await sendPrincipal4PMPayments(db); }
 
-  // Udupa 5PM Saturday — Excel after Naveen approves
+  // Finance Admin 5PM Saturday — Excel after Principal approves
   if (isSaturday && is5PM) { await sendFinanceAdmin5PMExcel(db); }
 
   // ── TIME FLAGS (declared once, used throughout)
@@ -64,10 +64,10 @@ async function run() {
   const { processRetryQueue } = require('../services/vendor-validation');
   await processRetryQueue(db).catch(e => console.error('[retry-queue]', e.message));
 
-  // ── Naveen 8AM priorities — Matrix via sendDigest
+  // ── Principal 8AM priorities — Matrix via sendDigest
   if (is8AM) {
     const { sendDigest } = require('../services/digest');
-    await sendDigest({ digestType: 'naveen' }).catch(e => console.error('[overdue-checker] naveen digest:', e.message));
+    await sendDigest({ digestType: 'principal' }).catch(e => console.error('[overdue-checker] principal digest:', e.message));
   }
 
   // ── PMC Head 7AM site prep — Matrix via sendDigest
@@ -78,7 +78,7 @@ async function run() {
     await sendScheduleReminders(db).catch(e => console.error('[overdue-checker] schedule reminders:', e.message));
   }
 
-  // ── Naveen 9PM digest + PMC 9PM close + R/S pending alerts
+  // ── Principal 9PM digest + PMC 9PM close + R/S pending alerts
   if (is9PM) {
     const { sendDigest } = require('../services/digest');
     await sendDigest({ digestType: 'closeout' }).catch(e => console.error('[overdue-checker] closeout digest:', e.message));
@@ -107,7 +107,7 @@ async function run() {
 
   // ── 3. Drawing approval escalation
   // 1 day stuck → amber (is_overdue flag on drawing_versions)
-  // 2 days stuck → escalate to next level / notify Naveen
+  // 2 days stuck → escalate to next level / notify Principal
   const [stuckDrawings] = await db.execute(
     `SELECT dv.id, dv.drawing_id, dv.status, dv.l1_reviewed_at, dv.created_at,
             d.project_id, d.drawing_number, d.stream,
@@ -175,7 +175,7 @@ async function run() {
     // 9 PM — notify PMC heads
     await checkMissingReports(db, today, 'pmc_head');
   } else if (hour === 12) {
-    // Next day noon — check if yesterday's report still missing, notify Naveen
+    // Next day noon — check if yesterday's report still missing, notify Principal
     const yesterday = new Date(now - 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     await checkMissingReports(db, yesterday, 'principal');
   }
@@ -264,7 +264,7 @@ async function run() {
 }
 
 // ── Auto-lock daily reports past T+2 days ──────────────────────────────
-// Lock cycle (Naveen, 28 Apr 2026):
+// Lock cycle (Principal, 28 Apr 2026):
 //   - Tuesday all day            — site mgr submit/edit; PMC can act
 //   - Wednesday 06:00 IST        — site mgr edit freeze
 //   - Wednesday all day          — PMC grace day to approve/flag
@@ -405,7 +405,7 @@ async function sendRSWeeklyDigest(db) {
 
 module.exports = { run };
 
-async function sendNaveen4PMPayments(db) {
+async function sendPrincipal4PMPayments(db) {
   const [projects] = await db.execute("SELECT id, name, code FROM projects WHERE status='active'");
   const matrixAdapter = require('../services/matrix-adapter');
 
@@ -440,13 +440,13 @@ async function sendNaveen4PMPayments(db) {
 
   if (!lines.length) return;
 
-  // Summary to #internal-naveen
-  const naveenRoom = await matrixAdapter.getInternalRoomId('internal_naveen');
-  if (naveenRoom) {
+  // Summary to #internal-principal
+  const principalRoom = await matrixAdapter.getInternalRoomId('internal_principal');
+  if (principalRoom) {
     const msg = `💰 Saturday Payment Summary — ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}\n\n` +
       lines.join('\n') + `\n\nTotal: ₹${totalAmt.toLocaleString('en-IN')}\n\nOpen app to approve by project.`;
-    await matrixAdapter.sendText({ roomId: naveenRoom, body: msg })
-      .catch(e => console.warn('[4PM naveen summary]', e.message));
+    await matrixAdapter.sendText({ roomId: principalRoom, body: msg })
+      .catch(e => console.warn('[4PM principal summary]', e.message));
   }
 }
 

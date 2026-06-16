@@ -31,7 +31,7 @@
 //   - The VPS is off the network entirely (need an external watchdog)
 //   - SMTP relay is also down (need a tertiary signal — out of scope)
 //
-// Naveen, May 2026: this is acceptable. External watchdog is a
+// Principal, May 2026: this is acceptable. External watchdog is a
 // separate concern, not part of nu PMC.
 //
 // ENV VARS (all required at call time, not module-load):

@@ -1,11 +1,11 @@
 // routes/register.js — Drawing Register
 // ======================================
-// At project initiation, Rajani (design) and Srinath (services) each upload an Excel
+// At project initiation, PMC Head (design) and Services Head (services) each upload an Excel
 // drawing register — the master list of every main drawing that will exist on the
 // project. Only drawings on this register can be uploaded later as 'main' drawings.
 //
-// Sign-off: Naveen or Ajay signs off the register before it is "locked".
-// Amendments: Rajani/Srinath can add entries after sign-off; every addition is logged.
+// Sign-off: Principal or Design Principal signs off the register before it is "locked".
+// Amendments: PMC Head/Services Head can add entries after sign-off; every addition is logged.
 //
 // Expected Excel columns (case-insensitive, flexible):
 //   Drawing No | Drawing Name | Category | Expected Rev (optional) | Notes (optional)
@@ -59,7 +59,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
     res.json({ register: rows, summary });
   }));
 
-// POST /api/register/:project_id/upload — Rajani or Srinath uploads Excel register
+// POST /api/register/:project_id/upload — PMC Head or Services Head uploads Excel register
 router.post('/:project_id/upload', requireAuth, requireProjectScope(),
   requireRole(...STREAM_HEADS),
   upload.single('register'), asyncHandler(async (req, res) => {
@@ -160,7 +160,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
       imported_sample: imported.slice(0, 20),
       skipped,
       errors,
-      message: `Register uploaded: ${imported.length} drawings imported${errors.length ? `, ${errors.length} rows had errors` : ''}. Awaiting sign-off by Naveen or Ajay.`
+      message: `Register uploaded: ${imported.length} drawings imported${errors.length ? `, ${errors.length} rows had errors` : ''}. Awaiting sign-off by Principal or Design Principal.`
     });
 
   }));
@@ -190,7 +190,7 @@ router.post('/:project_id/add', requireAuth, requireProjectScope(), requireRole(
     res.json({
       success: true,
       id: result.insertId,
-      message: `Drawing ${drawing_number} added to register. Naveen or Ajay can sign off on this amendment.`
+      message: `Drawing ${drawing_number} added to register. Principal or Design Principal can sign off on this amendment.`
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -201,7 +201,7 @@ router.post('/:project_id/add', requireAuth, requireProjectScope(), requireRole(
   }
 });
 
-// POST /api/register/:project_id/sign-off — Naveen or Ajay signs off the register
+// POST /api/register/:project_id/sign-off — Principal or Design Principal signs off the register
 router.post('/:project_id/sign-off', requireAuth, requireProjectScope(), requirePrincipal, async (req, res) => {
   try {
     const me  = req.session.user;

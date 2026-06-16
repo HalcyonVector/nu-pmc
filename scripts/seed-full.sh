@@ -245,8 +245,8 @@ INSERT INTO payment_requests (project_id, engagement_id, vendor_id, amount_reque
 VALUES
   (@pv, @eng_pv90, @v_pv90, 100000,'material_advance',@nv,'pending_pmc','advance for steel'),
   (@pv, @eng_pv90, @v_pv90, 200000,'running_account_bill',@nv,'pmc_approved','RA bill 1'),
-  (@pv, @eng_pv90, @v_pv90, 300000,'running_account_bill',@nv,'pending_naveen','RA bill 2'),
-  (@pv, @eng_pv90, @v_pv90, 400000,'running_account_bill',@nv,'naveen_approved','RA bill 3'),
+  (@pv, @eng_pv90, @v_pv90, 300000,'running_account_bill',@nv,'pending_principal','RA bill 2'),
+  (@pv, @eng_pv90, @v_pv90, 400000,'running_account_bill',@nv,'principal_approved','RA bill 3'),
   (@pv, @eng_pv90, @v_pv90, 150000,'advance',@nv,'paid','advance settled'),
   (@pv, @eng_pv90, @v_pv90, 500000,'final_bill',@nv,'pending_pmc','final bill');
 

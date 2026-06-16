@@ -98,7 +98,7 @@ async function lookupIFSC(ifsc) {
   return { error: 'IFSC not found — verify manually' };
 }
 
-// ── 3. PAN VALIDATION (for Udupa — pre-payment gate)
+// ── 3. PAN VALIDATION (for Finance Admin — pre-payment gate)
 async function validatePAN(pan) {
   if (!pan || pan.length !== 10) return { valid: false, error: 'Invalid PAN — must be 10 characters' };
   // PAN format: AAAAA9999A — pattern from canonical source
@@ -129,7 +129,7 @@ async function validatePAN(pan) {
     valid:       true,
     pan:         pan.toUpperCase(),
     entity_type: entityTypes[entityChar] || 'Unknown',
-    note:        'Format valid — live verification unavailable. Verify with Udupa.',
+    note:        'Format valid — live verification unavailable. Verify with Finance Admin.',
   };
 }
 

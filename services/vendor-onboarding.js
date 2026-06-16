@@ -35,7 +35,7 @@
 const crypto = require('crypto');
 const db = require('../middleware/db');
 
-// Token validity. 48h is the default per build-commit lock #3 (Naveen's
+// Token validity. 48h is the default per build-commit lock #3 (Principal's
 // design call). Env override allows tuning for trial periods, demo flows,
 // or stricter compliance setups without code edits. Bounds: 1h-720h
 // (30 days). Outside that range we fall back to default and warn.

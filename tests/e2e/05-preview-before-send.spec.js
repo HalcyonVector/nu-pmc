@@ -8,7 +8,7 @@ test.describe('Preview-before-send pattern', () => {
 
   test.beforeEach(async ({ request }) => {
     await request.post('/api/auth/login', {
-      data: { username: 'murugesan', password: 'NuPMC@2026' }  // PMC head
+      data: { username: 'pmc_head', password: 'NuPMC@2026' }  // PMC head
     });
   });
 

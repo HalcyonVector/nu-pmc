@@ -47,7 +47,7 @@ INSERT INTO projects (id, code, name, client, location, project_type, r0_start_d
 
 -- ── PROJECT ASSIGNMENT (Anjaneya → PV90)
 INSERT INTO project_assignments (project_id, user_id, assigned_by) VALUES
-(1, 16, 3),  -- Anjaneya assigned by Murugesan
+(1, 16, 3),  -- Anjaneya assigned by PMC Head
 (1, 17, 3);  -- Suleman also assigned
 
 -- ── SCHEDULE VERSION R0
@@ -98,7 +98,7 @@ INSERT INTO task_updates (task_id, project_id, report_date, pct_complete, notes,
 (11, 1, '2026-04-11', 55,  'Zone A and B complete', 0, NULL, 16),
 (13, 1, '2026-04-11', 80,  'Racks installed, UPS wired, patching pending', 0, NULL, 16);
 
--- ── TASK VALIDATIONS (Murugesan validated completed tasks)
+-- ── TASK VALIDATIONS (PMC Head validated completed tasks)
 INSERT INTO task_validations (task_update_id, status, validated_by, validated_at) VALUES
 (1, 'validated', 3, '2026-04-11 18:30:00'),  -- task 1 waterproofing
 (4, 'validated', 3, '2026-04-11 18:30:00'),  -- task 4 LT panel

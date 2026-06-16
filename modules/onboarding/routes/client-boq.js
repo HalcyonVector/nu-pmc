@@ -189,7 +189,7 @@ router.patch('/:project_id/items/:item_id/rate', requireAuth, requireProjectScop
   }));
 
 // PATCH /api/client-boq/:project_id/items/:item_id/hsn — update HSN code
-// Editable by R/S and Udupa — may need iterations for GST accuracy
+// Editable by R/S and Finance Admin — may need iterations for GST accuracy
 router.patch('/:project_id/items/:item_id/hsn', requireAuth, requireProjectScope(),
   requirePermission('finance.client-boq.edit-hsn'),
   asyncHandler(async (req, res) => {
@@ -209,7 +209,7 @@ router.patch('/:project_id/items/:item_id/hsn', requireAuth, requireProjectScope
       [hsn_code || null, req.params.item_id, req.params.project_id]
     );
 
-    // Log the change for audit trail — Udupa may iterate
+    // Log the change for audit trail — Finance Admin may iterate
     await audit.log({
       userId: me.id,
       action: 'client_boq.hsn_update',
@@ -228,7 +228,7 @@ router.patch('/:project_id/items/:item_id/hsn', requireAuth, requireProjectScope
       success: true,
       hsn_code: hsn_code || null,
       message: hsn_code
-        ? `HSN ${hsn_code} saved — confirm with Udupa for GST accuracy`
+        ? `HSN ${hsn_code} saved — confirm with Finance Admin for GST accuracy`
         : 'HSN cleared'
     });
   }));

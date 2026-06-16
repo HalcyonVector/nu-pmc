@@ -9,7 +9,7 @@ test.describe('Audit log integrity', () => {
 
   test('audit_log table exists (check via health endpoint or equivalent)', async ({ request }) => {
     await request.post('/api/auth/login', {
-      data: { username: 'naveen', password: 'NuPMC@2026' }
+      data: { username: 'principal', password: 'NuPMC@2026' }
     });
 
     // If there's a /api/audit/recent endpoint, use it. Otherwise skip.
@@ -24,7 +24,7 @@ test.describe('Audit log integrity', () => {
 
   test('Attempting MOM issue without confirmation leaves no audit trail (safely rejected)', async ({ request }) => {
     await request.post('/api/auth/login', {
-      data: { username: 'murugesan', password: 'NuPMC@2026' }
+      data: { username: 'pmc_head', password: 'NuPMC@2026' }
     });
 
     // Try to issue — should be rejected

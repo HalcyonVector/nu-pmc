@@ -518,7 +518,7 @@ router.patch('/weekly/:id/mitigation', requireAuth, requirePMC, asyncHandler(asy
       if (e.code !== 'INVALID_STATE_TRANSITION') throw e;
     });
 
-    // Notify Naveen — report now includes drag flag + mitigation
+    // Notify Principal — report now includes drag flag + mitigation
     const principals = await users.principals();
     for (const p of principals) {
       await notif.notify(p.id, 'drag_flag',

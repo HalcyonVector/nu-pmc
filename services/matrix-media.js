@@ -14,7 +14,7 @@
 //      poll_event_id to derive document_id and workflow_type.
 //   3. Dedupe by matrix_event_id (UNIQUE constraint on
 //      document_attachments). Re-runs are no-ops.
-//   4. Reject videos > 25MB cap (Naveen, May 2026). Record the rejected
+//   4. Reject videos > 25MB cap (Principal, May 2026). Record the rejected
 //      attempt so the reader doesn't keep re-fetching it.
 //   5. Download the bytes from EMS via the adapter.
 //   6. Compress images > 2MB via existing sharp pipeline.
@@ -38,7 +38,7 @@ const db            = require('../middleware/db');
 
 const UPLOAD_DIR        = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
 const MEDIA_SUBDIR      = 'matrix-media';
-const VIDEO_MAX_BYTES   = 25 * 1024 * 1024;   // 25 MB cap, Naveen's call
+const VIDEO_MAX_BYTES   = 25 * 1024 * 1024;   // 25 MB cap, Principal's call
 const IMAGE_COMPRESS_AT = 2  * 1024 * 1024;   // brief §11.7: compress images >2MB
 const HANDLED_TYPES     = new Set(['m.image', 'm.file', 'm.video', 'm.audio']);
 

@@ -138,13 +138,13 @@ router.post('/:project_id/pi', requireAuth, requireProjectScope(), requirePMC, a
     proj.master_name     = client?.client_name || null;
     if (!proj.client_id) {
       return res.status(400).json({
-        error: `Project "${proj.name}" has no client master linked. Ask Udupa (finance) to add client "${proj.client}" first.`,
+        error: `Project "${proj.name}" has no client master linked. Ask Finance Admin (finance) to add client "${proj.client}" first.`,
         code: 'CLIENT_NOT_LINKED'
       });
     }
     if (proj.master_complete === 0 || !proj.gstin) {
       return res.status(400).json({
-        error: `Client "${proj.master_name}" master is incomplete — GSTIN and Tally ledger not yet set. Udupa must complete client master before PI can be raised.`,
+        error: `Client "${proj.master_name}" master is incomplete — GSTIN and Tally ledger not yet set. Finance Admin must complete client master before PI can be raised.`,
         code: 'CLIENT_INCOMPLETE',
         client_id: proj.client_id
       });
@@ -207,7 +207,7 @@ router.post('/:project_id/pi', requireAuth, requireProjectScope(), requirePMC, a
       id: result.insertId,
       pi_number: piNum,
       amount_total: amtTot,
-      message: `PI ${piNum} raised for ₹${amtTot.toLocaleString('en-IN')} — Naveen/Ajay notified.`
+      message: `PI ${piNum} raised for ₹${amtTot.toLocaleString('en-IN')} — Principal/Design Principal notified.`
     });
 
   }));

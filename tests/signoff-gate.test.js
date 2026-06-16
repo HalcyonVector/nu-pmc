@@ -76,7 +76,7 @@ describe('signoff-gate — abstraction discipline', () => {
     // reading the file should be able to spot the entire role surface
     // in one place.
     const expectedRoles = [
-      'recipient', 'client_rep', 'naveen',
+      'recipient', 'client_rep', 'principal',
       'pmc', 'pmc_head', 'site_manager',
       'principal', 'design_principal', 'design_lead',
       'services_head', 'finance', 'finance_admin',
@@ -206,7 +206,7 @@ describe('triggerSignoff', () => {
       // resolveApprover('pmc')
       .mockResolvedValueOnce([[{ id: 11, full_name: 'PMC', role: 'pmc_head', matrix_room_id: '!pmc:s' }]])
       // resolveApprover('principal')
-      .mockResolvedValueOnce([[{ id: 22, full_name: 'Naveen', role: 'principal', matrix_room_id: '!nav:s' }]])
+      .mockResolvedValueOnce([[{ id: 22, full_name: 'Principal', role: 'principal', matrix_room_id: '!nav:s' }]])
       // cancel prior pending
       .mockResolvedValueOnce([{ affectedRows: 0 }])
       // INSERT signoff_instances
@@ -777,7 +777,7 @@ describe('POST_COMPLETION_HOOKS', () => {
 
 // ── vendor_rep resolver ─────────────────────────────────────────────
 //
-// Per v2 brief A4 + Naveen's decision: vendors have matrix_room_id
+// Per v2 brief A4 + Principal's decision: vendors have matrix_room_id
 // either via native EMS account (vendors on Element X) or via the
 // Matrix WhatsApp Bridge (mautrix-whatsapp). EITHER WAY the gate
 // dispatches to one matrix_room_id — no separate "fallback" code path.
@@ -887,7 +887,7 @@ describe('recipient resolver — backward compat after from_doc generalisation',
 
 // ── DESTINATION RESOLVERS ───────────────────────────────────────────
 //
-// Naveen's call (May 2026): bank notifications + individual BOQ sign-offs
+// Principal's call (May 2026): bank notifications + individual BOQ sign-offs
 // = personal. Everything else community. The destination_kind +
 // destination_qualifier columns on signoff_workflows drive _dispatchPoll.
 
@@ -970,8 +970,8 @@ describe('destination_kind: project', () => {
       }]])
       // _findUser principal
       .mockResolvedValueOnce([[{
-        id: 33, full_name: 'Naveen', role: 'principal',
-        matrix_room_id: '!naveen_dm:s', matrix_user_id: '@naveen:s',
+        id: 33, full_name: 'Principal', role: 'principal',
+        matrix_room_id: '!naveen_dm:s', matrix_user_id: '@principal:s',
       }]])
       .mockResolvedValueOnce([{ affectedRows: 0 }])
       .mockResolvedValueOnce([{ insertId: 8 }])
@@ -1176,7 +1176,7 @@ describe('ACTIONS', () => {
   });
 
   test('strip_initiator no-op when initiator role not in sequence', () => {
-    // source='statutory' maps to 'design_lead' (Naveen, May 2026).
+    // source='statutory' maps to 'design_lead' (Principal, May 2026).
     // If design_lead is not in the sequence, strip_initiator is a no-op.
     const out = gate.ACTIONS.strip_initiator(
       ['pmc', 'principal'],

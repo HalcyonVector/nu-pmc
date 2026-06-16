@@ -158,7 +158,7 @@ router.post('/:project_id/raise', requireAuth, requireProjectScope(), requirePMC
         // separately (not a notification at this moment; the user must request
         // override which triggers its own approval flow).
         return res.status(400).json({
-          error: 'HARD BLOCK: payments without BOQ at or above strike 3. Raise BOQ before proceeding. Naveen/Ajay override required.',
+          error: 'HARD BLOCK: payments without BOQ at or above strike 3. Raise BOQ before proceeding. Principal/Design Principal override required.',
           hard_block: true,
           strike: strikes + 1,
         });
@@ -328,7 +328,7 @@ router.get('/:project_id/icici/preview', requireAuth, requirePMC, asyncHandler(a
 
     let warning;
     if (unvalidatedPan.length) {
-      warning = 'PAN not validated for some vendors — generation blocked until Udupa validates.';
+      warning = 'PAN not validated for some vendors — generation blocked until Finance Admin validates.';
     } else if (unvalidatedBank.length) {
       warning = 'Vendor has not yet confirmed their bank details — send onboarding link via WhatsApp before generating.';
     } else {
@@ -372,7 +372,7 @@ router.post('/:project_id/icici/generate', requireAuth, requireProjectScope(), r
     const unvalidated = payments.filter(p => !p.pan_validated).map(p => p.vendor_name);
     if (unvalidated.length) {
       return res.status(400).json({
-        error: `PAN not validated for: ${unvalidated.join(', ')}. Udupa must validate PAN before payment.`,
+        error: `PAN not validated for: ${unvalidated.join(', ')}. Finance Admin must validate PAN before payment.`,
         code: 'PAN_NOT_VALIDATED',
         unvalidated,
       });
@@ -470,7 +470,7 @@ router.post('/:project_id/icici/generate', requireAuth, requireProjectScope(), r
       file_path: filePath,
       payment_count: payments.length,
       total,
-      message: `ICICI Excel generated for ₹${total.toLocaleString('en-IN')}. Send to Udupa for bank upload.`,
+      message: `ICICI Excel generated for ₹${total.toLocaleString('en-IN')}. Send to Finance Admin for bank upload.`,
     });
   }));
 
@@ -945,7 +945,7 @@ router.post('/:project_id/compliance-check', requireAuth, requireProjectScope(),
     });
   }));
 
-// POST /api/payments/:project_id/batch-approve — Naveen approves all cleared payments for a project
+// POST /api/payments/:project_id/batch-approve — Principal approves all cleared payments for a project
 router.post('/:project_id/batch-approve', requireAuth, requireProjectScope(), requirePrincipal, asyncHandler(async (req, res) => {
     const [rows] = await db.query(
       'SELECT id FROM payment_requests WHERE project_id = ? AND status = ?',
@@ -1226,7 +1226,7 @@ router.post('/utr-webhook', async (req, res) => {
       }
     }
 
-    // Step 4 — first-payment alert to Naveen when paying to a recently-changed
+    // Step 4 — first-payment alert to Principal when paying to a recently-changed
     // bank account. Window is configurable via security_config.vendor_bank_alert_days.
     try {
       const [[cfg]] = await db.query(
@@ -1248,10 +1248,10 @@ router.post('/utr-webhook', async (req, res) => {
       );
       if (recentChange) {
         const matrixAdapter = require('../../../services/matrix-adapter');
-        const naveenRoomId  = await matrixAdapter.getInternalRoomId('internal_naveen');
-        if (naveenRoomId) {
+        const principalRoomId  = await matrixAdapter.getInternalRoomId('internal_principal');
+        if (principalRoomId) {
           await matrixAdapter.sendText({
-            roomId: naveenRoomId,
+            roomId: principalRoomId,
             body: `💰 FYI — first payment to ${payment.vendor_name} on recently-changed ` +
                   `bank account (changed ${new Date(recentChange.committed_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}). ` +
                   `Amount: ${formattedAmt}  UTR: ${utr}. Awareness only.`,
@@ -1259,7 +1259,7 @@ router.post('/utr-webhook', async (req, res) => {
         }
       }
     } catch (step4Err) {
-      console.warn('[UTR-Webhook] step-4 Naveen alert failed:', step4Err.message);
+      console.warn('[UTR-Webhook] step-4 Principal alert failed:', step4Err.message);
     }
 
     res.status(200).json({ received: true, matched: true });

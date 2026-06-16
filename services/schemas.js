@@ -151,7 +151,7 @@ const PaymentReviewPMC = z.object({
   gst_rate:             GSTRate.optional(),
 });
 
-const PaymentReviewNaveen = z.object({
+const PaymentReviewPrincipal = z.object({
   approved_amount:      PositiveIndianAmount.optional(),
   principal_notes:         OptionalString,
 });
@@ -480,7 +480,7 @@ module.exports = {
   // request schemas
   PaymentRequestCreate,
   PaymentReviewPMC,
-  PaymentReviewNaveen,
+  PaymentReviewPrincipal,
   ClientReceipt,
   IssueCreate,
   RFICreate,

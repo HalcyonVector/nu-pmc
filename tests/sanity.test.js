@@ -180,7 +180,7 @@ describe('Financial visibility — cost rates', () => {
                      'team_lead', 'jr_architect', 'detailing', 'services_engineer', 'site_manager','senior_site_manager'];
 
   test('exactly 5 roles can see cost rates', () => {
-    expect(RATE_VISIBLE_ROLES.length).toBe(5); // Naveen, Ajay, M/P (2), R, S = 6 people but 5 roles
+    expect(RATE_VISIBLE_ROLES.length).toBe(5); // Principal, Design Principal, M/P (2), R, S = 6 people but 5 roles
   });
 
   test('site_manager cannot see cost rates', () => {
@@ -207,11 +207,11 @@ describe('Financial visibility — cost rates', () => {
     expect(RATE_VISIBLE_ROLES.includes('pmc_head')).toBe(true);
   });
 
-  test('design_head can see rates (Rajani negotiates)', () => {
+  test('design_head can see rates (PMC Head negotiates)', () => {
     expect(RATE_VISIBLE_ROLES.includes('design_head')).toBe(true);
   });
 
-  test('services_head can see rates (Srinath negotiates)', () => {
+  test('services_head can see rates (Services Head negotiates)', () => {
     expect(RATE_VISIBLE_ROLES.includes('services_head')).toBe(true);
   });
 });
@@ -282,12 +282,12 @@ describe('Change Notice — 3 signatory rule', () => {
     expect(canReachPrincipal(cn001)).toBeTruthy();
   });
 
-  test('CN with only Rajani signature cannot reach principal', () => {
+  test('CN with only PMC Head signature cannot reach principal', () => {
     const cn = { sig_design_head: 1, sig_services_head: 0, sig_pmc: null };
     expect(canReachPrincipal(cn)).toBeFalsy();
   });
 
-  test('CN with Rajani + PMC but no Srinath cannot reach principal', () => {
+  test('CN with PMC Head + PMC but no Services Head cannot reach principal', () => {
     const cn = { sig_design_head: 1, sig_services_head: 0, sig_pmc: 3 };
     expect(canReachPrincipal(cn)).toBeFalsy();
   });
@@ -434,7 +434,7 @@ describe('Dashboard — action centre summary', () => {
 });
 
 // ── Section 11: APPROVAL AUTHORITY — NAVEEN ONLY
-describe('Approval authority — Naveen only for financial decisions', () => {
+describe('Approval authority — Principal only for financial decisions', () => {
   const NAVEEN_ONLY_ACTIONS = [
     'vendor_payment_approve',
     'client_claim_approve',
@@ -453,26 +453,26 @@ describe('Approval authority — Naveen only for financial decisions', () => {
     return false;
   }
 
-  test('only Naveen approves vendor payments', () => {
+  test('only Principal approves vendor payments', () => {
     expect(canApprove('principal',        'vendor_payment_approve')).toBe(true);
     expect(canApprove('design_principal', 'vendor_payment_approve')).toBe(false);
     expect(canApprove('pmc_head',         'vendor_payment_approve')).toBe(false);
     expect(canApprove('site_manager',     'vendor_payment_approve')).toBe(false);
   });
 
-  test('only Naveen approves client claims', () => {
+  test('only Principal approves client claims', () => {
     expect(canApprove('principal',        'client_claim_approve')).toBe(true);
     expect(canApprove('design_principal', 'client_claim_approve')).toBe(false);
     expect(canApprove('pmc_head',         'client_claim_approve')).toBe(false);
   });
 
-  test('Naveen or Ajay approve schedule changes', () => {
+  test('Principal or Design Principal approve schedule changes', () => {
     expect(canApprove('principal',        'schedule_change_approve')).toBe(true);
     expect(canApprove('design_principal', 'schedule_change_approve')).toBe(true);
     expect(canApprove('pmc_head',         'schedule_change_approve')).toBe(false);
   });
 
-  test('Naveen or Ajay approve change notices', () => {
+  test('Principal or Design Principal approve change notices', () => {
     expect(canApprove('principal',        'change_notice_final_approve')).toBe(true);
     expect(canApprove('design_principal', 'change_notice_final_approve')).toBe(true);
     expect(canApprove('pmc_head',         'change_notice_final_approve')).toBe(false);
@@ -486,7 +486,7 @@ describe('Approval authority — Naveen only for financial decisions', () => {
 });
 
 // ── Section 12: SCHEDULE DRIFT — ALL DRIFT TO NAVEEN
-describe('Schedule drift — all to Naveen, zero drift auto-approves', () => {
+describe('Schedule drift — all to Principal, zero drift auto-approves', () => {
   function approver(driftDays) {
     return driftDays === 0 ? 'auto' : 'principal_only';
   }
@@ -495,15 +495,15 @@ describe('Schedule drift — all to Naveen, zero drift auto-approves', () => {
     expect(approver(0)).toBe('auto');
   });
 
-  test('1 day drift → Naveen', () => {
+  test('1 day drift → Principal', () => {
     expect(approver(1)).toBe('principal_only');
   });
 
-  test('3 day drift → Naveen (was PMC threshold, now removed)', () => {
+  test('3 day drift → Principal (was PMC threshold, now removed)', () => {
     expect(approver(3)).toBe('principal_only');
   });
 
-  test('10 day drift → Naveen', () => {
+  test('10 day drift → Principal', () => {
     expect(approver(10)).toBe('principal_only');
   });
 });
