@@ -2594,3 +2594,117 @@ html[data-theme="dark"] .modal textarea {
 html[data-theme="dark"] .modal-title {
   color: #FFFFFF !important;
 }
+
+/* ── DARK MODE — download template link/button in register ── */
+html[data-theme="dark"] #content-area a > button,
+html[data-theme="dark"] #content-area a .btn-secondary,
+html[data-theme="dark"] #content-area a[href] button {
+  background: #0F1419 !important;
+  color: #B0C4D8 !important;
+  border-color: #3A4A5A !important;
+}
+html[data-theme="dark"] #content-area [style*="background:#faf8f3"],
+html[data-theme="dark"] #content-area [style*="background: #faf8f3"],
+html[data-theme="dark"] #content-area [style*="background:#f4f7fa"],
+html[data-theme="dark"] #content-area [style*="background: #f4f7fa"] {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+  color: #E8ECF0 !important;
+}
+
+/* ── DARK MODE — signoff slots (mobile + desktop) ── */
+html[data-theme="dark"] .signoff-slot {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+}
+html[data-theme="dark"] .signoff-slot .label { color: #8899AA !important; }
+html[data-theme="dark"] .signoff-slot .who { color: #E8ECF0 !important; }
+html[data-theme="dark"] .signoff-slot .status { color: #8899AA !important; }
+html[data-theme="dark"] .signoff-slot.signed .status { color: #4ADE80 !important; }
+
+/* ── DARK MODE — weekly signoff details/section panels ── */
+html[data-theme="dark"] #content-area details {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+}
+html[data-theme="dark"] #content-area details summary {
+  color: #E8ECF0 !important;
+}
+html[data-theme="dark"] #content-area details textarea {
+  background: #0F1419 !important;
+  border-color: #3A4A5A !important;
+  color: #E8ECF0 !important;
+}
+html[data-theme="dark"] #content-area [style*="background:#F8FAFC"],
+html[data-theme="dark"] #content-area [style*="background: #F8FAFC"],
+html[data-theme="dark"] #content-area [style*="background:#F5ECDB"],
+html[data-theme="dark"] #content-area [style*="background: #F5ECDB"] {
+  background: #1A2332 !important;
+  border-color: #2A3A4A !important;
+}
+
+/* ── 3-WAY SIGN-OFF CARD (Mobile First) ── */
+.signoff-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+.signoff-slot {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+  border-radius: var(--r);
+  padding: 14px;
+}
+.signoff-slot.signed  { border-left-color: #2A7A4B; }
+.signoff-slot.pending { border-left-color: #B07D1A; }
+.signoff-slot .label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.signoff-slot .who { font-size: var(--text-base); font-weight: 600; color: var(--text); }
+.signoff-slot .status { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.signoff-slot.signed .status { color: #2A7A4B; font-weight: 500; }
+
+/* ── FILTER CHIPS (All / Progress / Defects) ── */
+.filter-chip {
+  min-height: 44px;
+  min-width: 80px;
+  text-align: center;
+  display: inline-block;
+  padding: 4px 10px;
+  margin-right: 6px;
+  border-radius: 14px;
+  font-size: 11px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.filter-chip.sel {
+  background: var(--navy) !important;
+  color: var(--white) !important;
+  border-color: var(--navy) !important;
+}
+
+/* Dark mode overrides */
+html[data-theme="dark"] .filter-chip {
+  background: #1A2332;
+  border-color: #2A3A4A;
+  color: #8899AA;
+}
+html[data-theme="dark"] .filter-chip.sel {
+  background: var(--navy) !important;
+  color: var(--white) !important;
+  border-color: var(--navy) !important;
+}
+
+

@@ -1358,7 +1358,7 @@ Tomorrow: start formwork on next bay."
       </div>`;
     } else {
       const stats = p.stats || {};
-      const navTo = (tab) => `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP._tryNav('${tab}')"`;
+      const navTo = (tab) => `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};${tab === 'issues' ? 'APP.state.issuesViewMode=\'all\';APP.state.selectedProjectFilter=' + p.id + ';' : ''}APP._tryNav('${tab}')"`;
       const navToFlags = `onclick="event.stopPropagation();APP.state.selectedProject=${p.id};APP.state.flagFilterProject=${p.id};APP._tryNav('flags')"`;
       html += `<div class="pc-stats">
         <div class="pc-stat" style="cursor:pointer" ${navTo('tasks,schedule')}><span class="pc-stat-val">${p.avg_pct||0}%</span><span class="pc-stat-lbl">Progress</span></div>
@@ -3210,7 +3210,7 @@ Tomorrow: start formwork on next bay."
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div>
               <div style="font-size:16px;font-weight:600;color:#1A2332">Week ${rep.week_number} — ${rep.project_code}</div>
-              <div style="font-size:12px;color:#657B90;margin-top:2px">Ending ${rep.week_ending} · Status: ${rep.status}</div>
+              <div style="font-size:12px;color:#657B90;margin-top:2px">Ending ${UI.fmtDate(rep.week_ending)} · Status: ${rep.status}</div>
             </div>
             ${rep.pdf_url || rep.pdf_path ? `<a class="btn-secondary" href="${API.fileUrl(rep.pdf_url || rep.pdf_path, 'documents')}" target="_blank">Download PDF</a>` : ''}
           </div>
@@ -4035,8 +4035,7 @@ Tomorrow: start formwork on next bay."
 
     // Filter chips — All / Progress / Defects
     const chip = (key, label) =>
-      `<button style="min-height:44px;min-width:80px;text-align:center;display:inline-block;padding:4px 10px;margin-right:6px;border-radius:14px;font-size:11px;cursor:pointer;
-        ${filter===key?'background:#1D3D62;color:#fff':'background:#f0f0f0;color:#666'}" onclick="APP.state.photoFilter='${key}';APP.renderPhotos()">${label}</button>`;
+      `<button class="filter-chip${filter===key?' sel':''}" onclick="APP.state.photoFilter='${key}';APP.renderPhotos()">${label}</button>`;
     const filterRow = `<div style="padding:6px 4px 10px">${chip('all','All')}${chip('progress','Progress')}${chip('defects','Defects')}</div>`;
 
     const count = photos.length;
@@ -6519,18 +6518,68 @@ APP.submitGRN = async function() {
 // ── ISSUES — register
 APP.renderIssues = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('️','Select a project first'); return; }
+  const viewMode = APP.state.issuesViewMode || 'all'; // 'all' or 'project'
+  
+  let data, issues = [], availableProjects = [];
+  
+  if (viewMode === 'all') {
+    // Fetch all issues across user's projects
+    data = await API.get('/issues/all');
+    if (!data) return;
+    issues = data.issues || [];
+    availableProjects = data.projects || [];
+  } else {
+    // Single project mode (existing behavior)
+    let pid = APP.state.selectedProject;
+    if (!pid) {
+      const projects = APP.user?.projects || [];
+      if (projects.length) { pid = projects[0].id; APP.state.selectedProject = pid; }
+    }
+    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
-  const data = await API.get(`/issues/${pid}`);
-  if (!data) return;
-  const issues = data.issues || [];
+    data = await API.get(`/issues/${pid}`);
+    if (!data) return;
+    issues = data.issues || [];
+    availableProjects = APP.user?.projects || [];
+  }
 
   const role = APP.user.role;
   const canRaise   = ['site_manager','senior_site_manager','pmc_head','design_head','services_head'].includes(role);
   const canConfirm = ['pmc_head','design_head','services_head','principal','design_principal'].includes(role);
 
   let html = '';
+
+  // View mode toggle
+  html += `<div style="margin-bottom:16px">
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button style="padding:6px 12px;border-radius:4px;font-size:12px;border:1px solid ${viewMode==='all'?'var(--navy)':'var(--border)'};background:${viewMode==='all'?'var(--navy)':'var(--white)'};color:${viewMode==='all'?'var(--white)':'var(--text)'}" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=null;APP.renderIssues()">All Projects</button>
+      <button style="padding:6px 12px;border-radius:4px;font-size:12px;border:1px solid ${viewMode==='project'?'var(--navy)':'var(--border)'};background:${viewMode==='project'?'var(--navy)':'var(--white)'};color:${viewMode==='project'?'var(--white)':'var(--text)'}" onclick="APP.state.issuesViewMode='project';APP.renderIssues()">Single Project</button>
+    </div>
+  `;
+
+  // Project filter (only in all projects mode)
+  if (viewMode === 'all' && availableProjects.length > 0) {
+    const selectedProjectFilter = APP.state.selectedProjectFilter;
+    html += `<div style="margin-bottom:12px">
+      <select onchange="APP.state.selectedProjectFilter=this.value==='all'?null:parseInt(this.value);APP.renderIssues()" style="padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:100%">
+        <option value="all" ${!selectedProjectFilter ? 'selected' : ''}>All Projects</option>
+        ${availableProjects.map(p => `<option value="${p.id}" ${selectedProjectFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+      </select>
+    </div>`;
+    
+    // Filter issues by selected project if one is chosen
+    if (selectedProjectFilter) {
+      issues = issues.filter(i => i.project_id === selectedProjectFilter);
+      
+      // Move selected project to top in display
+      const selectedProject = availableProjects.find(p => p.id === selectedProjectFilter);
+      if (selectedProject) {
+        availableProjects = [selectedProject, ...availableProjects.filter(p => p.id !== selectedProjectFilter)];
+      }
+    }
+  }
+
+  html += `</div>`;
 
   const needsConfirm = issues.filter(i => i.status === 'draft' && canConfirm);
   if (needsConfirm.length) {
@@ -6541,7 +6590,7 @@ APP.renderIssues = async function() {
           <div style="flex:1;min-width:0">
             <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
             <div class="iss-title">${i.title}</div>
-            <div class="iss-meta">Raised: ${i.raised_by_name||'—'} · ${UI.fmtDate(i.created_at)}</div>
+            <div class="iss-meta">Raised: ${i.raised_by_name||'—'} · ${UI.fmtDate(i.created_at)}${viewMode === 'all' && i.project_name ? ` · ${i.project_name}` : ''}</div>
           </div>
           <span class="badge b-amber">Draft</span>
         </div>
@@ -6557,9 +6606,9 @@ APP.renderIssues = async function() {
   const cur = APP.state.issueFilter || 'all';
   html += `<div class="sec-hdr-row">
     <div class="sec-label" style="margin:0;flex:1">Issues Register</div>
-    ${canRaise ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
+    ${canRaise && viewMode === 'project' ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
   </div>
-  ${canRaise ? `<button class="btn-primary sec-action-mobile" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
+  ${canRaise && viewMode === 'project' ? `<button class="btn-primary sec-action-mobile" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
   ${APP._sortToggleHTML('issues', ['default','urgency','age'])}
   <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px">
     ${typeFilters.map(f => `<button style="min-height:44px;flex-shrink:0;padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;border:1px solid ${f===cur?'var(--navy)':'var(--border)'};background:${f===cur?'var(--navy)':'var(--white)'};color:${f===cur?'var(--white)':'var(--muted)'}" onclick="APP.state.issueFilter='${f}';APP.renderIssues()">${f.replace('_', ' ')}</button>`).join('')}
@@ -6578,20 +6627,67 @@ APP.renderIssues = async function() {
   }
 
   filtered = APP._applySort(filtered, APP._getSortMode('issues'), { urgencyField:'issue_type', ageField:'raised_at' });
-  if (!filtered.length) { html += UI.empty('','No issues in this category'); }
-  else filtered.slice(0,20).forEach(i => {
-    const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
-    html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer;width:100%;text-align:left;display:block" onclick="APP.openIssueDetail(${i.id})">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
-        <div style="flex:1;min-width:0">
-          <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
-          <div class="iss-title">${i.title}</div>
-          <div class="iss-meta">${i.assigned_to_name||'Unassigned'} · ${UI.fmtDate(i.due_date||i.created_at)}</div>
-        </div>
-        <span class="badge ${badge}">${i.status}</span>
-      </div>
-    </button>`;
-  });
+  
+  if (!filtered.length) { 
+    html += UI.empty('','No issues in this category'); 
+  } else {
+    // Group by project when in all-projects mode and no specific project is filtered
+    if (viewMode === 'all' && !APP.state.selectedProjectFilter) {
+      const issuesByProject = {};
+      filtered.forEach(i => {
+        const projectName = i.project_name || 'Unknown Project';
+        if (!issuesByProject[projectName]) issuesByProject[projectName] = [];
+        issuesByProject[projectName].push(i);
+      });
+      
+      // Sort projects by number of issues (descending)
+      const sortedProjects = Object.keys(issuesByProject).sort((a, b) => 
+        issuesByProject[b].length - issuesByProject[a].length
+      );
+      
+      sortedProjects.slice(0, 10).forEach(projectName => { // Limit to top 10 projects
+        const projectIssues = issuesByProject[projectName];
+        html += `<div class="sec-label" style="margin-top:20px;margin-bottom:8px">${projectName} (${projectIssues.length})</div>`;
+        projectIssues.slice(0, 5).forEach(i => { // Show up to 5 issues per project
+          const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
+          html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer;width:100%;text-align:left;display:block" onclick="APP.openIssueDetail(${i.id})">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
+              <div style="flex:1;min-width:0">
+                <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
+                <div class="iss-title">${i.title}</div>
+                <div class="iss-meta">${i.assigned_to_name||'Unassigned'} · ${UI.fmtDate(i.due_date||i.created_at)}</div>
+              </div>
+              <span class="badge ${badge}">${i.status}</span>
+            </div>
+          </button>`;
+        });
+        
+        if (projectIssues.length > 5) {
+          html += `<div style="padding:8px;color:var(--muted);font-size:12px;text-align:center">
+            <button style="background:none;border:none;color:var(--navy);cursor:pointer;font-size:12px" 
+                    onclick="APP.state.selectedProjectFilter=${projectIssues[0].project_id};APP.renderIssues()">
+              View all ${projectIssues.length} issues →
+            </button>
+          </div>`;
+        }
+      });
+    } else {
+      // Regular list view (single project mode or filtered project)
+      filtered.slice(0,50).forEach(i => {
+        const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
+        html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer;width:100%;text-align:left;display:block" onclick="APP.openIssueDetail(${i.id})">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
+            <div style="flex:1;min-width:0">
+              <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
+              <div class="iss-title">${i.title}</div>
+              <div class="iss-meta">${i.assigned_to_name||'Unassigned'} · ${UI.fmtDate(i.due_date||i.created_at)}${viewMode === 'all' && i.project_name ? ` · ${i.project_name}` : ''}</div>
+            </div>
+            <span class="badge ${badge}">${i.status}</span>
+          </div>
+        </button>`;
+      });
+    }
+  }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
@@ -6610,8 +6706,18 @@ APP.renderIssues = async function() {
 //   PATCH  /api/issues/:id/confirm  / /dismiss
 //   PATCH  /api/issues/:id/close    (new — added below)
 APP.openIssueDetail = async function(issueId) {
-  const pid = APP.state.selectedProject;
-  const data = await API.get(`/issues/${pid}`);
+  const viewMode = APP.state.issuesViewMode || 'all';
+  let data;
+  
+  if (viewMode === 'all') {
+    // In all-projects view, fetch all issues and find the specific one
+    data = await API.get('/issues/all');
+  } else {
+    // Single project view (existing behavior)
+    const pid = APP.state.selectedProject;
+    data = await API.get(`/issues/${pid}`);
+  }
+  
   if (!data) return;
   const issue = (data.issues || []).find(x => x.id === issueId);
   if (!issue) { UI.toast('Issue not found'); return; }
@@ -6641,6 +6747,7 @@ APP.openIssueDetail = async function(issueId) {
       <div>
         <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">${issue.issue_number||'ISS-'+issue.id}</div>
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:2px">${issue.issue_type}</div>
+        ${viewMode === 'all' && issue.project_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${issue.project_name}</div>` : ''}
       </div>
       <span class="badge" style="background:${statusColor};color:#fff">${issue.status}</span>
     </div>
@@ -9702,7 +9809,7 @@ APP.renderPMCDashboard = async function() {
   const projSummary = (dash.projects || []).find(p => parseInt(p.id, 10) === proj_id) || {};
   html += `<div class="sec-label">Project Snapshot</div>
   <div class="stat-row">
-    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.switchTab('issues')">
+    <button class="stat-card" style="min-height:44px;cursor:pointer" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=APP.state.selectedProject;APP.switchTab('issues')">
       <span class="stat-val ${(projSummary.open_queries||0)>0?'red':'green'}">${projSummary.open_queries||0}</span>
       <span class="stat-lbl">Open Queries</span>
     </button>
@@ -9761,7 +9868,7 @@ APP.renderSiteDashboard = async function() {
       <span class="stat-val">${activeTasks}</span>
       <span class="stat-lbl">Active Tasks</span>
     </button>
-    <button class="stat-card" onclick="APP.switchTab('issues')">
+    <button class="stat-card" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=APP.state.selectedProject;APP.switchTab('issues')">
       <span class="stat-val">${openIssues}</span>
       <span class="stat-lbl">Issues</span>
     </button>
@@ -9781,7 +9888,7 @@ APP.renderSiteDashboard = async function() {
       <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
       <span style="font-size:13px;font-weight:600">Raise GRN</span>
     </button>
-    <button class="action-card" onclick="APP.switchTab('issues')">
+    <button class="action-card" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=APP.state.selectedProject;APP.switchTab('issues')">
       <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <span style="font-size:13px;font-weight:600">Raise Issue</span>
     </button>
@@ -9803,6 +9910,7 @@ APP.renderDesignDashboard = async function() {
   const role = APP.user.role;
   const streamLabel = role === 'design_head' ? 'Design' : 'Services';
   const ac = data.action_centre || {};
+  APP._dashAC = ac; // Store for triage modal
 
   let html = `
   <div class="sec-label">Pending — ${streamLabel} Stream</div>`;
@@ -9845,16 +9953,11 @@ APP.renderDesignDashboard = async function() {
   }
 
   if (pendingChanges.length) {
-    html += `<div class="sec-label">Change Notices</div>`;
-    html += pendingChanges.map(cn => `
-    <button class="action-item c-blue" style="min-height:44px" onclick="APP.switchTab('changes')">
-      <div class="ai-icon">📝</div>
-      <div class="ai-body">
-        <div class="ai-title">${cn.cn_number||'—'} — ${cn.title||''}</div>
-        <div class="ai-meta">${cn.project_name||'—'}</div>
-      </div>
-      <span class="badge b-blue">Sign</span>
-    </button>`).join('');
+    html += `<div class="action-item c-blue" style="min-height:44px;cursor:pointer;width:100%" onclick="APP._dashAC=data.action_centre;APP.showActionTriage('pending_changes')">
+      <div class="ai-icon"></div>
+      <div class="ai-body"><div class="ai-title">Change notices — signatures pending</div><div class="ai-meta">${pendingChanges.length} need sign-off</div></div>
+      <span class="badge b-blue">SIGN</span>
+    </div>`;
   }
 
   // Active projects for this head
@@ -9943,7 +10046,7 @@ APP.renderTeamDashboard = async function() {
         <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span style="font-size:13px;font-weight:600">Tasks</span>
       </button>
-      <button class="action-card" onclick="APP.switchTab('issues')">
+      <button class="action-card" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=APP.state.selectedProject;APP.switchTab('issues')">
         <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span style="font-size:13px;font-weight:600">Issues</span>
       </button>
@@ -9959,7 +10062,7 @@ APP.renderTeamDashboard = async function() {
     html += `<div class="sec-label">Drawing Queries</div>`;
     allQ.slice(0, 6).forEach(q => {
       const isOverdue = (q.days_open || 0) >= 3;
-      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('issues')">
+      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=q.project_id||APP.state.selectedProject;APP.switchTab('issues')">
         <div class="ai-icon"></div>
         <div class="ai-body">
           <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>

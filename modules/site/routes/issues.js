@@ -33,6 +33,50 @@ async function getProjectAssignee(projectId, role) {
   return users[0] || null;
 }
 
+// GET /api/issues/all - get all issues across user's projects
+router.get('/all', requireAuth, asyncHandler(async (req, res) => {
+    const { type, status } = req.query;
+    
+    // Get user's project IDs
+    const projectIds = req.session.user.projects?.map(p => p.id) || [];
+    if (!projectIds.length) {
+        return res.json({ issues: [], projects: [] });
+    }
+    
+    // Build query with project filtering
+    let q = `SELECT i.*, p.name as project_name FROM issues i 
+             LEFT JOIN projects p ON i.project_id = p.id 
+             WHERE i.project_id IN (${projectIds.map(() => '?').join(',')})`;
+    const params = [...projectIds];
+    
+    if (type)   { q += ' AND i.issue_type = ?';  params.push(type); }
+    if (status) { q += ' AND i.status = ?';       params.push(status); }
+    q += ' ORDER BY i.raised_at DESC';
+    
+    const [issues] = await db.query(q, params);
+    
+    // Bulk hydrate user names via Auth contract (avoids N+1)
+    const Auth = require('../../auth/contract');
+    const userIds = issues.flatMap(i => [i.raised_by, i.assigned_to, i.confirmed_by].filter(Boolean));
+    const users = await Auth.functions.getUsers(userIds);
+    
+    // Bulk hydrate vendor names via Onboarding contract
+    const Onboarding = require('../../onboarding/contract');
+    const vendors = await Onboarding.functions.getVendorsByIds(issues.map(i => i.assigned_vendor_id));
+    
+    issues.forEach(i => {
+      i.raised_by_name    = users.get(i.raised_by)?.full_name || null;
+      i.assigned_to_name  = users.get(i.assigned_to)?.full_name || null;
+      i.confirmed_by_name = users.get(i.confirmed_by)?.full_name || null;
+      i.vendor_name       = vendors.get(i.assigned_vendor_id)?.vendor_name || null;
+    });
+    
+    // Get unique projects from issues
+    const projectsFromIssues = [...new Map(issues.map(i => [i.project_id, { id: i.project_id, name: i.project_name }])).values()];
+    
+    res.json({ issues, projects: projectsFromIssues });
+  }));
+
 // GET /api/issues/:project_id
 router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
     const { type, status } = req.query;

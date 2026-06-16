@@ -672,7 +672,7 @@ router.get('/summary', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(
 
     // Open change notices
     const [[cnRow]] = await db.query(
-      `SELECT COUNT(*) AS cnt FROM change_notices WHERE project_id = ? AND status = 'pending_approval'`,
+      `SELECT COUNT(*) AS cnt FROM change_notices WHERE project_id = ? AND status NOT IN ('approved','rejected')`,
       [p.id]
     );
 
