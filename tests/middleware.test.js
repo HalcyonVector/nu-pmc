@@ -108,12 +108,12 @@ describe('canApproveDrawing', () => {
     expect(canApproveDrawing({ role:'design_head' }, { stream:'design', status:'pending_l1' })).toBe(false);
   });
 
-  test('detailing_head can approve design at L1', () => {
-    expect(canApproveDrawing({ role:'detailing_head' }, { stream:'design', status:'pending_l1' })).toBe(true);
+  test('team_lead can approve design at L1', () => {
+    expect(canApproveDrawing({ role:'team_lead' }, { stream:'design', status:'pending_l1' })).toBe(true);
   });
 
-  test('detailing_head cannot approve services', () => {
-    expect(canApproveDrawing({ role:'detailing_head' }, { stream:'services', status:'pending_l1' })).toBe(false);
+  test('team_lead cannot approve services', () => {
+    expect(canApproveDrawing({ role:'team_lead' }, { stream:'services', status:'pending_l1' })).toBe(false);
   });
 
   test('services_head can approve services at L1', () => {

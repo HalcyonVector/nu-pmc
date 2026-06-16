@@ -26,7 +26,7 @@ function makeApp() {
 
 describe('POST /api/auth/login', () => {
   let app;
-  beforeEach(() => { app = makeApp(); jest.clearAllMocks(); });
+  beforeEach(() => { app = makeApp(); jest.resetAllMocks(); });
 
   test('returns 400 if username missing', async () => {
     const res = await request(app).post('/api/auth/login').send({ password: 'abc' });
@@ -113,10 +113,10 @@ describe('POST /api/auth/login', () => {
     expect(res.body.error).toMatch(/not fully configured/i);
   });
 
-  test('returns 200 and user on valid detailing_head login', async () => {
+  test('returns 200 and user on valid team_lead login', async () => {
     const hash = await bcrypt.hash('Start@123', 10);
     db.query
-      .mockResolvedValueOnce([[{ id:45, username:'detailinghead', full_name:'Detailing Head', role:'detailing_head', stream:'design', password_hash: hash, is_active:1, force_password_change:0 }]])
+      .mockResolvedValueOnce([[{ id:45, username:'teamlead', full_name:'Team Lead', role:'team_lead', stream:'design', password_hash: hash, is_active:1, force_password_change:0 }]])
       // role_nav existence check
       .mockResolvedValueOnce([[{ '1': 1 }]])
       // UPDATE login_count
@@ -125,10 +125,10 @@ describe('POST /api/auth/login', () => {
       .mockResolvedValueOnce([[{ login_count: 1 }]])
       // projects list
       .mockResolvedValueOnce([[{ id:1, code:'PV90', name:'PV90 Production Line', client:'TLD', location:'Nelamangala' }]]);
-    const res = await request(app).post('/api/auth/login').send({ username: 'detailinghead', password: 'Start@123' });
+    const res = await request(app).post('/api/auth/login').send({ username: 'teamlead', password: 'Start@123' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.user.role).toBe('detailing_head');
+    expect(res.body.user.role).toBe('team_lead');
   });
 
   test('site manager login also returns project list', async () => {

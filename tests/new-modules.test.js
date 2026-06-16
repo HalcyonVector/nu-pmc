@@ -86,8 +86,8 @@ describe('GET /api/client-boq/:project_id', () => {
     expect(res.status).toBe(403);
   });
 
-  test('detailing_head cannot view client BOQ', async () => {
-    const app = makeApp('detailing_head');
+  test('team_lead cannot view client BOQ', async () => {
+    const app = makeApp('team_lead');
     const res = await request(app).get('/api/client-boq/1');
     expect(res.status).toBe(403);
   });

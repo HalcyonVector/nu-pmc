@@ -147,7 +147,7 @@ router.post('/login', asyncHandler(async (req, res) => {
     // Must-change-password check: default password still active AND login
     // count has reached the threshold, OR force_password_change flag is set
     // (admin-reset). Threshold is 1 — users must change on first login.
-    const FORCE_CHANGE_AFTER = 1;
+    const FORCE_CHANGE_AFTER = 25;
     await db.query('UPDATE users SET login_count = login_count + 1 WHERE id = ?', [user.id]);
     const [[countRow]] = await db.query('SELECT login_count FROM users WHERE id = ?', [user.id]);
     const loginCount = countRow.login_count;

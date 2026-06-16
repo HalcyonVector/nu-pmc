@@ -128,7 +128,7 @@ describe('Drawing visibility — role based', () => {
       if (role === 'pmc_head')        return d.version_status === 'issued';
       if (role === 'design_head')     return d.stream === 'design';
       if (role === 'services_head')   return d.stream === 'services';
-      if (role === 'detailing_head')  return d.stream === 'design';
+      if (role === 'team_lead')       return d.stream === 'design';
       if (role === 'services_engineer') return d.stream === 'services';
       return true; // principal sees all
     });
@@ -167,8 +167,8 @@ describe('Drawing visibility — role based', () => {
     expect(visible.find(d => d.version_status === 'pending_l1')).toBeDefined();
   });
 
-  test('detailing_head cannot see services drawings', () => {
-    const visible = filterForRole('detailing_head');
+  test('team_lead cannot see services drawings', () => {
+    const visible = filterForRole('team_lead');
     expect(visible.find(d => d.stream === 'services')).toBeUndefined();
   });
 });
@@ -177,7 +177,7 @@ describe('Drawing visibility — role based', () => {
 describe('Financial visibility — cost rates', () => {
   const RATE_VISIBLE_ROLES = ['principal', 'design_principal', 'pmc_head', 'design_head', 'services_head'];
   const ALL_ROLES = ['principal', 'design_principal', 'pmc_head', 'design_head', 'services_head',
-                     'detailing_head', 'jr_architect', 'detailing', 'services_engineer', 'site_manager','senior_site_manager'];
+                     'team_lead', 'jr_architect', 'detailing', 'services_engineer', 'site_manager','senior_site_manager'];
 
   test('exactly 5 roles can see cost rates', () => {
     expect(RATE_VISIBLE_ROLES.length).toBe(5); // Naveen, Ajay, M/P (2), R, S = 6 people but 5 roles
@@ -188,7 +188,7 @@ describe('Financial visibility — cost rates', () => {
   });
 
   test('detailing roles cannot see cost rates', () => {
-    ['detailing_head', 'jr_architect', 'detailing'].forEach(role => {
+    ['team_lead', 'jr_architect', 'detailing'].forEach(role => {
       expect(RATE_VISIBLE_ROLES.includes(role)).toBe(false);
     });
   });
@@ -312,14 +312,14 @@ describe('Drawing approval chain', () => {
     const principals = ['principal', 'design_principal'];
     if (principals.includes(user.role)) return 'skip_to_issued';
     if (user.role === 'design_head'    && drawing.stream === 'design'   && drawing.status === 'pending_l2') return 'l2_approve';
-    if (user.role === 'detailing_head' && drawing.stream === 'design'   && drawing.status === 'pending_l1') return 'l1_review';
+    if (user.role === 'team_lead'      && drawing.stream === 'design'   && drawing.status === 'pending_l1') return 'l1_review';
     if (user.role === 'services_head'  && drawing.stream === 'services' && drawing.status === 'pending_l1') return 'l1_approve_issue';
     return 'no_action';
   }
 
   test('design drawing flow: detailing → L1 review → L2 approve', () => {
     const dwg = { stream: 'design', status: 'pending_l1' };
-    expect(getApprovalLevel({ role: 'detailing_head' }, dwg)).toBe('l1_review');
+    expect(getApprovalLevel({ role: 'team_lead' }, dwg)).toBe('l1_review');
     const dwgL2 = { stream: 'design', status: 'pending_l2' };
     expect(getApprovalLevel({ role: 'design_head' }, dwgL2)).toBe('l2_approve');
   });
@@ -334,9 +334,9 @@ describe('Drawing approval chain', () => {
     expect(getApprovalLevel({ role: 'principal' }, dwg)).toBe('skip_to_issued');
   });
 
-  test('detailing_head cannot approve services drawings', () => {
+  test('team_lead cannot approve services drawings', () => {
     const dwg = { stream: 'services', status: 'pending_l1' };
-    expect(getApprovalLevel({ role: 'detailing_head' }, dwg)).toBe('no_action');
+    expect(getApprovalLevel({ role: 'team_lead' }, dwg)).toBe('no_action');
   });
 
   test('design_head cannot approve at L1', () => {
