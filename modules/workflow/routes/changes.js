@@ -9,6 +9,31 @@ const audit = require('../../../services/audit');
 const { insertWithRetry } = require('../../../services/sequence');
 const router  = express.Router();
 
+// GET /api/changes/all — firm-wide CNs for principals/heads (not status-filtered)
+router.get('/all', requireAuth, asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const firmWide = ['principal','design_principal','pmc_head','design_head','services_head'].includes(me.role);
+    if (!firmWide) return res.status(403).json({ error: 'Not authorised' });
+
+    const [changes] = await db.query(
+      `SELECT cn.*, p.name AS project_name, p.code AS project_code
+       FROM change_notices cn
+       JOIN projects p ON cn.project_id = p.id
+       WHERE cn.status NOT IN ('approved','rejected')
+       ORDER BY cn.raised_at DESC
+       LIMIT 100`
+    );
+    const Auth = require('../../auth/contract');
+    const userIds = changes.flatMap(c => [c.raised_by, c.approved_by, c.sig_pmc].filter(Boolean));
+    const users = await Auth.functions.getUsers(userIds);
+    changes.forEach(c => {
+      c.raised_by_name   = users.get(c.raised_by)?.full_name   || null;
+      c.approved_by_name = users.get(c.approved_by)?.full_name || null;
+      c.sig_pmc_name     = users.get(c.sig_pmc)?.full_name     || null;
+    });
+    res.json({ changes });
+  }));
+
 // GET /api/changes/:project_id
 router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
     const [changes] = await db.query(

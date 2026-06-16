@@ -3869,31 +3869,42 @@ Tomorrow: start formwork on next bay."
   async renderChanges() {
     const el  = UI.contentEl();
     const pid = APP.state.selectedProject;
-    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+    const role = APP.user?.role || APP.user?.real_role;
+    const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head'].includes(role);
 
-    const data = await API.getChanges(pid);
+    let data;
+    if (isFirmWide) {
+      data = await API.get('/changes/all');
+    } else {
+      if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+      data = await API.getChanges(pid);
+    }
     const changes = data?.changes || [];
-    const role = APP.user.role;
 
-    let html = `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseChange(${pid})">+ New Change Notice</button>`;
+    let html = '';
+    if (['principal','design_principal'].includes(role)) {
+      html += `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseChange(${pid || 0})">+ New Change Notice</button>`;
+    }
 
     if (!changes.length) {
-      html += UI.empty('','No change notices');
+      html += UI.empty('','No change notices pending');
     } else {
       changes.forEach(c => {
         const allSigned = c.sig_design_head && c.sig_services_head && c.sig_pmc;
         const canSign   = ['design_head','services_head','pmc_head'].includes(role);
         const canApprove= ['principal','design_principal'].includes(role) && allSigned;
+        const projLabel = c.project_name ? `<span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${c.project_code || ''} ${c.project_name}</span>` : '';
 
         html += `<div class="card">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px">
             <div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--navy)">${c.cn_number}</div>
             <span class="badge ${allSigned?'b-amber':'b-blue'}">${allSigned?'PENDING APPROVAL':'COLLECTING SIGS'}</span>
           </div>
+          ${projLabel ? `<div style="margin-bottom:4px">${projLabel}</div>` : ''}
           <div class="card-title">${c.title}</div>
-          <div class="card-meta">${c.project_id} · ${c.raised_by_name} · ${c.raised_at?.split('T')[0]||''} · Source: ${c.source}</div>
-          <div class="card-meta" style="margin-top:3px">Drawings: ${c.affected_drawings||'—'} · BOQ: ${c.boq_impact?'Yes':'No'} · Schedule: +${c.schedule_impact_days}d</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">${c.description}</div>
+          <div class="card-meta">${c.raised_by_name || '—'} · ${c.raised_at?.split('T')[0]||''} · Source: ${c.source}</div>
+          <div class="card-meta" style="margin-top:3px">Drawings: ${c.affected_drawings||'—'} · Schedule: +${c.schedule_impact_days||0}d</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">${c.description || ''}</div>
           <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
             <span class="sig-chip ${c.sig_design_head?'sig-signed':'sig-pending'}">Design Head ${c.sig_design_head?'✓':'○'}</span>
             <span class="sig-chip ${c.sig_services_head?'sig-signed':'sig-pending'}">Services Head ${c.sig_services_head?'✓':'○'}</span>
