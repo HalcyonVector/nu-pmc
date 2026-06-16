@@ -111,6 +111,48 @@ if (process.env.NODE_ENV === 'development') {
       today: DateUtil.todayIST(),
     });
   }));
+
+  router.post('/dev-seed-demo', asyncHandler(async (req, res) => {
+    const dbName = process.env.DB_NAME || 'nu_pmc';
+    const mysql = require('mysql2/promise');
+    const fs = require('fs');
+    const path = require('path');
+
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD,
+      multipleStatements: true,
+    });
+
+    try {
+      console.log('Frontend requested database recreation and seeding...');
+      await connection.query(`DROP DATABASE IF EXISTS \`${dbName}\`;`);
+      await connection.query(`CREATE DATABASE \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
+      await connection.query(`USE \`${dbName}\`;`);
+
+      const dumpPath = path.join(__dirname, '../../../pmc_initial_schema_with_data.sql');
+      const dumpSql = fs.readFileSync(dumpPath, 'utf8');
+
+      await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
+      await connection.query(dumpSql);
+      await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
+
+      const devSeedPath = path.join(__dirname, '../../../dev-seed.sql');
+      const devSeedSql = fs.readFileSync(devSeedPath, 'utf8');
+      await connection.query(devSeedSql);
+
+      // Re-initialize session to clear out stale data
+      req.session.destroy();
+
+      res.json({ success: true, message: 'Demo database seeded successfully. Please refresh the page.' });
+    } catch (error) {
+      console.error('Frontend trigger seed failed:', error);
+      res.status(500).json({ error: error.message });
+    } finally {
+      await connection.end();
+    }
+  }));
 }
 
 // POST /api/auth/login

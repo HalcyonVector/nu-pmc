@@ -1038,8 +1038,12 @@ Tomorrow: start formwork on next bay."
       for (const [bucket, tabs] of Object.entries(APP._nav.buckets)) {
         if (tabs.some(t => t.key === id)) { targetBucket = bucket; break; }
       }
-      // Tab not in user's nav — ignore silently
-      if (!targetBucket) return;
+      // Tab not in user's nav — ignore silently except for global utilities
+      if (!targetBucket) {
+        if (id !== 'notifications' && id !== 'profile') {
+          return;
+        }
+      }
       if (targetBucket && targetBucket !== APP._activeBucket) {
         APP._activeBucket = targetBucket;
         document.querySelectorAll('.bb-item').forEach(el =>
@@ -1137,6 +1141,8 @@ Tomorrow: start formwork on next bay."
       errors_log:        () => APP.renderErrorsLog(),
       library:           () => APP.renderKnowledgeLibrary(),
       ai_settings:       () => APP.renderAISettings(),
+      profile:           () => APP.loadProfile(),
+      notifications:     () => APP.renderNotifications(),
     };
     (map[id] || (() => el.innerHTML = UI.empty('','Coming soon')))();
   },

@@ -21,48 +21,14 @@ async function main() {
     await connection.query(`CREATE DATABASE \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
     await connection.query(`USE \`${dbName}\`;`);
 
-    console.log('Loading schema.sql to initialize database structure...');
-    const schemaPath = path.join(__dirname, '../schema.sql');
-    let schemaSql = fs.readFileSync(schemaPath, 'utf8');
-    // Strip "IF NOT EXISTS" from CREATE INDEX statements for MySQL 8 compatibility
-    schemaSql = schemaSql.replace(/CREATE INDEX IF NOT EXISTS/g, 'CREATE INDEX')
-                         .replace(/ADD COLUMN IF NOT EXISTS/g, 'ADD COLUMN');
-    
-    await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
-    await connection.query(schemaSql);
-    await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
-    console.log('✓ Database schema initialized successfully.');
-
-    // 1. Load users & company entities from nu-pmc-seed-example.sql
-    console.log('Loading users and company entities...');
-    const seedExamplePath = path.join(__dirname, '../nu-pmc-seed-example.sql');
-    let seedExampleSql = fs.readFileSync(seedExamplePath, 'utf8');
-    // Replace column name mapping
-    seedExampleSql = seedExampleSql.replace(/must_change_password/g, 'force_password_change');
-    
-    await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
-    await connection.query(seedExampleSql);
-    await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
-    console.log('✓ Users and company entities seeded successfully.');
-
-    // 2. Load projects, drawings, versions, RFIs, material requests, and vendors from tests/seed.sql
-    console.log('Loading projects, drawings, versions, RFIs, and material requests...');
-    const testsSeedPath = path.join(__dirname, '../tests/seed.sql');
-    let testsSeedSql = fs.readFileSync(testsSeedPath, 'utf8');
-    // Strip stale tables truncate statements
-    testsSeedSql = testsSeedSql
-      .replace(/TRUNCATE TABLE site_visit_photos;/gi, '')
-      .replace(/TRUNCATE TABLE site_visit_observations;/gi, '')
-      .replace(/TRUNCATE TABLE site_visits;/gi, '')
-      .replace(/TRUNCATE TABLE approval_requests;/gi, '')
-      .replace(/TRUNCATE TABLE drawing_queries;/gi, '')
-      .replace(/-- ── APPROVAL REQUESTS[\s\S]*?pending'\);/g, '')
-      .replace(/-- ── DRAWING QUERIES[\s\S]*?closed', 0\);/g, '');
+    console.log('Loading pmc_initial_schema_with_data.sql to initialize database structure and data...');
+    const dumpPath = path.join(__dirname, '../pmc_initial_schema_with_data.sql');
+    const dumpSql = fs.readFileSync(dumpPath, 'utf8');
 
     await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
-    await connection.query(testsSeedSql);
+    await connection.query(dumpSql);
     await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
-    console.log('✓ Projects, drawings, versions, RFIs, and material requests seeded successfully.');
+    console.log('✓ Database schema and data initialized successfully.');
 
     // 3. Ensure dev-seed user is present (user1 / Start@123)
     console.log('Ensuring dev user user1 is present...');

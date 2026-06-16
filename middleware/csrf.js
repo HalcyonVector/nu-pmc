@@ -50,6 +50,7 @@ const EXEMPT_PREFIXES = [
   '/api/auth/login',
   '/api/auth/dev-login',
   '/api/auth/dev-switch',
+  '/api/auth/dev-seed-demo',
   '/api/payments/utr-webhook',             // ICICI bank — HMAC signed
   '/api/notifications/ses-webhook',        // AWS SES bounce/complaint — HMAC signed
   '/api/whatsapp/webhook',                 // Twilio inbound — HMAC signed
