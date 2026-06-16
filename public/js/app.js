@@ -285,7 +285,7 @@ const APP = {
       return;
     }
 
-    // Site manager with multiple projects — show picker first
+    // Site manager with multiple projects — auto-select first project
     if (['site_manager','senior_site_manager'].includes(APP.user.role)) {
       const projects = APP.user.projects || [];
       if (projects.length === 0) {
@@ -293,26 +293,19 @@ const APP = {
         document.getElementById('tabs-bar').innerHTML = '';
         return;
       }
-      if (projects.length === 1) {
-        // Only one project — go straight in
-        APP.state.selectedProject = projects[0].id;
-        APP.buildTabs();
-        return;
-      }
-      // Multiple projects — restore last selection if valid, else show picker
+      // Restore last selection or default to first project
+      let picked = projects[0].id;
       try {
         const saved = sessionStorage.getItem('nu_selected_project');
         if (saved) {
           const savedId = parseInt(saved, 10);
-          if (projects.some(p => p.id === savedId)) {
-            APP.state.selectedProject = savedId;
-            APP._updateTopbar();
-            APP.buildTabs();
-            return;
-          }
+          if (projects.some(p => p.id === savedId)) picked = savedId;
         }
       } catch (_e) {}
-      APP.showProjectPicker();
+      APP.state.selectedProject = picked;
+      try { sessionStorage.setItem('nu_selected_project', String(picked)); } catch (_e) {}
+      APP._updateTopbar();
+      APP.buildTabs();
       return;
     }
 
