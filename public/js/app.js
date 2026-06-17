@@ -1640,7 +1640,9 @@ Tomorrow: start formwork on next bay."
     const res = await API.call('POST', `/schedule/${pid}/flags/${updateId}/resolve`, { resolution_note: note || '' });
     if (res?.success) {
       UI.toast('Flag resolved');
-      APP.renderSchedule();
+      // Re-render whichever view is active
+      if (APP.currentTab === 'flags') APP.renderFlags();
+      else APP.renderSchedule();
     } else {
       UI.toast(res?.error || 'Failed to resolve');
     }
