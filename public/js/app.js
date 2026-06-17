@@ -1699,7 +1699,14 @@ Tomorrow: start formwork on next bay."
     
     try {
       const data = await API.getLookaheadWorkspace(pid);
-      const { tasks, assignees, metrics } = data;
+      const tasks = data?.tasks || [];
+      const assignees = data?.assignees || [];
+      const metrics = data?.metrics || { upcoming: 0, dueThisWeek: 0, overdue: 0, completedThisWeek: 0 };
+      
+      if (!tasks.length) {
+        el.innerHTML = subTabs + UI.empty('', 'No schedule uploaded yet — upload a schedule to use Look Ahead');
+        return;
+      }
       
       if (!APP.state.lookaheadMonthFilter) {
         APP.state.lookaheadMonthFilter = 'all';
