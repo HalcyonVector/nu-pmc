@@ -33,7 +33,7 @@ describe('M4 Site — contract surface', () => {
 
   test('owns expected tables', () => {
     expect(Site.tables).toEqual(expect.arrayContaining([
-      'daily_reports', 'grns', 'issues', 'entity_photos', 'photo_tags',
+      'daily_reports', 'grns', 'issues', 'project_photos', 'photo_tags',
       'labour_register', 'form_templates', 'form_submissions',
     ]));
     // Does not claim tables owned by other modules
@@ -309,8 +309,8 @@ describe('M4 Site — getRecentPhotos', () => {
     db.query.mockResolvedValueOnce([[{ id: 1, file_path: 'p1.jpg', photo_date: '2026-04-20', caption: 'x' }]]);
     const r = await Site.functions.getRecentPhotos(1, '2026-04-18', 10);
     expect(r.length).toBe(1);
-    // Post-v5.8: queries entity_photos (with primary_entity_type filter), not the legacy project_photos table.
-    expect(db.query.mock.calls[0][0]).toMatch(/entity_photos/);
+    // Post-v5.8: queries project_photos (with primary_entity_type filter), not the legacy project_photos table.
+    expect(db.query.mock.calls[0][0]).toMatch(/project_photos/);
     expect(db.query.mock.calls[0][0]).toMatch(/primary_entity_type\s*=\s*'project_progress'/);
     expect(db.query.mock.calls[0][0]).toMatch(/LIMIT \?/);
     expect(db.query.mock.calls[0][1]).toEqual([1, '2026-04-18', 10]);

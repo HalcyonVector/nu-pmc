@@ -44,9 +44,9 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
     else if (me.role === 'services_head') {
       whereExtra = `AND d.stream = 'services'`;
     }
-    // PMC sees only issued
+    // PMC sees all drawings (oversight role)
     else if (me.role === 'pmc_head') {
-      whereExtra = `AND dv.status = 'issued'`;
+      whereExtra = '';
     }
 
     const [drawings] = await db.query(
@@ -68,6 +68,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       d.uploaded_by_name      = users.get(d.uploaded_by)?.full_name      || null;
       d.l1_reviewed_by_name   = users.get(d.l1_reviewed_by)?.full_name   || null;
       d.l2_approved_by_name   = users.get(d.l2_approved_by)?.full_name   || null;
+      d.view_url              = fileUrls.fileUrl(d.file_path, { defaultSubdir: 'drawings' });
     });
 
     res.json({ drawings });
@@ -166,7 +167,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
 
     // Determine initial status based on uploader role
     // Services: services_engineer → pending_l1 (services_head reviews)
-    // Design: jr_engineer → pending_l1 (team_lead/sushmitha review), team_lead/team_lead → pending_l2 (pmc_head), design_head/principal → issued
+    // Design: jr_engineer → pending_l1 (team_lead review), team_lead → pending_l2 (design_head), design_head/principal → issued
     let initStatus = 'pending_l1';
     if (['principal','design_principal'].includes(me.role)) initStatus = 'issued';
     else if (me.role === 'design_head') initStatus = 'issued';
@@ -754,5 +755,47 @@ async function notifyDrawingApproval(drawingVersion, projectId) {
     }
   }
 }
+
+// DELETE /api/drawings/version/:id — delete a drawing version (only if pending, not issued)
+// Only principal, design_head, services_head, or the uploader can delete.
+router.delete('/version/:id', requireAuth, asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const [[dv]] = await db.query(
+      `SELECT dv.*, d.project_id, d.stream FROM drawing_versions dv
+       JOIN drawings d ON dv.drawing_id = d.id
+       WHERE dv.id = ?`, [req.params.id]
+    );
+    if (!dv) return res.status(404).json({ error: 'Drawing version not found' });
+
+    if (dv.status === 'issued') {
+      return res.status(400).json({ error: 'Cannot delete an issued drawing — it may be referenced by site documents' });
+    }
+
+    const canDelete =
+      ['principal', 'design_principal'].includes(me.role) ||
+      (me.role === 'design_head' && dv.stream === 'design') ||
+      (me.role === 'services_head' && dv.stream === 'services') ||
+      dv.uploaded_by === me.id;
+
+    if (!canDelete) {
+      return res.status(403).json({ error: 'Not authorised to delete this drawing' });
+    }
+
+    await db.query('DELETE FROM drawing_versions WHERE id = ?', [req.params.id]);
+
+    // If no versions remain for this drawing, delete the drawing record too
+    const [[remaining]] = await db.query(
+      'SELECT COUNT(*) AS c FROM drawing_versions WHERE drawing_id = ?', [dv.drawing_id]
+    );
+    if (remaining.c === 0) {
+      await db.query('DELETE FROM drawings WHERE id = ?', [dv.drawing_id]);
+    }
+
+    audit.log({ userId: me.id, action: 'drawing.delete',
+      entityType: 'drawing_versions', entityId: parseInt(req.params.id),
+      details: { project_id: dv.project_id, drawing_number: dv.drawing_number, stream: dv.stream, status: dv.status }, req });
+
+    res.json({ success: true, message: 'Drawing deleted' });
+  }));
 
 module.exports = router;

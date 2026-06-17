@@ -93,7 +93,7 @@ async function generateBulkPaymentExcel(payments, projectCode, date, debitAccoun
     data.push(fmt.buildRow(i + 1, p.vendor, p.engagement, p.payment, projectCode, date, debitAccount));
   });
 
-  const outPath = path.join(process.env.UPLOAD_DIR || '/tmp',
+  const outPath = path.join(process.env.UPLOAD_DIR || require('os').tmpdir(),
     `payment_${projectCode}_${Date.now()}.xlsx`);
   await xl.writeFile(data, outPath, 'Bulk Payment');
   return outPath;

@@ -112,6 +112,11 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
       // Payment has no link to GRN (payment is on work done, not material receipts).
       // GRN serves PMC purely for materials planning — what came in, what's still needed.
       // Vendor confirmation poll (F3) below provides the independent check.
+
+      // v6.02 audit decision: GRN is FYI only — no PMC approval poll.
+      // Payment has no link to GRN (payment is on work done, not material receipts).
+      // GRN serves PMC purely for materials planning — what came in, what's still needed.
+      // Vendor confirmation poll (F3) below provides the independent check.
       // PMC sees disputes via the vendor's poll response, and weekly digest.
       if (deliveryNoteUrl) {
         console.log('[grn] delivery note URL', { grnId, url: deliveryNoteUrl });
@@ -127,7 +132,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
     // Routed through signoff-gate so vendor's vote is captured and the
     // dispute path triggers POST_COMPLETION_HOOK alerting PMC.
     // (Direct notifyVendor send was fire-and-forget — no vote correlation.)
-    if (eng?.vendor_id) {
+    if (engCheck?.vendor_id) {
       try {
         const signoffGate = require('../../../services/signoff-gate');
         const amt = `₹${(validQty * validUnitRate).toLocaleString('en-IN')}`;
@@ -137,7 +142,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
           parseInt(req.params.project_id, 10),
           {
             question: `GRN ${num} — ${validQty} ${body.unit || 'units'} received — ${amt}. Confirm delivery matches?`,
-            documentRow: { id: grnId, vendor_id: eng.vendor_id, raised_by: req.session.user.id },
+            documentRow: { id: grnId, vendor_id: engCheck.vendor_id, raised_by: req.session.user.id },
             triggeredBy: req.session.user.id,
           }
         );
@@ -153,7 +158,10 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
         ? `GRN ${num} raised — flagged as unplanned delivery. Vendor confirmation pending.`
         : `GRN ${num} raised — vendor confirmation pending.`,
     });
-  } catch (_err) { res.status(500).json({ error: 'Failed to create GRN' }); }
+  } catch (_err) {
+    console.error('[grn.create] error:', _err);
+    res.status(500).json({ error: 'Failed to create GRN: ' + _err.message });
+  }
 });
 
 router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), asyncHandler(async (req, res) => {
@@ -219,7 +227,7 @@ router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), asyncH
     res.json({ success: true });
   }));
 
-router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), requirePMC, asyncHandler(async (req, res) => {
+router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), requireRole('pmc_head','principal','design_principal','senior_site_manager'), asyncHandler(async (req, res) => {
     const { rejection_reason } = req.body;
     const [[cur]] = await db.query('SELECT status FROM grns WHERE id=?', [req.params.id]);
     if (!cur) return res.status(404).json({ error: 'GRN not found' });

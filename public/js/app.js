@@ -334,9 +334,9 @@ const APP = {
 
   async _loadAIToggles() {
     try {
-      const aiRes = await API.get('/ai/settings/active');
+      const toggleRes = await API.get('/ai-settings/enabled');
       APP.state.aiToggles = {};
-      (aiRes?.active || []).forEach(k => { APP.state.aiToggles[k] = true; });
+      (toggleRes?.enabled || []).forEach(k => { APP.state.aiToggles[k] = true; });
     } catch(_e) { APP.state.aiToggles = {}; }
   },
 
@@ -359,15 +359,7 @@ const APP = {
       } catch (_e) { APP._nav = null; }
     }
 
-    // Load AI feature toggles (Phase 2) — controls which AI buttons appear
-    if (!APP.state.aiToggles) {
-      try {
-        const toggleRes = await API.get('/ai-settings/enabled');
-        const enabled = toggleRes?.enabled || [];
-        APP.state.aiToggles = {};
-        enabled.forEach(k => { APP.state.aiToggles[k] = true; });
-      } catch (_e) { APP.state.aiToggles = {}; }
-    }
+    // AI toggles loaded via _loadAIToggles() before buildTabs is called
 
     if (APP._nav && APP._nav.buckets) {
       APP._renderNavFromDB();
@@ -1133,7 +1125,6 @@ Tomorrow: start formwork on next bay."
       ai_settings:       () => APP.renderAISettings(),
       errors_log:        () => APP.renderErrorsLog(),
       library:           () => APP.renderKnowledgeLibrary(),
-      ai_settings:       () => APP.renderAISettings(),
       profile:           () => APP.loadProfile(),
       notifications:     () => APP.renderNotifications(),
     };
@@ -1203,18 +1194,24 @@ Tomorrow: start formwork on next bay."
         <span class="badge b-${b}">${badge}</span>
       </div>`;
 
-    // Fix 5: each action item now opens triage list first (not tab direct)
-    if (ac.overdue_queries.length)
+    // Helper: check if user has a specific tab in their nav
+    const hasTab = (tab) => {
+      if (!APP._nav?.buckets) return true; // no nav loaded yet, show all
+      return Object.values(APP._nav.buckets).some(tabs => tabs.some(t => t.key === tab));
+    };
+
+    // Only show action items if user has the relevant tab to act on them
+    if (ac.overdue_queries.length && hasTab('issues'))
       html += addItem('','Drawing queries — overdue',`${ac.overdue_queries.length} unanswered 3+ days`,'red','red','OVERDUE',"APP.showActionTriage('overdue_queries')");
-    if (ac.open_flags.length)
+    if (ac.open_flags.length && hasTab('flags'))
       html += addItem('','Site flags open',`${ac.open_flags.length} unresolved flags`,'red','red','OPEN',"APP.showActionTriage('open_flags')");
-    if (ac.overdue_materials.length)
+    if (ac.overdue_materials.length && hasTab('materials'))
       html += addItem('','Materials overdue',`${ac.overdue_materials.length} past needed-by date`,'red','red','OVERDUE',"APP.showActionTriage('overdue_materials')");
-    if (ac.pending_approvals.length)
+    if (ac.pending_approvals.length && hasTab('pending'))
       html += addItem('','Approvals pending',`${ac.pending_approvals.length} awaiting Principal / Design Principal`,'amber','amber','PENDING',"APP.showActionTriage('pending_approvals')");
-    if (ac.fresh_queries.length)
+    if (ac.fresh_queries.length && hasTab('issues'))
       html += addItem('','Drawing queries — open',`${ac.fresh_queries.length} within 3 days`,'amber','amber','OPEN',"APP.showActionTriage('fresh_queries')");
-    if (ac.pending_changes.length)
+    if (ac.pending_changes.length && hasTab('changes'))
       html += addItem('','Change notices — signatures pending',`${ac.pending_changes.length} need sign-off`,'blue','blue','ACTION',"APP.showActionTriage('pending_changes')");
 
     if (!Object.values(ac).some(a => a.length))
@@ -2158,8 +2155,8 @@ Tomorrow: start formwork on next bay."
     );
 
     const awaiting = d.version_status === 'pending_l1'
-      ? (d.stream === 'design' ? 'Team Lead / Sushmitha' : 'Services Head')
-      : d.version_status === 'pending_l2' ? 'PMC Head' : '';
+      ? (d.stream === 'design' ? 'Team Lead' : 'Services Head')
+      : d.version_status === 'pending_l2' ? 'Design Head' : '';
 
     return `<div class="drawing-item${myTurn?' '+''  :''}" style="${myTurn?'border-color:var(--steel)':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
@@ -2173,15 +2170,12 @@ Tomorrow: start formwork on next bay."
       ${d.notes?`<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${d.notes}</div>`:''}
       ${awaiting&&!myTurn?`<div style="font-size:10px;color:var(--muted);margin-bottom:6px">Awaiting: ${awaiting}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${isIssued?'<span class="badge b-green">Issued ✓</span>':''}
+        ${d.view_url?`<a class="btn-sm" href="${d.view_url}" target="_blank">View PDF</a>`:''}
+        ${isIssued?'<span class="badge b-green">Issued</span>':''}
         ${myTurn?`<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${role === 'team_lead'?'Mark Reviewed':'Approve & Issue'}</button>
           <button class="btn-sm reject" onclick="APP.rejectDrawing(${d.version_id})">Reject</button>`:''}
         ${isSite && isIssued?`<button class="btn-sm query" onclick="APP.raiseQueryForDrawing(${d.version_id},'${d.drawing_number} ${d.revision}',${pid})">Raise Query</button>`:''}
-        <!-- History/New Rev stub buttons removed (lines 1610-1611). Both were
-             onclick="UI.toast(...)" with no real action — History had no endpoint,
-             New Rev told the user "use upload form above" which is misleading
-             when the form is on a different page. Re-add when there's a real
-             history endpoint and a clear UX for revisioning. -->
+        ${!isIssued && ['principal','design_principal','design_head','services_head'].includes(role) ? `<button class="btn-sm" style="color:#C84040;font-size:10px" onclick="APP.deleteDrawing(${d.version_id})">Delete</button>` : ''}
       </div>
     </div>`;
   },
@@ -2345,6 +2339,14 @@ Tomorrow: start formwork on next bay."
     const res = await API.rejectDrawing(versionId, note);
     if (res?.success) { UI.toast('Rejected — sent back'); APP.renderDrawings(); }
     else UI.toast(res?.error || 'Failed');
+  },
+
+  async deleteDrawing(versionId) {
+    const ok = await UI.confirm('Delete this drawing? This cannot be undone.');
+    if (!ok) return;
+    const res = await API.call('DELETE', `/drawings/version/${versionId}`);
+    if (res?.success) { UI.toast('Drawing deleted'); APP.renderDrawings(); }
+    else UI.toast(res?.error || 'Delete failed');
   },
 
   raiseQueryForDrawing(versionId, label, pid) {
@@ -3400,9 +3402,12 @@ Tomorrow: start formwork on next bay."
 
     const data = await API.getQueries(pid);
     const queries = data?.queries || [];
-    let html = '';
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="sec-label" style="margin:0">Queries & RFIs</div>
+      <button class="btn-primary" onclick="APP.showRaiseQueryModal(${pid})">+ Raise Query</button>
+    </div>`;
     queries.forEach(q => { html += APP.queryCard(q, false); });
-    if (!queries.length) html = UI.empty('','No queries raised yet');
+    if (!queries.length) html += UI.empty('','No queries raised yet — tap + to ask the design or services team');
     el.innerHTML = html;
   },
 
@@ -4085,6 +4090,7 @@ Tomorrow: start formwork on next bay."
     const uploadedBy = photo.uploaded_by_name || 'Unknown';
     const dateStr = photo.photo_date || '';
     const isDefect = photo.entity_type === 'issue' && photo.linked_issue?.issue_type === 'snag';
+    const isProgress = photo.entity_type === 'project_progress';
     const sevColor = { critical:'#C84040', major:'#C87060', minor:'#C8A040' };
 
     let footerHtml;
@@ -4097,10 +4103,17 @@ Tomorrow: start formwork on next bay."
           <div style="font-size:12px;color:#444;margin-top:3px">${li.trade||''} · ${li.status||''}</div>
         </div>
       `;
+    } else if (isProgress) {
+      footerHtml = `
+        <div style="background:#f0f8ff;border:1px solid #0056b3;border-left:4px solid #0056b3;padding:10px;border-radius:var(--r);margin-bottom:10px">
+          <div style="font-size:11px;font-weight:bold;color:#0056b3">📷 PROGRESS PHOTO</div>
+        </div>
+      `;
     } else {
       footerHtml = `
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" onclick="APP.flagPhotoAsDefect(${projectId}, ${photoId})" style="background:#C87060;color:#fff">⚠ Flag as Defect</button>
+          <button class="btn-sm" onclick="APP.markPhotoAsProgress(${projectId}, ${photoId})" style="background:#0056b3;color:#fff">📷 Mark as Progress</button>
         </div>
       `;
     }
@@ -4159,12 +4172,47 @@ Tomorrow: start formwork on next bay."
     }
   },
 
+  async markPhotoAsProgress(projectId, photoId) {
+    const ok = await UI.confirm('Mark this photo as progress?');
+    if (!ok) return;
+    const res = await API.call('POST', `/photos/${photoId}/mark-progress`);
+    if (res?.success) {
+      UI.closeModal();
+      UI.toast('Photo marked as progress ✓');
+      APP.renderPhotos();
+    } else {
+      UI.toast(res?.error || 'Failed to mark as progress');
+    }
+  },
+
   async uploadPhotos(pid, input) {
     const files = Array.from(input.files);
     if (!files.length) return;
+
+    const filter = APP.state.photoFilter || 'all';
+
+    // If uploading from "all" tab, ask user to choose a tag
+    if (filter === 'all') {
+      APP._pendingUploadFiles = files;
+      APP._pendingUploadPid = pid;
+      UI.showModal('Choose Photo Type', `
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px">
+          What type of photo are you uploading?
+        </div>
+        <button class="btn-primary" style="width:100%;margin-bottom:8px" onclick="APP._doUploadWithTag('progress')">📷 Progress Photo</button>
+        <button class="btn-primary" style="width:100%;background:#C87060" onclick="APP._doUploadWithTag('defect')">⚠ Defect Photo</button>
+      `);
+      input.value = '';
+      return;
+    }
+
+    // If uploading from progress/defects tab, tag automatically
+    const tag = filter === 'defects' ? 'defect' : 'progress';
     const fd = new FormData();
     files.forEach(f => fd.append('photo', f));
     fd.append('source', 'app');
+    fd.append('photo_date', APP.state.selectedDate || UI.todayIST());
+    fd.append('tag', tag);
     const res = await API.uploadPhoto(pid, fd);
     if (res?.success) {
       UI.toast(`${res.count} photo${res.count>1?'s':''} uploaded ✓`);
@@ -4172,6 +4220,27 @@ Tomorrow: start formwork on next bay."
     } else {
       UI.toast(res?.error || 'Upload failed');
     }
+  },
+
+  async _doUploadWithTag(tag) {
+    UI.closeModal();
+    const files = APP._pendingUploadFiles;
+    const pid = APP._pendingUploadPid;
+    if (!files || !pid) return;
+    const fd = new FormData();
+    files.forEach(f => fd.append('photo', f));
+    fd.append('source', 'app');
+    fd.append('photo_date', APP.state.selectedDate || UI.todayIST());
+    fd.append('tag', tag);
+    const res = await API.uploadPhoto(pid, fd);
+    if (res?.success) {
+      UI.toast(`${res.count} photo${res.count>1?'s':''} uploaded ✓`);
+      APP.renderPhotos();
+    } else {
+      UI.toast(res?.error || 'Upload failed');
+    }
+    APP._pendingUploadFiles = null;
+    APP._pendingUploadPid = null;
   },
 
   // ── DOCUMENTS
@@ -5915,44 +5984,6 @@ const AI_FEATURES = [
   { key: 'similar_query_dedup', label: 'Similar Query Dedup', desc: 'Shows similar past queries in Raise Query modal' },
 ];
 
-APP.renderAISettings = async function() {
-  const el = UI.contentEl();
-  const data = await API.get('/ai/settings');
-  if (!data) return;
-  const toggles = data.toggles || {};
-
-  let html = '<div class="sec-label">AI Features</div>';
-  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Toggle AI-powered features on or off. Changes take effect immediately.</div>';
-
-  AI_FEATURES.forEach(f => {
-    const checked = toggles[f.key] ? 'checked' : '';
-    html += `<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600;color:var(--text)">${f.label}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">${f.desc}</div>
-      </div>
-      <label class="toggle-switch">
-        <input type="checkbox" ${checked} onchange="APP.toggleAIFeature('${f.key}',this.checked)">
-        <span class="toggle-slider"></span>
-      </label>
-    </div>`;
-  });
-
-  el.innerHTML = '<div class="fade-in">' + html + '</div>';
-};
-
-APP.toggleAIFeature = async function(key, enabled) {
-  const res = await API.post('/ai/settings', { feature_key: key, enabled });
-  if (res?.success) {
-    UI.toast(enabled ? 'Feature enabled' : 'Feature disabled');
-    // Update local toggle cache
-    if (!APP.state.aiToggles) APP.state.aiToggles = {};
-    if (enabled) APP.state.aiToggles[key] = true;
-    else delete APP.state.aiToggles[key];
-  }
-  else UI.toast(res?.error || 'Failed to update');
-};
-
 // ── PROJECT CLOSURE SCREEN
 APP.loadProjectClosure = async function(projectId) {
   const res = await API.call('GET', `/handover/${projectId}/closure`);
@@ -6435,6 +6466,24 @@ APP.renderGRN = async function() {
         </div>
       </div>`;
     });
+  } else if (pending.length && !canApprove) {
+    // Show the user's own pending GRNs (without approve/reject buttons)
+    const myPending = pending.filter(g => g.raised_by === APP.user.id);
+    if (myPending.length) {
+      html += `<div class="sec-label">My Pending GRNs (${myPending.length})</div>`;
+      myPending.forEach(g => {
+        html += `<div class="grn-item pending">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="grn-num">${g.grn_number||'GRN-'+g.id}</div>
+              <div class="grn-vendor">${g.vendor_name||'—'}</div>
+              <div class="grn-detail">${g.description||''} · ${g.quantity_received||0} ${g.unit||''}</div>
+            </div>
+            <span class="badge b-yellow" style="white-space:nowrap">Pending</span>
+          </div>
+        </div>`;
+      });
+    }
   }
 
   html += `<div class="sec-hdr-row">
@@ -6475,13 +6524,21 @@ APP.rejectGRN = async function(id) {
   const res = await API.patch(`/grn/${id}/reject`, {});
   if (res?.success) { UI.toast('GRN rejected'); APP.renderGRN(); }
 };
-APP.showGRNForm = function() {
+APP.showGRNForm = async function() {
+  const pid = APP.state.selectedProject || APP.user?.projects?.[0]?.id;
+  if (!pid) { UI.toast('No project selected'); return; }
+
+  const data = await API.call('GET', `/vendors/${pid}/engagements`);
+  const engagements = data?.engagements || [];
+  const options = engagements.map(e => `<option value="${e.id}">${UI.escapeText(e.vendor_name)} (${UI.escapeText(e.trade || 'Other')})</option>`).join('');
+
   UI.openModal('Raise GRN', `
     <div class="field-row"><label class="field-label" for="grn-vendor">Vendor</label>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="grn-vendor" placeholder="Vendor name" style="flex:1" readonly>
-        <button class="btn-secondary" onclick="APP.showVendorPicker(v=>{document.getElementById('grn-vendor').value=v.vendor_name;APP.state.selectedGRNVendor=v;})" style="white-space:nowrap;width:auto;min-width:0">Pick</button>
-      </div></div>
+      <select id="grn-vendor" style="width:100%;height:38px;padding:6px;border-radius:var(--r);border:1px solid var(--border)">
+        <option value="">-- Select Vendor --</option>
+        ${options}
+      </select>
+    </div>
     <div class="field-row"><label class="field-label" for="grn-material">Material</label>
       <input type="text" id="grn-material" placeholder="Material description"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -6498,23 +6555,24 @@ APP.showGRNForm = function() {
   `);
 };
 APP.submitGRN = async function() {
-  const pid = APP.state.selectedProject;
+  const pid = APP.state.selectedProject || APP.user?.projects?.[0]?.id;
   const qty = parseFloat(document.getElementById('grn-qty').value||0);
   const rate= parseFloat(document.getElementById('grn-rate').value||0);
+  const engagementIdVal = document.getElementById('grn-vendor').value;
   const body = {
-    vendor_name:       document.getElementById('grn-vendor').value,
-    material_name:     document.getElementById('grn-material').value,
+    engagement_id:     engagementIdVal ? parseInt(engagementIdVal, 10) : null,
+    description:       document.getElementById('grn-material').value,
     quantity_received: qty,
     unit:              document.getElementById('grn-unit').value,
     unit_rate:         rate,
-    total_value:       qty * rate,
     delivery_date:     document.getElementById('grn-date').value,
   };
-  if (!body.vendor_name || !body.material_name || !body.quantity_received) {
+  if (!body.engagement_id || !body.description || !body.quantity_received) {
     UI.toast('Fill in vendor, material and quantity'); return;
   }
   const res = await API.post(`/grn/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('GRN raised ✓'); APP.renderGRN(); }
+  else { UI.toast(res?.error || 'Failed to submit GRN'); }
 };
 
 // ── ISSUES — register
@@ -6859,9 +6917,8 @@ APP.submitIssue = async function() {
   if (!body.title) { UI.toast('Add a title'); return; }
   const res = await API.post(`/issues/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('Issue raised ✓'); APP.renderIssues(); }
+  else { UI.toast(res?.error || 'Failed to raise issue'); }
 };
-
-// ── MOMs — list + create + action items
 // renderMeetings is the unified entry point (Fold B).
 // Delegates to renderMOMs for now — full meeting-type filtering can come later.
 APP.renderMeetings = function() { return APP.renderMOMs(); };
@@ -6873,7 +6930,7 @@ APP.renderMOMs = async function() {
 
   const data = await API.get(`/meetings/${pid}`);
   if (!data) return;
-  const moms = data.moms || [];
+  const moms = data.meetings || data.moms || [];
 
   const role = APP.user.role;
   const canCreate = ['pmc_head','principal','design_principal'].includes(role);
@@ -6941,6 +6998,7 @@ APP.viewMOM = async function(id) {
     </div>`).join('')}
     ${!actions.length ? UI.empty('','No action items') : ''}`;
   document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
 };
 
 APP.doneAction = async function(id) {
@@ -6968,6 +7026,7 @@ APP.submitMOM = async function() {
   if (!body.title || !body.meeting_date) { UI.toast('Fill in title and date'); return; }
   const res = await API.post(`/meetings/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('MOM created ✓'); APP.renderMOMs(); }
+  else { UI.toast(res?.error || 'Failed to create MOM'); }
 };
 
 // ── LABOUR REGISTER — site manager enters, PMC validates
@@ -6978,7 +7037,7 @@ APP.renderLabour = async function() {
 
   const data = await API.get(`/labour/${pid}`);
   if (!data) return;
-  const entries = data.entries || [];
+  const entries = data.records || [];
 
   const role = APP.user.role;
   const canEnter    = ['site_manager','senior_site_manager'].includes(role);
@@ -6997,6 +7056,25 @@ APP.renderLabour = async function() {
       </div>
       <button class="btn-sm approve" onclick="APP.validateAllLabour('${pid}')">Validate All</button>
     </div>`;
+    unvalidated.forEach(e => {
+      html += `<div class="card" style="border-left:3px solid #C8A040;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="card-title">${e.trade}</div>
+            <div class="card-meta">${UI.fmtDate(e.register_date)} · ${e.vendor_name||'—'}</div>
+            ${e.notes ? `<div class="card-meta">${e.notes}</div>` : ''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--navy)">${e.headcount}</div>
+            <div style="font-size:10px;color:var(--muted)">workers</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn-sm approve" onclick="APP.validateLabourEntry('${pid}',${e.id})">✓ Validate</button>
+          <button class="btn-sm" style="color:#C84040" onclick="APP.rejectLabourEntry('${pid}',${e.id})">✗ Reject</button>
+        </div>
+      </div>`;
+    });
   }
 
   html += `<div class="sec-hdr-row">
@@ -7010,7 +7088,7 @@ APP.renderLabour = async function() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div class="card-title">${e.trade}</div>
-          <div class="card-meta">${UI.fmtDate(e.register_date)} · ${e.entered_by_name||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(e.register_date)} · ${e.recorded_by_name||e.vendor_name||'—'}</div>
         </div>
         <div style="text-align:right">
           <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--navy)">${e.headcount}</div>
@@ -7029,6 +7107,28 @@ APP.validateAllLabour = async function(pid) {
   const today = UI.todayIST();
   const res = await API.post(`/labour/${pid}/validate-all`, { register_date: today });
   if (res?.success) { UI.toast(`${res.validated} entr${res.validated>1?'ies':'y'} validated ✓`); APP.renderLabour(); }
+  else { UI.toast(res?.error || 'Validation failed'); }
+};
+APP.validateLabourEntry = async function(pid, id) {
+  const res = await API.call('PATCH', `/labour/${pid}/${id}/validate`, {});
+  if (res?.success) { UI.toast('Validated ✓'); APP.renderLabour(); }
+  else { UI.toast(res?.error || 'Validation failed'); }
+};
+APP.rejectLabourEntry = function(pid, id) {
+  UI.openModal('Reject Labour Entry', `
+    <div class="field-row">
+      <label class="field-label" for="lab-reject-reason">Reason for rejection</label>
+      <input type="text" id="lab-reject-reason" placeholder="e.g. Headcount mismatch, incorrect trade">
+    </div>
+    <button class="btn-primary" style="width:100%;background:#C84040" onclick="APP.submitRejectLabour('${pid}',${id})">Reject Entry</button>
+  `);
+};
+APP.submitRejectLabour = async function(pid, id) {
+  const reason = document.getElementById('lab-reject-reason')?.value?.trim();
+  if (!reason || reason.length < 3) { UI.toast('Enter a reason (min 3 chars)'); return; }
+  const res = await API.call('PATCH', `/labour/${pid}/${id}/reject`, { reason });
+  if (res?.success) { UI.closeModal(); UI.toast('Entry rejected'); APP.renderLabour(); }
+  else { UI.toast(res?.error || 'Rejection failed'); }
 };
 APP.showLabourForm = async function() {
   UI.openModal('Log Headcount', `
@@ -7126,6 +7226,7 @@ APP.renderVisits = async function() {
 
 APP.showVisitForm = function() {
   document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title">Log Visit <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
     <div class="field-row"><label class="field-label" for="visit-date">Visit Date</label>
@@ -7140,6 +7241,7 @@ APP.submitVisit = async function() {
   if (!body.summary) { UI.toast('Add a summary'); return; }
   const res = await API.post(`/meetings/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('Visit logged ✓'); APP.renderVisits(); }
+  else { UI.toast(res?.error || 'Failed to log visit'); }
 };
 APP.viewVisit = function(id) { UI.toast('Opening visit...'); };
 
@@ -7255,16 +7357,20 @@ APP.renderPayments = async function() {
 
   let html = '';
 
+  const canApprove = ['principal','design_principal','pmc_head'].includes(APP.user.role);
+
   if (pending.length) {
     const total = pending.reduce((s,p) => s + parseFloat(p.amount_requested||0), 0);
-    html += `<div class="action-item c-navy" style="margin-bottom:16px">
-      <div class="ai-icon"></div>
-      <div class="ai-body">
-        <div class="ai-title">Approve all — ${Money.formatRupee(total)}</div>
-        <div class="ai-meta">${pending.length} vendor${pending.length>1?'s':''} waiting</div>
-      </div>
-      <button class="btn-sm approve" onclick="APP.batchApprovePayments('${pid}')">Approve All</button>
-    </div>`;
+    if (canApprove) {
+      html += `<div class="action-item c-navy" style="margin-bottom:16px">
+        <div class="ai-icon"></div>
+        <div class="ai-body">
+          <div class="ai-title">Approve all — ${Money.formatRupee(total)}</div>
+          <div class="ai-meta">${pending.length} vendor${pending.length>1?'s':''} waiting</div>
+        </div>
+        <button class="btn-sm approve" onclick="APP.batchApprovePayments('${pid}')">Approve All</button>
+      </div>`;
+    }
     html += `<div class="sec-label">Payment Queue</div>`;
     html += APP._sortToggleHTML('payments', ['default','age']);
     const sortedPending = APP._applySort(pending, APP._getSortMode('payments'), { ageField:'created_at' });
@@ -7276,7 +7382,10 @@ APP.renderPayments = async function() {
             <div class="pay-scope">${(p.scope||'').substring(0,50)}</div>
             <div class="pay-meta">${UI.fmtDate(p.created_at)}</div>
           </div>
-          <div class="pay-amount">${Money.formatRupee(p.amount_requested)}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="pay-amount">${Money.formatRupee(p.amount_requested)}</div>
+            ${canApprove ? `<button class="btn-sm approve" onclick="APP.approvePayment(${p.id})">Approve</button>` : ''}
+          </div>
         </div>
       </div>`;
     });
@@ -7352,11 +7461,9 @@ APP.renderPaymentsFin = async function() {
     <div class="card" style="margin-bottom:8px">
       <div class="card-title">Step 2 — Download ICICI Excel</div>
       <div class="card-meta">19-column PAB bulk payment format — ready to upload to ICICI portal</div>
-      <a href="/api/payments/${pid}/icici-excel" download>
-        <button class="btn-primary" style="margin-top:10px">
-          Download ICICI Excel
-        </button>
-      </a>
+      <button class="btn-primary" style="margin-top:10px" onclick="APP.downloadICICIExcel('${pid}')">
+        Download ICICI Excel
+      </button>
     </div>
     <div class="card">
       <div class="card-title">Step 3 — Upload to ICICI portal</div>
@@ -7412,6 +7519,31 @@ APP.runPreUploadCheck = async function(pid) {
     html += `<div style="color:var(--green);font-size:12px;margin-top:6px">${res.summary?.cleared} payment${res.summary?.cleared!==1?'s':''} validated — accounts confirmed, no duplicates.</div>`;
   }
   card.innerHTML = html;
+};
+
+APP.downloadICICIExcel = async function(pid) {
+  try {
+    const resp = await fetch(`/api/payments/${pid}/icici-excel`, {
+      credentials: 'same-origin',
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => null);
+      UI.toast(err?.error || `Download failed (${resp.status})`);
+      return;
+    }
+    const blob = await resp.blob();
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : 'ICICI_Bulk_Payment.xlsx';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    UI.toast('Download failed — check your connection');
+  }
 };
 
 // ── PI — proforma invoices
@@ -8613,6 +8745,7 @@ APP.submitEditClient = async function(id) {
 // ── VENDOR PICKER — trade-filtered searchable dropdown
 APP.showVendorPicker = function(onSelect, trade) {
   document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title">Select Vendor <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
     <div class="field-row">
@@ -8697,6 +8830,7 @@ APP.checkClientDuplicate = async function(name) {
 
 APP.closeModal = function() {
   document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
 };
 
 // ═══════════════════════════════════════════════════
@@ -8904,6 +9038,7 @@ APP.renderNCR = async function() {
 
 APP.showNCRForm = function() {
   document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title">Raise NCR <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
     <div class="field-row"><label class="field-label" for="ncr-desc">Description</label>
@@ -8918,6 +9053,7 @@ APP.submitNCR = async function() {
   if (!body.description) { UI.toast('Add a description'); return; }
   const res = await API.post(`/issues/ncr/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('NCR raised ✓'); APP.renderNCR(); }
+  else { UI.toast(res?.error || 'Failed to raise NCR'); }
 };
 
 // ── SUBMITTALS — review queue
@@ -8932,14 +9068,14 @@ APP.renderSubmittals = async function() {
 
   const role = APP.user.role;
   const canSubmit = ['site_manager','senior_site_manager','pmc_head'].includes(role);
-  const canReview = ['design_head','services_head','pmc_head','principal','design_principal'].includes(role);
+  const canReview = ['design_head','services_head','pmc_head','principal','design_principal','team_lead'].includes(role);
 
   let html = '';
   if (canSubmit) {
     html += `<button class="btn-primary" onclick="APP.showSubmittalForm()" style="margin-bottom:16px">+ New Submittal</button>`;
   }
 
-  const pending = subs.filter(s => s.status === 'pending_review' && canReview);
+  const pending = subs.filter(s => (s.status === 'submitted' || s.status === 'under_review') && canReview);
   if (pending.length) {
     html += `<div class="sec-label">Pending Review (${pending.length})</div>`;
     pending.forEach(s => {
@@ -8950,11 +9086,13 @@ APP.renderSubmittals = async function() {
             <div class="card-title">${s.title||'—'}</div>
             <div class="card-meta">${s.vendor_name||'—'} · ${UI.fmtDate(s.submitted_at)}</div>
           </div>
-          <span class="badge b-amber">Review</span>
+          <span class="badge b-amber">${s.status === 'under_review' ? 'Under Review' : 'Submitted'}</span>
         </div>
         <div class="btn-row" style="margin-top:10px">
           <button class="btn-approve" onclick="APP.reviewSubmittal(${s.id},'approved')">Approve</button>
-          <button class="btn-reject" onclick="APP.reviewSubmittal(${s.id},'rejected')">Return</button>
+          <button class="btn-sm" onclick="APP.reviewSubmittal(${s.id},'approved_with_comments')">Approve w/ Comments</button>
+          <button class="btn-sm" style="color:#C8A040" onclick="APP.reviewSubmittal(${s.id},'resubmit_required')">Resubmit</button>
+          <button class="btn-reject" onclick="APP.reviewSubmittal(${s.id},'rejected')">Reject</button>
         </div>
       </div>`;
     });
@@ -8966,7 +9104,9 @@ APP.renderSubmittals = async function() {
     html += APP._sortToggleHTML('submittals', ['default','age']);
     const sortedSubs = APP._applySort(subs, APP._getSortMode('submittals'), { ageField:'submitted_at' });
     sortedSubs.slice(0,12).forEach(s => {
-      const b = s.status==='approved'?'b-green':s.status==='rejected'?'b-red':s.status==='pending_review'?'b-amber':'b-silver';
+      const statusMap = { approved:'b-green', approved_with_comments:'b-green', rejected:'b-red', resubmit_required:'b-amber', submitted:'b-silver', under_review:'b-navy' };
+      const labelMap = { approved:'Approved', approved_with_comments:'Approved*', rejected:'Rejected', resubmit_required:'Resubmit', submitted:'Submitted', under_review:'Under Review' };
+      const b = statusMap[s.status] || 'b-silver';
       html += `<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="flex:1">
@@ -8974,7 +9114,7 @@ APP.renderSubmittals = async function() {
             <div class="card-title">${s.title||'—'}</div>
             <div class="card-meta">${s.vendor_name||'—'}</div>
           </div>
-          <span class="badge ${b}">${s.status||'draft'}</span>
+          <span class="badge ${b}">${labelMap[s.status]||s.status||'draft'}</span>
         </div>
       </div>`;
     });
@@ -8989,6 +9129,7 @@ APP.reviewSubmittal = async function(id, status) {
 };
 APP.showSubmittalForm = function() {
   document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title">New Submittal <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
     <div class="field-row"><label class="field-label" for="sub-title">Title</label>
@@ -9003,6 +9144,7 @@ APP.submitSubmittal = async function() {
   if (!body.title) { UI.toast('Add a title'); return; }
   const res = await API.post(`/submittals/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('Submittal submitted ✓'); APP.renderSubmittals(); }
+  else { UI.toast(res?.error || 'Failed to submit'); }
 };
 
 // ── PMC DEPUTY — declare unavailable / return
@@ -9489,31 +9631,61 @@ APP.renderClientReceipts = async function() {
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
-APP.showReceiptForm = function() {
-  document.getElementById('modal-overlay').classList.add('open');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-title">Log Client Receipt <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
-    <div class="field-row"><label class="field-label" for="rcpt-amount">Amount (₹)</label>
-      <input type="number" id="rcpt-amount" placeholder="0"></div>
-    <div class="field-row"><label class="field-label" for="rcpt-date">Date</label>
-      <input type="date" id="rcpt-date" value="${UI.todayIST()}"></div>
-    <div class="field-row"><label class="field-label" for="rcpt-mode">Mode</label>
-      <select id="rcpt-mode"><option>NEFT</option><option>RTGS</option><option>Cheque</option><option>UPI</option></select></div>
-    <div class="field-row"><label class="field-label" for="rcpt-ref">Reference / UTR</label>
-      <input type="text" id="rcpt-ref" placeholder="Transaction reference"></div>
-    <button class="btn-primary" onclick="APP.submitReceipt()">Save</button>`;
+APP.showReceiptForm = async function() {
+  const pid = APP.state.selectedProject;
+  // Fetch PIs to let user select which invoice this receipt is against
+  const data = await API.get(`/invoices/${pid}/pi`);
+  const pis = (data?.invoices || []).filter(p => p.status === 'issued' || p.status === 'partially_paid');
+  const piOptions = pis.map(p => `<option value="${p.id}">${p.pi_number || 'PI-'+p.id} — ${Money.formatRupee(p.amount||0)}</option>`).join('');
+
+  UI.openModal('Log Client Receipt', `
+    <div class="field-row">
+      <label class="field-label" for="rcpt-pi">Against Invoice</label>
+      <select id="rcpt-pi" style="width:100%;height:38px;padding:6px;border-radius:var(--r);border:1px solid var(--border)">
+        <option value="">-- Select PI --</option>
+        ${piOptions}
+      </select>
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="rcpt-amount">Amount Received (₹)</label>
+      <input type="number" id="rcpt-amount" placeholder="0">
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="rcpt-tds">TDS Deducted (₹)</label>
+      <input type="number" id="rcpt-tds" placeholder="0" value="0">
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="rcpt-date">Date</label>
+      <input type="date" id="rcpt-date" value="${UI.todayIST()}">
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="rcpt-utr">UTR / Reference</label>
+      <input type="text" id="rcpt-utr" placeholder="Transaction reference">
+    </div>
+    <div class="field-row">
+      <label class="field-label" for="rcpt-notes">Notes</label>
+      <input type="text" id="rcpt-notes" placeholder="Optional notes">
+    </div>
+    <button class="btn-primary" style="margin-top:16px;width:100%" onclick="APP.submitReceipt()">Save</button>
+  `);
 };
 APP.submitReceipt = async function() {
   const pid = APP.state.selectedProject;
+  const piId = document.getElementById('rcpt-pi')?.value;
+  if (!piId) { UI.toast('Select an invoice'); return; }
   const body = {
-    amount:       parseFloat(document.getElementById('rcpt-amount').value||0),
-    receipt_date: document.getElementById('rcpt-date').value,
-    mode:         document.getElementById('rcpt-mode').value,
-    reference:    document.getElementById('rcpt-ref').value,
+    pi_id:            parseInt(piId, 10),
+    amount_received:  parseFloat(document.getElementById('rcpt-amount')?.value || 0),
+    tds_deducted:     parseFloat(document.getElementById('rcpt-tds')?.value || 0),
+    receipt_date:     document.getElementById('rcpt-date')?.value,
+    utr:              document.getElementById('rcpt-utr')?.value || null,
+    notes:            document.getElementById('rcpt-notes')?.value || null,
   };
-  if (!body.amount) { UI.toast('Enter amount'); return; }
+  if (!body.amount_received) { UI.toast('Enter amount'); return; }
+  if (!body.receipt_date) { UI.toast('Enter date'); return; }
   const res = await API.post(`/finance/${pid}/client-receipts`, body);
-  if (res?.success) { APP.closeModal(); UI.toast('Receipt logged ✓'); APP.renderClientReceipts(); }
+  if (res?.success) { UI.closeModal(); UI.toast('Receipt logged ✓'); APP.renderClientReceipts(); }
+  else { UI.toast(res?.error || 'Failed to save receipt'); }
 };
 
 // ── TALLY XML EXPORT — Finance Admin
@@ -10426,6 +10598,7 @@ APP.showManualBOQMap = async function(engId, pid) {
   const items = (data.boq_items||[]).filter(b => !b.is_section || b.is_section === '0' || b.is_section === 0);
   const eng = (data.engagements||[]).find(e => e.id === engId);
   document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title">Map BOQ Items <button class="btn-close" onclick="APP.closeModal()">x</button></button>
     <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${eng?.vendor_name} — ${(eng?.scope||'').substring(0,50)}</div>
@@ -10444,6 +10617,7 @@ APP.saveManualBOQMap = async function(engId, pid) {
   if (!checked.length) { UI.toast('Select at least one item'); return; }
   const res = await API.post('/boq-mapping/' + pid, {engagement_id:engId, boq_item_ids:checked});
   if (res?.success) { APP.closeModal(); UI.toast(res.saved + ' items mapped'); APP.renderBOQMapping(); }
+  else { UI.toast(res?.error || 'Failed to save mapping'); }
 };
 
 // ── BUDGET TREE — drill-down view. Accessed from:
@@ -10973,8 +11147,8 @@ APP.renderClientBOQ = async function() {
   let html = `<div class="card" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
-        <div class="card-title">Client BOQ</div>
-        <div class="card-meta">${version ? `${UI.escapeText(version.label||'v1')} · ${items.length} items` : 'No client BOQ uploaded yet'}</div>
+        <div class="card-title">Client Contract BOQ</div>
+        <div class="card-meta">${version ? `${UI.escapeText(version.label||'v1')} · ${items.length} line items` : 'No BOQ uploaded yet — upload the client contract schedule'}</div>
       </div>
       ${canEditRate ? `<label>
         <input type="file" id="client-boq-file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadClientBOQ(${pid},this)">
@@ -10984,7 +11158,7 @@ APP.renderClientBOQ = async function() {
   </div>`;
 
   if (!items.length) {
-    el.innerHTML = html + UI.empty('','No client BOQ for this project');
+    el.innerHTML = html + UI.empty('','Upload the client contract BOQ to track billing milestones and rates');
     return;
   }
 

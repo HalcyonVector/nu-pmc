@@ -10,6 +10,21 @@ const audit = require('../../../services/audit');
 const fileUrls = require('../../../services/file-url');
 const router  = express.Router();
 
+// Timestamp watermark — non-blocking, best-effort
+async function applyTimestampWatermark(filePath, projectCode) {
+  try {
+    const sharp = require('sharp');
+    const dateStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const text = projectCode ? `${projectCode} · ${dateStr}` : dateStr;
+    const svgText = `<svg width="600" height="40"><text x="10" y="28" font-family="monospace" font-size="18" fill="white" stroke="black" stroke-width="0.5">${text}</text></svg>`;
+    const watermark = Buffer.from(svgText);
+    const composited = await sharp(filePath).composite([{ input: watermark, gravity: 'southwest' }]).toBuffer();
+    await sharp(composited).toFile(filePath);
+  } catch (e) {
+    console.warn('[photos] watermark failed:', e.message);
+  }
+}
+
 // GET /api/photos/:project_id — get photos for a project/date
 // Returns photos from across all entity types in the project: site progress
 // photos, issue photos, snag photos. Each photo includes `entity_type` so the
@@ -24,42 +39,40 @@ const router  = express.Router();
 //              to restrict to progress-only (the legacy behaviour).
 router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
     const { date, task_id, types } = req.query;
-    const VALID_TYPES = ['project_progress', 'issue', 'meeting', 'daily_report', 'snag', 'generic'];
-    let typesFilter;
-    if (types === 'all') {
-      typesFilter = VALID_TYPES;
-    } else if (types) {
-      typesFilter = types.split(',').map(t => t.trim()).filter(t => VALID_TYPES.includes(t));
-      if (!typesFilter.length) typesFilter = ['project_progress', 'issue'];
-    } else {
-      typesFilter = ['project_progress', 'issue'];   // sensible default
-    }
 
-    const params = [req.params.project_id, ...typesFilter];
-    let where = `WHERE project_id = ? AND primary_entity_type IN (${typesFilter.map(() => '?').join(',')})`;
+    const params = [req.params.project_id];
+    let where = `WHERE pp.project_id = ?`;
 
-    if (date)    { where += ' AND photo_date = ?'; params.push(date); }
-    if (task_id) {
-      // task_id only applies to progress photos
-      where += ` AND ((primary_entity_type = 'project_progress' AND primary_entity_id = ?) OR primary_entity_type != 'project_progress')`;
-      params.push(task_id);
+    if (date) { where += ' AND pp.photo_date = ?'; params.push(date); }
+    if (task_id) { where += ' AND pp.task_id = ?'; params.push(task_id); }
+
+    // Filter by tag type using photo_tags.trade:
+    //   'project_progress' → photos tagged as 'progress' (or untagged, since default is progress)
+    //   'issue'            → photos tagged as 'defect'
+    //   default (both)     → all photos
+    let typeFilter = '';
+    if (types && types !== 'all' && types !== 'project_progress,issue') {
+      if (types === 'project_progress') {
+        // Progress = tagged 'progress' OR not tagged at all (default)
+        typeFilter = ` AND (pt.trade = 'progress' OR pt.trade IS NULL)`;
+      } else if (types === 'issue') {
+        typeFilter = ` AND pt.trade = 'defect'`;
+      }
     }
 
     const [photos] = await db.query(
-      `SELECT id, project_id, file_path, file_size_kb, caption, source,
-              uploaded_by, uploaded_at, photo_date,
-              primary_entity_type AS entity_type,
-              primary_entity_id   AS entity_id,
-              -- legacy aliases for older readers that haven't been updated
-              CASE WHEN primary_entity_type = 'project_progress' THEN primary_entity_id ELSE NULL END AS task_id
-       FROM entity_photos
-       ${where}
-       ORDER BY uploaded_at DESC`,
+      `SELECT pp.id, pp.project_id, pp.file_path, pp.file_size_kb, pp.caption, pp.source,
+              pp.uploaded_by, pp.uploaded_at, pp.photo_date,
+              CASE WHEN pt.trade = 'defect' THEN 'issue' ELSE 'project_progress' END AS entity_type,
+              pp.task_id
+       FROM project_photos pp
+       LEFT JOIN photo_tags pt ON pt.photo_id = pp.id AND pt.is_current = 1
+       ${where}${typeFilter}
+       ORDER BY pp.uploaded_at DESC`,
       params
     );
 
-    // Hydrate uploader names and (for issue/snag photos) the issue number
-    // so the frontend can show "Defect SNAG-0042" alongside the photo.
+    // Hydrate uploader names
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(photos.map(p => p.uploaded_by).filter(Boolean));
     photos.forEach(p => {
@@ -67,25 +80,30 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       p.file_url = fileUrls.fileUrl(p.file_path);
     });
 
-    const issueIds = [...new Set(photos
-      .filter(p => p.entity_type === 'issue' && p.entity_id)
-      .map(p => p.entity_id))];
-    if (issueIds.length) {
-      const [issueRows] = await db.query(
-        `SELECT id, issue_number, issue_type, severity, status, trade
-         FROM issues WHERE id IN (${issueIds.map(() => '?').join(',')})`,
-        issueIds
-      );
-      const byId = new Map(issueRows.map(r => [r.id, r]));
-      photos.forEach(p => {
-        if (p.entity_type === 'issue' && byId.has(p.entity_id)) {
-          const r = byId.get(p.entity_id);
-          p.linked_issue = {
-            id: r.id, issue_number: r.issue_number, issue_type: r.issue_type,
-            severity: r.severity, status: r.status, trade: r.trade,
-          };
-        }
-      });
+    // For photos tagged as defects, try to find linked issues via issue_photos
+    // that share the same file_path (snag-from-photo workflow)
+    const defectPhotos = photos.filter(p => p.entity_type === 'issue');
+    if (defectPhotos.length) {
+      const paths = defectPhotos.map(p => p.file_path).filter(Boolean);
+      if (paths.length) {
+        const [issueRows] = await db.query(
+          `SELECT ip.file_path, i.id, i.issue_number, i.issue_type, i.severity, i.status, i.trade
+           FROM issue_photos ip
+           JOIN issues i ON ip.issue_id = i.id
+           WHERE ip.project_id = ? AND ip.file_path IN (${paths.map(() => '?').join(',')})`,
+          [req.params.project_id, ...paths]
+        );
+        const byPath = new Map(issueRows.map(r => [r.file_path, r]));
+        defectPhotos.forEach(p => {
+          if (byPath.has(p.file_path)) {
+            const r = byPath.get(p.file_path);
+            p.linked_issue = {
+              id: r.id, issue_number: r.issue_number, issue_type: r.issue_type,
+              severity: r.severity, status: r.status, trade: r.trade,
+            };
+          }
+        });
+      }
     }
 
     res.json({ photos });
@@ -96,12 +114,22 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
   upload.array('photo', 40), asyncHandler(async (req, res) => {
     const me  = req.session.user;
     const pid = req.params.project_id;
-    const { task_id, caption, source } = req.body;
+    const { task_id, caption, source, photo_date, tag } = req.body;
     const files = req.files;
     if (!files?.length) return res.status(400).json({ error: 'No photos uploaded' });
 
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    // Tag type: 'defect' or 'progress' (default)
+    const photoTag = tag === 'defect' ? 'defect' : 'progress';
+
+    const today = photo_date || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const saved = [];
+
+    const sourceMap = {
+      site_manager:'site_manager', pmc_head:'pmc', principal:'principal', design_principal:'principal',
+      design_head:'design', team_lead:'design', jr_architect:'design', jr_engineer:'design',
+      services_head:'services', services_engineer:'services',
+    };
+    const tagSource = sourceMap[me.role] || 'site_manager';
 
     for (const file of files) {
       await compressPhoto(file.path);
@@ -111,35 +139,32 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
         source: source || 'app', photoDate: today,
       });
       saved.push(photoId);
-      const r = { insertId: photoId };   // preserve name for downstream refs below
 
-      // v2: if user pre-tagged (task_id given), persist as current tag from their role
-      if (task_id) {
-        const sourceMap = {
-          site_manager:'site_manager', pmc_head:'pmc', principal:'principal', design_principal:'principal',
-          design_head:'design', team_lead:'design', team_lead:'design', jr_architect:'design', jr_engineer:'design',
-          services_head:'services', services_engineer:'services',
-        };
-        await db.query(
-          `INSERT INTO photo_tags (photo_id, task_id, caption, tagged_by, tag_source, is_current)
-           VALUES (?,?,?,?,?,1)`,
-          [r.insertId, task_id, caption || null, me.id, sourceMap[me.role] || 'site_manager']
-        ).catch(e => console.error('Initial tag insert:', e.message));
-      }
+      // Always insert a photo_tag row with trade = 'progress' or 'defect'
+      await db.query(
+        `INSERT INTO photo_tags (photo_id, task_id, trade, caption, tagged_by, tag_source, is_current)
+         VALUES (?,?,?,?,?,?,1)`,
+        [photoId, task_id || null, photoTag, caption || null, me.id, tagSource]
+      ).catch(e => console.error('Photo tag insert:', e.message));
     }
 
     // v2: trigger AI tagging async for every photo just uploaded (respond quickly)
     audit.log({ userId: me.id, action: 'photo.upload',
-      entityType: 'entity_photos', entityId: null,
+      entityType: 'project_photos', entityId: null,
       details: { project_id: parseInt(pid), count: saved.length, ids: saved, task_id: task_id || null, source: source || 'app' }, req });
-    // Apply timestamp watermark to each saved photo
-    const projectCode = (await db.query('SELECT code FROM projects WHERE id=?', [pid]))[0][0]?.code || '';
-    for (const photoId of saved) {
-      const [[photo]] = await db.query('SELECT file_path FROM project_photos WHERE id=?', [photoId]);
-      if (photo?.file_path) await applyTimestampWatermark(photo.file_path, projectCode);
-    }
 
     res.json({ success: true, count: saved.length, ids: saved, ai_tagging: 'scheduled' });
+
+    // Apply timestamp watermark async (non-blocking, after response)
+    setImmediate(async () => {
+      try {
+        const projectCode = (await db.query('SELECT code FROM projects WHERE id=?', [pid]))[0][0]?.code || '';
+        for (const photoId of saved) {
+          const [[photo]] = await db.query('SELECT file_path FROM project_photos WHERE id=?', [photoId]);
+          if (photo?.file_path) await applyTimestampWatermark(photo.file_path, projectCode);
+        }
+      } catch (e) { console.warn('[photos] watermark failed:', e.message); }
+    });
 
     setImmediate(async () => {
       try {
@@ -244,5 +269,26 @@ router.post('/:project_id/documents/upload', requireAuth, requireProjectScope(),
 
     res.json({ success: true });
   }));
+
+// POST /api/photos/:photo_id/mark-progress — mark a photo as progress
+router.post('/:photo_id/mark-progress', requireAuth, asyncHandler(async (req, res) => {
+    const { photo_id } = req.params;
+    const me = req.session.user;
+    // Update existing current tag to 'progress', or insert one if none exists
+    const [[existing]] = await db.query(
+      'SELECT id FROM photo_tags WHERE photo_id = ? AND is_current = 1 LIMIT 1',
+      [photo_id]
+    );
+    if (existing) {
+      await db.query('UPDATE photo_tags SET trade = ? WHERE id = ?', ['progress', existing.id]);
+    } else {
+      await db.query(
+        `INSERT INTO photo_tags (photo_id, trade, tagged_by, tag_source, is_current)
+         VALUES (?,?,?,?,1)`,
+        [photo_id, 'progress', me.id, 'site_manager']
+      );
+    }
+    res.json({ success: true });
+}));
 
 module.exports = router;

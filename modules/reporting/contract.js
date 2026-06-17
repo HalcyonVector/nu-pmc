@@ -73,7 +73,7 @@ module.exports = {
 
   tables: [
     'weekly_reports',
-    'entity_photos', 'entity_photo_links',
+    'project_photos', 'entity_photo_links',
     'weekly_report_documents',
     'schedule_risk_narratives',
   ],

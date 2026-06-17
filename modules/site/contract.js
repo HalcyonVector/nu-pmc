@@ -199,7 +199,7 @@ module.exports = {
       if (!projectId || !sinceDate) throw new Error('projectId and sinceDate are required');
       const [rows] = await db.query(
         `SELECT id, file_path, photo_date, caption
-         FROM entity_photos
+         FROM project_photos
          WHERE project_id = ? AND photo_date >= ?
            AND primary_entity_type = 'project_progress'
          ORDER BY photo_date DESC
@@ -402,7 +402,7 @@ module.exports = {
     'grns',
     'issues',
     'site_manager_leave',
-    'entity_photos',
+    'project_photos',
     'entity_photo_links',
     'photo_tags',
     'labour_register',

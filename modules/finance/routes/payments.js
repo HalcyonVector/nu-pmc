@@ -799,7 +799,7 @@ router.get('/:project_id/icici-excel', requireAuth, requireFinance,
     const me = req.session.user;
 
     const [payments] = await db.query(
-      `SELECT id, pmc_amount, amount_requested, reason, engagement_id
+      `SELECT *
        FROM payment_requests
        WHERE project_id=? AND status='principal_approved'
        ORDER BY id`,
@@ -812,13 +812,21 @@ router.get('/:project_id/icici-excel', requireAuth, requireFinance,
     const excProj = await Onboarding.functions.getProject(req.params.project_id);
     const excEngs = await Onboarding.functions.getEngagementsByIds(payments.map(p => p.engagement_id));
     payments.forEach(p => {
-      const eng = excEngs.get(p.engagement_id);
-      p.vendor_name  = eng?.vendor_name  || null;
-      p.bank_account = eng?.bank_account || null;
-      p.bank_ifsc    = eng?.bank_ifsc    || null;
-      p.scope        = eng?.scope        || null;
+      const eng = p.engagement_id ? excEngs.get(p.engagement_id) : null;
+      if (eng) {
+        p.vendor_name  = eng.vendor_name  || null;
+        p.bank_account = eng.bank_account || null;
+        p.bank_ifsc    = eng.bank_ifsc    || null;
+        p.scope        = eng.scope        || null;
+        p.bank_validated_by_vendor = eng.bank_validated_by_vendor ? 1 : 0;
+      } else {
+        p.vendor_name  = p.adhoc_name || null;
+        p.bank_account = p.adhoc_bank_account || null;
+        p.bank_ifsc    = p.adhoc_bank_ifsc || null;
+        p.scope        = p.reason || null;
+        p.bank_validated_by_vendor = 1;
+      }
       p.project_name = excProj?.name || null;
-      p.bank_validated_by_vendor = eng?.bank_validated_by_vendor ? 1 : 0;
     });
 
     // v5.24 ICICI guard — refuse to emit the Excel if any vendor in the

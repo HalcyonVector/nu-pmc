@@ -11,19 +11,19 @@ const dateUtil = require('./date-util');
 
 /**
  * savePhoto({ projectId, file, uploadedBy, taskId?, caption?, source?, photoDate? })
- *   Writes a row to entity_photos with primary_entity_type='project_progress'.
+ *   Writes a row to project_photos with primary_entity_type='project_progress'.
  *   `taskId` (when present) is stored in primary_entity_id, preserving the
  *   project_progress photo → schedule_task relationship.
  *   Returns insertId.
  *   `file` is a multer file object with `.path`.
  */
-async function savePhoto({ projectId, file, uploadedBy, taskId = null, caption = null, source = 'app', photoDate = null }) {
+async function savePhoto({ projectId, file, uploadedBy, taskId = null, caption = null, source = 'app', photoDate = null, entityType = 'project_progress' }) {
   const today = photoDate || dateUtil.todayIST();
   const [r] = await db.query(
-    `INSERT INTO entity_photos
-       (project_id, primary_entity_type, primary_entity_id, photo_date,
+    `INSERT INTO project_photos
+       (project_id, task_id, photo_date,
         file_path, file_size_kb, caption, uploaded_by, source)
-     VALUES (?, 'project_progress', ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [projectId, taskId, today, file.path, getFileSize(file.path), caption, uploadedBy, source]
   );
   return r.insertId;

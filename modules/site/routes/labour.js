@@ -95,4 +95,21 @@ router.post('/:project_id/validate-all', requireAuth, requireProjectScope(), req
     res.json({ success: true, validated: result.affectedRows });
   }));
 
+// PATCH /api/labour/:project_id/:id/reject — PMC rejects a labour entry
+router.patch('/:project_id/:id/reject', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
+    const { reason } = req.body;
+    if (!reason || reason.trim().length < 3) {
+      return res.status(400).json({ error: 'Rejection reason required (min 3 chars)' });
+    }
+    await db.query(
+      `UPDATE labour_register SET validated_by=?, validated_at=NOW(), validation_notes=?, headcount=0
+       WHERE id=? AND project_id=?`,
+      [req.session.user.id, 'REJECTED: ' + reason.trim(), req.params.id, req.params.project_id]
+    );
+    audit.log({ userId: req.session.user.id, action: 'labour.reject',
+      entityType: 'labour_register', entityId: parseInt(req.params.id),
+      details: { project_id: parseInt(req.params.project_id), reason: reason.trim() }, req });
+    res.json({ success: true });
+  }));
+
 module.exports = router;

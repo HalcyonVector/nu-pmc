@@ -238,7 +238,7 @@ async function buildGSTExcel(data) {
     ],
   };
 
-  const outPath = path.join(process.env.UPLOAD_DIR || '/tmp', `GST_${data.month}_${Date.now()}.xlsx`);
+  const outPath = path.join(process.env.UPLOAD_DIR || require('os').tmpdir(), `GST_${data.month}_${Date.now()}.xlsx`);
   await xl.writeMultiSheet(rows, outPath);
   return outPath;
 }

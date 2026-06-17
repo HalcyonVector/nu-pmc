@@ -185,9 +185,7 @@ const UI = {
     if (window.APP && window.APP.state && window.APP.state.serverToday) {
       return window.APP.state.serverToday;
     }
-    const now = new Date();
-    const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-    return ist.toISOString().slice(0, 10);
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   },
 
   addDays(dateStr, n) {

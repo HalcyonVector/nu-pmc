@@ -487,18 +487,26 @@ router.get('/rfi/:project_id', requireAuth, requireProjectScope(), asyncHandler(
     const [rows] = await db.query(
       `SELECT *
        FROM issues
-       WHERE project_id = ? AND issue_type = 'rfi' AND drawing_version_id IS NOT NULL
+       WHERE project_id = ? AND issue_type = 'rfi'
        ORDER BY raised_at DESC`,
       [req.params.project_id]
     );
     const DS = require('../../design-services/contract');
-    const ctx = await DS.functions.getDrawingContextByVersionIds(rows.map(r => r.drawing_version_id));
+    const drawingLinked = rows.filter(r => r.drawing_version_id);
+    const ctx = await DS.functions.getDrawingContextByVersionIds(drawingLinked.map(r => r.drawing_version_id));
     rows.forEach(r => {
-      const c = ctx.get(r.drawing_version_id);
-      r.drawing_file   = fileUrls.fileUrl(c?.file_path, { defaultSubdir: 'drawings' }) || null;
-      r.drawing_number = c?.drawing_number || null;
-      r.drawing_name   = c?.drawing_name   || null;
-      r.drawing_stream = c?.stream         || null;
+      if (r.drawing_version_id) {
+        const c = ctx.get(r.drawing_version_id);
+        r.drawing_file   = fileUrls.fileUrl(c?.file_path, { defaultSubdir: 'drawings' }) || null;
+        r.drawing_number = c?.drawing_number || null;
+        r.drawing_name   = c?.drawing_name   || null;
+        r.drawing_stream = c?.stream         || null;
+      } else {
+        r.drawing_file   = null;
+        r.drawing_number = r.title || 'General Query';
+        r.drawing_name   = null;
+        r.drawing_stream = r.stream || null;
+      }
     });
 
     // Stream filter — only for design_head / services_head
@@ -514,23 +522,47 @@ router.get('/rfi/:project_id', requireAuth, requireProjectScope(), asyncHandler(
     filtered.forEach(r => {
       r.raised_by_name   = users.get(r.raised_by)?.full_name   || null;
       r.assigned_to_name = users.get(r.assigned_to)?.full_name || null;
+      r.question         = r.description || r.title || '';
+      r.stream           = r.query_stream || r.drawing_stream || 'design';
+      r.days_open        = r.raised_at ? Math.floor((Date.now() - new Date(r.raised_at).getTime()) / 86400000) : 0;
+      r.project_name     = null; // single-project view; hydrate if needed later
     });
     res.json({ rfis: filtered, queries: filtered });  // `queries` kept for backwards-compat
   }));
 
-// POST /api/issues/rfi/:project_id — raise drawing-linked RFI
-router.post('/rfi/:project_id', requireAuth, asyncHandler(async (req, res) => {
+// POST /api/issues/rfi/:project_id — raise RFI (drawing-linked or general query)
+router.post('/rfi/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const { RFICreate, parseOr400 } = require('../../../services/schemas');
     const body = parseOr400(RFICreate, req, res);
     if (!body) return;
 
-    const DS = require('../../design-services/contract');
-    const dvMap = await DS.functions.getDrawingContextByVersionIds([body.drawing_version_id]);
-    const dv = dvMap.get(body.drawing_version_id);
-    if (!dv) return res.status(404).json({ error: 'Drawing not found' });
+    // Determine question text — drawing-linked uses `question`, general uses `body`
+    const questionText = body.question || body.body;
+    if (!questionText) {
+      return res.status(400).json({ error: 'Question or body text required' });
+    }
 
-    const autoAssignee = await _getSmartAssignee(req.params.project_id, dv.stream || body.stream);
+    let title, drawingVersionId, stream, autoAssignee;
+
+    if (body.drawing_version_id) {
+      // Drawing-linked RFI
+      const DS = require('../../design-services/contract');
+      const dvMap = await DS.functions.getDrawingContextByVersionIds([body.drawing_version_id]);
+      const dv = dvMap.get(body.drawing_version_id);
+      if (!dv) return res.status(404).json({ error: 'Drawing not found' });
+
+      title = 'Drawing query: ' + dv.drawing_number;
+      drawingVersionId = body.drawing_version_id;
+      stream = dv.stream || body.stream || 'design';
+      autoAssignee = await _getSmartAssignee(req.params.project_id, stream);
+    } else {
+      // General query/RFI (no drawing link)
+      title = body.subject || questionText.slice(0, 200);
+      drawingVersionId = null;
+      stream = body.stream || 'design';
+      autoAssignee = await _getSmartAssignee(req.params.project_id, stream);
+    }
 
     // Number + insert with retry on UNIQUE race (see services/sequence.js)
     const { insertId, number: issueNumber } = await insertWithRetry(async () => {
@@ -546,19 +578,20 @@ router.post('/rfi/:project_id', requireAuth, asyncHandler(async (req, res) => {
          (project_id, issue_number, issue_type, title, description, raised_by,
           drawing_version_id, query_stream, assigned_to, status, confirmed_by, confirmed_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())`,
-        [req.params.project_id, n, 'rfi', 'Drawing query: '+dv.drawing_number,
-         body.question, me.id, body.drawing_version_id, dv.stream || body.stream, autoAssignee, 'open', me.id]
+        [req.params.project_id, n, 'rfi', title,
+         questionText, me.id, drawingVersionId, stream, autoAssignee, 'open', me.id]
       );
       return { insertId: result.insertId, number: n };
     });
 
-    // Notify (via canonical notifications layer)
+    // Notify
     const notif = require('../../../services/notifications');
-    await notif.notifyRFIRaised(req.params.project_id, dv.drawing_number, body.question, dv.stream || body.stream).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    const drawingRef = body.drawing_version_id ? title : (body.subject || 'General query');
+    await notif.notifyRFIRaised(req.params.project_id, drawingRef, questionText, stream).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
     audit.log({ userId: me.id, action: 'issue.rfi.create',
       entityType: 'issues', entityId: insertId,
-      details: { project_id: parseInt(req.params.project_id), issue_number: issueNumber, drawing_version_id: body.drawing_version_id, stream: dv.stream || body.stream, auto_assigned: !!autoAssignee }, req });
+      details: { project_id: parseInt(req.params.project_id), issue_number: issueNumber, drawing_version_id: drawingVersionId, stream, auto_assigned: !!autoAssignee }, req });
 
     res.json({ success: true, id: insertId, issue_number: issueNumber, auto_assigned: !!autoAssignee });
   }));
@@ -764,7 +797,7 @@ router.get('/:project_id/snags',
               i.resolution_note,
               i.signed_off_at, i.client_acceptance_note,
               v.vendor_name,
-              (SELECT COUNT(*) FROM entity_photos ep
+              (SELECT COUNT(*) FROM project_photos ep
                WHERE ep.primary_entity_type='issue' AND ep.primary_entity_id = i.id) AS photo_count
        FROM issues i LEFT JOIN vendors v ON i.assigned_vendor_id = v.id
        WHERE i.project_id = ? AND i.issue_type = 'snag'
@@ -844,13 +877,13 @@ router.post('/:project_id/snags',
       r._photoPath = photoPath;
     });
 
-    // Photo handling — if uploaded, insert into entity_photos with
+    // Photo handling — if uploaded, insert into project_photos with
     // primary_entity_type='issue' (since snags ARE issues with type='snag').
     // The photo can later be cross-linked to other entities via entity_photo_links.
     if (r._photoPath) {
       try {
         await db.query(
-          `INSERT INTO entity_photos
+          `INSERT INTO project_photos
              (project_id, primary_entity_type, primary_entity_id,
               file_path, caption, uploaded_by, source, photo_date)
            VALUES (?, 'issue', ?, ?, ?, ?, 'app', CURDATE())`,
@@ -859,7 +892,7 @@ router.post('/:project_id/snags',
            me.id]
         );
       } catch (err) {
-        console.error('[issues.snag.raise] entity_photos insert failed:', err.message);
+        console.error('[issues.snag.raise] project_photos insert failed:', err.message);
       }
     }
 
@@ -1024,7 +1057,7 @@ router.post('/:project_id/snag-from-photo',
 
     // Verify the photo exists and belongs to this project
     const [[photo]] = await db.query(
-      `SELECT id, project_id FROM entity_photos WHERE id = ?`,
+      `SELECT id, project_id FROM project_photos WHERE id = ?`,
       [photo_id]
     );
     if (!photo) return res.status(404).json({ error: 'Photo not found' });
@@ -1071,6 +1104,10 @@ router.post('/:project_id/snag-from-photo',
          VALUES (?, 'snag', ?, ?, ?)`,
         [photo_id, r.insertId, me.id,
          `Defect spotted: ${trade || ''} - ${description.trim().slice(0, 100)}`]
+      );
+      await db.query(
+        `UPDATE project_photos SET primary_entity_type = 'issue', primary_entity_id = ? WHERE id = ?`,
+        [r.insertId, photo_id]
       );
     } catch (err) {
       // Duplicate link wouldn't be a real failure (UNIQUE constraint),

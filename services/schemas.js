@@ -178,9 +178,11 @@ const IssueCreate = z.object({
 });
 
 const RFICreate = z.object({
-  drawing_version_id:   IdRef,
-  question:             NonEmptyString.max(2000),
-  stream:               z.enum(['design','services']).optional(),
+  drawing_version_id:   NullableId.optional(),
+  question:             NonEmptyString.max(2000).optional(),
+  subject:              NonEmptyString.max(300).optional(),
+  body:                 NonEmptyString.max(2000).optional(),
+  stream:               z.enum(['design','services','site']).optional(),
 });
 
 const NCRCreate = z.object({

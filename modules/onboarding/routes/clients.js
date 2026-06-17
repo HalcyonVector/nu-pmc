@@ -41,10 +41,9 @@ function safeFileSegment(s) {
 // GET /api/clients — list all clients
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
-    // Audit role has universal read access; everyone else must hold clients.read
-    // (design/services/PMC/finance/principals can see the master list to pick
-    // a client when starting a project. Editing the master is a separate gate.)
-    const canSee = me.role === 'audit' || (await can(me.role, 'clients.read'));
+    // Audit role has universal read access; finance_admin owns client master;
+    // everyone else must hold clients.read in the permission matrix.
+    const canSee = me.role === 'audit' || me.role === 'finance_admin' || (await can(me.role, 'clients.read'));
     if (!canSee) {
       return res.status(403).json({ error: 'Not authorised' });
     }
@@ -57,7 +56,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 // POST /api/clients — create client master
 router.post('/', requireAuth, validators.clientMaster, asyncHandler(async (req, res) => {
     const me = req.session.user;
-    if (!(await can(me.role, 'clients.create'))) {
+    if (me.role !== 'finance_admin' && !(await can(me.role, 'clients.create'))) {
       return res.status(403).json({ error: 'Not authorised' });
     }
 
@@ -128,7 +127,7 @@ router.post('/', requireAuth, validators.clientMaster, asyncHandler(async (req, 
 // PATCH /api/clients/:id — update client
 router.patch('/:id', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
-    if (!(await can(me.role, 'clients.create'))) {
+    if (me.role !== 'finance_admin' && !(await can(me.role, 'clients.create'))) {
       return res.status(403).json({ error: 'Not authorised' });
     }
     const fields = ['display_name','gstin','pan','state_name','state_code',
@@ -415,7 +414,7 @@ router.post('/bulk-upload', requireAuth, upload.single('clients'), asyncHandler(
 // GET /api/clients/incomplete — stubs awaiting finance master completion (finance_admin dashboard)
 router.get('/incomplete', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const canSee = me.role === 'audit' || (await can(me.role, 'clients.edit'));
+    const canSee = me.role === 'audit' || me.role === 'finance_admin' || (await can(me.role, 'clients.edit'));
     if (!canSee) return res.status(403).json({ error: 'Not authorised' });
     const [stubs] = await db.query(
       `SELECT c.id, c.client_name, c.stub_reason, c.created_at, c.created_by,

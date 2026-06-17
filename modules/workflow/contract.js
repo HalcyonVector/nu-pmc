@@ -241,7 +241,7 @@ module.exports = {
     'meetings',
     'meeting_actions',
     'meeting_revisions',
-    'entity_photos',
+    'project_photos',
     'mom_items',
     'change_notices',
     'change_notice_signatories',

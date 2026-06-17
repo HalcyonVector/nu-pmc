@@ -249,7 +249,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve outbox directory — WhatsApp media URLs point here
 // Twilio fetches files from public URL when sending media messages
-const OUTBOX_DIR = path.join(process.env.UPLOAD_DIR || '/tmp', 'outbox');
+const OUTBOX_DIR = path.join(process.env.UPLOAD_DIR || require('os').tmpdir(), 'outbox');
 require('fs').mkdirSync(OUTBOX_DIR, { recursive: true });
 app.use('/outbox', express.static(OUTBOX_DIR, {
   // Files expire after 7 days; Twilio fetches within seconds
