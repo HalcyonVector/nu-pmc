@@ -401,7 +401,8 @@ async function buildProjectSummary(me, projectId) {
     }
 
     // 4. MOMs category — draft MOMs pending PMC approval
-    const allowsMomsCat = ['principal','design_principal','pmc_head','audit'].includes(role);
+    // Only shown to roles that have a meetings tab and can act on them
+    const allowsMomsCat = ['pmc_head','audit'].includes(role);
     if (allowsMomsCat) {
       const [[mRow]] = await db.query(
         `SELECT COUNT(*) c FROM meetings WHERE project_id=? AND status='draft'`,
@@ -413,7 +414,7 @@ async function buildProjectSummary(me, projectId) {
     // 5. Other — schedule change approvals, weekly report approvals, misc.
     //    Currently returns 0 (placeholder until these workflows are extended
     //    to route through the Approvals strip).
-    const allowsOtherCat = ['principal','design_principal','pmc_head','audit'].includes(role);
+    const allowsOtherCat = ['pmc_head','audit'].includes(role);
     if (allowsOtherCat) {
       cats.push({ key:'other', label:'Other', count: 0 });
     }

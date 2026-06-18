@@ -1,0 +1,60 @@
+<!-- public/templates/petty-cash.html -->
+<!-- Alpine component: petty-cash (see public/js/components/petty-cash.js) -->
+
+<div class="section-header">Petty Cash Float</div>
+
+<template x-if="loading">
+  <div class="loading-spinner">Loading…</div>
+</template>
+
+<template x-if="!loading">
+  <div>
+    <!-- Balance card -->
+    <div class="card" style="text-align:center;padding:16px">
+      <div style="font-size:13px;color:#666">Current Balance</div>
+      <div style="font-size:28px;font-weight:bold" :style="{ color: balanceColor }">
+        <span x-text="fmtRupee(balance)"></span>
+      </div>
+      <div style="font-size:12px;color:#888">
+        Spent: <span x-text="fmtRupee(totalSpent)"></span>
+        · Replenished: <span x-text="fmtRupee(totalReplenished)"></span>
+      </div>
+    </div>
+
+    <!-- Action buttons (role-gated) -->
+    <div x-show="isPMC" style="display:flex;gap:8px;margin:8px 0">
+      <button class="btn-primary" style="flex:1" @click="openAddSpend()">+ Add Spend</button>
+      <button x-show="isPrincipal" class="btn-sm" style="flex:1" @click="openReplenish()">
+        Replenish
+      </button>
+    </div>
+
+    <!-- Transaction list -->
+    <div class="card">
+      <template x-if="transactions.length === 0">
+        <div class="empty-state" style="padding:24px;text-align:center;color:#888">
+          No transactions yet
+        </div>
+      </template>
+
+      <template x-for="(t, i) in transactions" :key="t.id || i">
+        <div class="list-item"
+             style="display:flex;justify-content:space-between;padding:10px 12px"
+             :style="{ background: i % 2 === 0 ? '#F0F3F7' : '#fff' }">
+          <div>
+            <div style="font-size:13px" x-text="t.description"></div>
+            <div style="font-size:11px;color:#888">
+              <span x-text="t.txn_date"></span>
+              · <span x-text="t.category"></span>
+              <span x-show="t.bill_available"> · Bill ✓</span>
+            </div>
+          </div>
+          <div style="font-weight:bold"
+               :style="{ color: t.txn_type === 'spend' ? '#C87060' : '#4A8A5A' }">
+            <span x-text="(t.txn_type === 'spend' ? '- ' : '+ ') + fmtRupee(t.amount)"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>

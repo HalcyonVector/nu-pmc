@@ -87,7 +87,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       const paths = defectPhotos.map(p => p.file_path).filter(Boolean);
       if (paths.length) {
         const [issueRows] = await db.query(
-          `SELECT ip.file_path, i.id, i.issue_number, i.issue_type, i.severity, i.status, i.trade
+          `SELECT ip.file_path, i.id, i.issue_number, i.issue_type, i.severity, i.status
            FROM issue_photos ip
            JOIN issues i ON ip.issue_id = i.id
            WHERE ip.project_id = ? AND ip.file_path IN (${paths.map(() => '?').join(',')})`,
@@ -99,7 +99,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
             const r = byPath.get(p.file_path);
             p.linked_issue = {
               id: r.id, issue_number: r.issue_number, issue_type: r.issue_type,
-              severity: r.severity, status: r.status, trade: r.trade,
+              severity: r.severity, status: r.status,
             };
           }
         });

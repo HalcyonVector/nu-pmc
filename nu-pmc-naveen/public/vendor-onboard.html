@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nu associates — Vendor confirmation</title>
+<!-- Standalone page — does NOT load app.js / app.css. Vendors are NOT
+     authenticated, this is a public flow gated by the URL token.
+     Self-contained styles below to keep the page small + reliable on
+     slow mobile networks. -->
+<style>
+  :root {
+    --navy:   #1D3D62;
+    --gold:   #C8A040;
+    --gold2:  #C8A55A;
+    --green:  #4A8A5A;
+    --red:    #C87060;
+    --bg:     #F2F4F7;
+    --white:  #FFFFFF;
+    --border: #E2E6EC;
+    --text:   #1A2332;
+    --muted:  #596A7E;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  .brand {
+    text-align: center;
+    padding: 18px 0 8px;
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.3px;
+  }
+  .brand-sub {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 18px;
+  }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 8px;
+  }
+  .meta { color: var(--muted); font-size: 12px; }
+  .field { display: block; margin-bottom: 10px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field .value {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 14px;
+    color: var(--text);
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .field .value.changed {
+    background: #FFF8E1;
+    border-color: var(--gold);
+    color: #6E5300;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  button {
+    flex: 1;
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.15s;
+  }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  button:active { opacity: 0.8; }
+  .btn-confirm { background: var(--green); color: #FFF; }
+  .btn-reject  { background: var(--red);   color: #FFF; }
+  .alert {
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    font-size: 14px;
+  }
+  .alert-info  { background: #E8F2FF; border: 1px solid #B6D6FF; color: #143A66; }
+  .alert-error { background: #FBE8E0; border: 1px solid #F0B5A1; color: #6B1F0E; }
+  .alert-ok    { background: #E5F2E8; border: 1px solid #B2D7BD; color: #1F4A2A; }
+  .arrow {
+    text-align: center;
+    color: var(--muted);
+    font-size: 18px;
+    margin: 4px 0;
+  }
+  .footer-note {
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 24px;
+    padding: 0 8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">nu associates</div>
+  <div class="brand-sub">Vendor confirmation</div>
+
+  <!-- Server-side templating fills these blocks in. The placeholder %%FOO%%
+       tokens are substituted in the route handler. -->
+  %%CONTENT%%
+
+  <div class="footer-note">
+    This is a secure one-time link from nu associates.
+    If you didn't expect this, ignore the message —
+    or contact us via the channel that sent this link.
+    <!-- Earlier draft had +91 80 2335 8400 hardcoded but that number
+         was invented. Replace with a real nu phone before going live;
+         sourced from CONTACT_PHONE env or governance config. -->
+  </div>
+</div>
+</body>
+</html>

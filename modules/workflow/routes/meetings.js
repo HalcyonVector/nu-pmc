@@ -557,7 +557,11 @@ router.patch('/action-items/:id/complete', requireAuth, asyncHandler(async (req,
     const { completion_note } = req.body;
     const [[item]] = await db.query('SELECT * FROM meeting_actions WHERE id = ?', [req.params.id]);
     if (!item) return res.status(404).json({ error: 'Action item not found' });
-    if (item.assigned_to !== req.session.user.id && !PRINCIPALS.includes(req.session.user.role)) {
+    const me = req.session.user;
+    const canComplete = item.assigned_to === me.id
+      || PRINCIPALS.includes(me.role)
+      || me.role === 'pmc_head';
+    if (!canComplete) {
       return res.status(403).json({ error: 'Not authorised' });
     }
     const sm = require('../../../services/state-machines').meetingAction;

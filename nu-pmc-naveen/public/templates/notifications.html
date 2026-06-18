@@ -1,0 +1,53 @@
+<!-- public/templates/notifications.html -->
+<!-- Alpine component: notifications (see public/js/components/notifications.js) -->
+
+<div class="fade-in">
+  <template x-if="loading">
+    <div class="loading-spinner">Loading…</div>
+  </template>
+
+  <template x-if="!loading && !hasAny">
+    <div class="empty">
+      <div class="empty-icon">🔔</div>
+      <div class="empty-text">No notifications yet</div>
+    </div>
+  </template>
+
+  <template x-if="todayMsgs.length > 0">
+    <div>
+      <div class="sec-label">Today</div>
+      <template x-for="m in todayMsgs" :key="m.id">
+        <div class="action-item" :class="isUnread(m) ? 'c-navy' : ''"
+             :style="{ opacity: isUnread(m) ? 1 : 0.65 }">
+          <div class="ai-icon" x-text="iconFor(m.message_type)"></div>
+          <div class="ai-body">
+            <div class="ai-title" x-text="summaryFor(m)"></div>
+            <div class="ai-meta">
+              <span x-text="dateFor(m)"></span> · <span x-text="m.message_type || ''"></span>
+            </div>
+          </div>
+          <span x-show="isUnread(m)" class="badge b-navy">New</span>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <template x-if="olderMsgs.length > 0">
+    <div>
+      <div class="sec-label">Earlier</div>
+      <template x-for="m in olderMsgs" :key="m.id">
+        <div class="action-item" :class="isUnread(m) ? 'c-navy' : ''"
+             :style="{ opacity: isUnread(m) ? 1 : 0.65 }">
+          <div class="ai-icon" x-text="iconFor(m.message_type)"></div>
+          <div class="ai-body">
+            <div class="ai-title" x-text="summaryFor(m)"></div>
+            <div class="ai-meta">
+              <span x-text="dateFor(m)"></span> · <span x-text="m.message_type || ''"></span>
+            </div>
+          </div>
+          <span x-show="isUnread(m)" class="badge b-navy">New</span>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>

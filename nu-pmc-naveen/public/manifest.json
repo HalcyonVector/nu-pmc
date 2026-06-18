@@ -1,0 +1,70 @@
+{
+  "id": "/",
+  "name": "nu associates PMC",
+  "short_name": "nu PMC",
+  "description": "Site coordination, drawing management, billing and PMC workflows for nu associates LLP",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#c8a55a",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/?view=dashboard",
+      "description": "Open PMC dashboard"
+    },
+    {
+      "name": "Daily Update",
+      "short_name": "Update",
+      "url": "/?view=schedule",
+      "description": "Log today's site progress"
+    },
+    {
+      "name": "Raise Query",
+      "short_name": "Query",
+      "url": "/?view=queries",
+      "description": "Raise a drawing query"
+    }
+  ],
+  "prefer_related_applications": false
+}

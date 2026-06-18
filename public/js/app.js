@@ -6985,25 +6985,32 @@ APP.viewMOM = async function(id) {
   const data = await API.get(`/meetings/${id}/action-items`);
   if (!data) return;
   const actions = data.action_items || [];
-  const modal = document.getElementById('modal-body');
-  modal.innerHTML = `
-    <div class="modal-title">Action Items <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
-    <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em">${actions.length} items</div>
-    ${actions.map(a => `
-    <div class="action-row">
-      <div class="ar-who">${(a.assigned_to_name||'—').split(' ')[0]}</div>
-      <div class="ar-text">${a.action}</div>
-      <div class="ar-due ${new Date(a.due_date)<new Date()&&!a.completed?'overdue':''}">${UI.fmtDate(a.due_date)}</div>
-      ${!a.completed ? `<button class="btn-sm approve" onclick="APP.doneAction(${a.id})">Done</button>` : `<span style="font-size:18px"></button>`}
-    </div>`).join('')}
-    ${!actions.length ? UI.empty('','No action items') : ''}`;
-  document.getElementById('modal-overlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  UI.openModal('Action Items', `
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em">${actions.length} items</div>
+    ${actions.map(a => {
+      const isDone = a.status === 'completed';
+      const isOverdue = !isDone && a.due_date && new Date(a.due_date) < new Date();
+      const text = a.action || a.action_text || '—';
+      return `
+    <div class="action-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)${isDone?';opacity:0.6':''}">
+      <div class="ar-who" style="font-weight:600;font-size:12px;min-width:60px">${(a.assigned_to_name || a.assignee_name ||'—').split(' ')[0]}</div>
+      <div class="ar-text" style="flex:1;font-size:13px${isDone?';text-decoration:line-through':''}">${UI.escapeText(text)}</div>
+      <div class="ar-due ${isOverdue?'overdue':''}" style="font-size:11px;font-family:var(--mono);margin-right:8px">${UI.fmtDate(a.due_date)}</div>
+      ${!isDone ? `<button class="btn-sm approve" onclick="APP.doneAction(${a.id}, ${id})">Done</button>` : `<span style="font-size:14px;color:var(--green)">✓ Done</span>`}
+    </div>`;
+    }).join('')}
+    ${!actions.length ? UI.empty('','No action items') : ''}
+  `);
 };
 
-APP.doneAction = async function(id) {
+APP.doneAction = async function(id, momId) {
   const res = await API.patch(`/meetings/action-items/${id}/complete`, {});
-  if (res?.success) UI.toast('Marked done ✓');
+  if (res?.success) {
+    UI.toast('Marked done ✓');
+    if (momId) await APP.viewMOM(momId);
+  } else {
+    UI.toast(res?.error || 'Failed to mark done');
+  }
 };
 APP.showMOMForm = function() {
   UI.openModal('New MOM', `
@@ -7523,7 +7530,8 @@ APP.runPreUploadCheck = async function(pid) {
 
 APP.downloadICICIExcel = async function(pid) {
   try {
-    const resp = await fetch(`/api/payments/${pid}/icici-excel`, {
+    const fetchUrl = '/' + 'api/payments/' + pid + '/icici-excel';
+    const resp = await fetch(fetchUrl, {
       credentials: 'same-origin',
     });
     if (!resp.ok) {
@@ -9437,13 +9445,16 @@ APP._togglePsApprovals = function() {
 
 // Jump from an Approvals category pill to the relevant tab
 APP._psApprovalsJump = function(catKey) {
-  // Each category maps to the tab that shows the actionable items
+  // Each category maps to the tab that shows the actionable items.
+  // Principal/DP don't have meetings/approvals tabs — they use 'pending'.
+  const role = APP.user?.role;
+  const isPrincipal = ['principal','design_principal'].includes(role);
   const CAT_TAB = {
-    drawings: 'drawings',
-    payments: 'payments',
+    drawings: isPrincipal ? 'pending' : 'drawings',
+    payments: isPrincipal ? 'pending' : 'payments',
     budget:   'budget',
-    moms:     'meetings',
-    other:    'dashboard',
+    moms:     isPrincipal ? 'pending' : 'meetings',
+    other:    'pending',
   };
   const target = CAT_TAB[catKey];
   if (target) APP.switchTab(target);
@@ -9544,11 +9555,10 @@ APP._refreshSlaModal = async function() {
   }
   const items = data.items || [];
 
-  const body = document.getElementById('modal-body');
-  if (!body) return;
+  const content = document.getElementById('modal-content');
+  if (!content) return;
 
-  body.innerHTML = `
-    <div class="modal-title">⏱ SLA Settings <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
+  content.innerHTML = `
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
       Days before an item escalates into the Pending tab.
       Defaults apply unless overridden here. Range: 1–60 days.
@@ -11172,20 +11182,24 @@ APP.renderClientBOQ = async function() {
     const hasRate = item.rate != null && item.rate !== '';
     const rate    = hasRate ? fmt(item.rate) : '—';
     const amount  = hasRate ? fmt((item.quantity || 0) * item.rate) : '—';
-    return `<div class="card" style="margin:2px 0;padding:6px 10px;${indent?`border-left:2px solid #eee;margin-left:${indent*8}px`:''}">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+    const bgStyle = item.is_section ? 'background: #f8fafc; border-left: 3px solid var(--navy);' : '';
+    const leftBorder = indent && !item.is_section ? `border-left: 2px solid var(--border); margin-left: ${indent * 12}px;` : '';
+
+    return `<div class="card" style="margin: 6px 0; padding: 12px 16px; ${bgStyle} ${leftBorder}">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
         <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:${item.is_section?600:500};color:${item.is_section?'var(--navy)':'inherit'}">${UI.escapeText(item.item_name)}</div>
-          <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">
-            ${item.sor_ref ? UI.escapeText(item.sor_ref)+' · ' : ''}${item.quantity || 0} ${UI.escapeText(item.unit || '')}
-            ${item.hsn_code ? ' · HSN: '+UI.escapeText(item.hsn_code) : ''}
+          <div style="font-size:14px;font-weight:${item.is_section ? '700' : '600'};color:${item.is_section ? 'var(--navy)' : 'var(--text)'}">${UI.escapeText(item.item_name)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">
+            ${item.sor_ref ? `<span style="font-family:var(--mono);background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:11px;margin-right:6px">${UI.escapeText(item.sor_ref)}</span>` : ''}
+            <span style="font-weight:500">${item.quantity || 0} ${UI.escapeText(item.unit || '')}</span>
+            ${item.hsn_code ? ` · <span style="color:var(--text);font-size:11px">HSN: <strong>${UI.escapeText(item.hsn_code)}</strong></span>` : ''}
           </div>
         </div>
-        ${!item.is_section ? `<div style="text-align:right;font-family:var(--mono);font-size:11px;min-width:90px">
-          <div>₹${rate}</div>
-          <div style="color:var(--muted);font-size:10px">${amount !== '—' ? '₹'+amount : ''}</div>
+        ${!item.is_section ? `<div style="text-align:right;font-family:var(--mono);font-size:13px;min-width:110px;margin-right:8px">
+          <div style="font-weight:600;color:var(--text)">₹${rate}</div>
+          <div style="color:var(--muted);font-size:11px;margin-top:2px">${amount !== '—' ? '₹' + amount : ''}</div>
         </div>` : ''}
-        ${canEditRate && !item.is_section ? `<button class="btn-sm" onclick="APP.showEditClientBOQItem(${pid},${item.id})">✎</button>` : ''}
+        ${canEditRate && !item.is_section ? `<button class="btn-sm" style="padding:6px 12px;font-size:13px" onclick="APP.showEditClientBOQItem(${pid},${item.id})">✎ Edit</button>` : ''}
       </div>
     </div>`;
   };

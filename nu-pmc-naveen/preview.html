@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview — Monthly Overview & Project Summary</title>
+<link rel="stylesheet" href="public/css/app.css">
+<style>
+  body { background:#f7f5f0; margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
+  .preview-container { max-width:1200px; margin:0 auto; padding:20px; }
+  .preview-header { font-size:20px; font-weight:700; color:#1D3D62; margin:30px 0 10px; padding-bottom:8px; border-bottom:2px solid #1D3D62; }
+  .preview-sub { font-size:12px; color:#888; margin-bottom:20px; }
+  .phone-frame {
+    max-width:430px; margin:0 auto; background:#fff; border:1px solid #ccc;
+    border-radius:12px; padding:16px; min-height:400px; box-shadow:0 4px 20px rgba(0,0,0,0.08);
+  }
+  .viewport-label { text-align:center; font-size:11px; color:#999; margin-top:8px; margin-bottom:4px; }
+</style>
+</head>
+<body>
+
+<div class="preview-container">
+
+  <div class="preview-header">🅐 Monthly Overview</div>
+  <div class="preview-sub">Visible to: principals, heads, PMC, finance, audit. Shows every active project with trade-progress bars and stats.</div>
+  <div class="phone-frame">
+    <div id="content-monthly"></div>
+  </div>
+  <div class="viewport-label">(Mobile viewport — 430px wide)</div>
+
+  <div class="preview-header">🅑 Project Summary</div>
+  <div class="preview-sub">Visible to: almost everyone on project teams. Shows detail of currently-selected project.</div>
+  <div class="phone-frame">
+    <div id="content-detail"></div>
+  </div>
+  <div class="viewport-label">(Mobile viewport — 430px wide)</div>
+
+</div>
+
+<!-- load real helpers -->
+<script src="public/js/ui.js"></script>
+<script src="public/js/money.js"></script>
+
+<script>
+// ─── Trade colors (copied from app.js line 5-10) ───
+const TRADE_COLORS = {
+  'Civil':'#c8a55a','Electrical':'#4a8fa8','IT / Networking':'#4a8a5a',
+  'HVAC':'#9a6ab8','Fire / Suppression':'#a84a3a','PA & Fire Alarm':'#a88a2a',
+  'Interior':'#7a5a9a','Plumbing':'#3a8a7a','Handover':'#5a5a5a',
+  'Architectural':'#c8a55a','Structural':'#4a8fa8',
+};
+
+// ─── APP stub ───
+const APP = { state: { selectedProject: 1 } };
+
+// ─── Realistic sample data ───
+const SAMPLE_MONTHLY = {
+  projects: [
+    {
+      id: 1,
+      name: "WeSchool Bengaluru Campus",
+      status: "active",
+      r0_end_date: "2028-04-30",
+      trades: { 'Civil': 62, 'Electrical': 45, 'HVAC': 38, 'Fire / Suppression': 22, 'Interior': 8 },
+      stats: { open_queries: 3, flagged_tasks: 2, overdue_materials: 1 }
+    },
+    {
+      id: 2,
+      name: "TZMO Manufacturing Plant",
+      status: "at-risk",
+      r0_end_date: "2026-12-15",
+      trades: { 'Civil': 78, 'Structural': 82, 'Electrical': 60, 'HVAC': 55, 'Plumbing': 68 },
+      stats: { open_queries: 7, flagged_tasks: 4, overdue_materials: 3 }
+    },
+    {
+      id: 3,
+      name: "Dr. AIT New Building",
+      status: "active",
+      r0_end_date: "2027-08-20",
+      trades: { 'Architectural': 15, 'Structural': 12 },
+      stats: { open_queries: 1, flagged_tasks: 0, overdue_materials: 0 }
+    },
+    {
+      id: 4,
+      name: "TLD MAINI PV90 Phase II",
+      status: "active",
+      r0_end_date: "2026-05-28",
+      trades: { 'Civil': 88, 'Electrical': 75, 'HVAC': 70, 'Fire / Suppression': 65, 'PA & Fire Alarm': 40 },
+      stats: { open_queries: 0, flagged_tasks: 1, overdue_materials: 0 }
+    }
+  ]
+};
+
+const SAMPLE_DETAIL = {
+  project: {
+    id: 1,
+    name: "WeSchool Bengaluru Campus",
+    client_name: "S.P. Mandali Trust",
+    location: "Electronic City Phase 1, Bengaluru — ELCITA jurisdiction",
+    jurisdiction: "ELCITA",
+    status: "active",
+    open_issues: 8,
+    pending_cns: 2,
+    team_count: 11,
+    start_date: "2025-11-01",
+    completion_date: "2028-04-30",
+    contract_value: 29578355,
+    team: [
+      { full_name: "Naveen Bhat",       role: "principal",          stream: "all" },
+      { full_name: "Ajay Appachu",      role: "design_principal",   stream: "design" },
+      { full_name: "Murugesan K",       role: "pmc_head",           stream: "all" },
+      { full_name: "Rajani Gowda",      role: "design_head",        stream: "design" },
+      { full_name: "Shrinath Rao",      role: "services_head",      stream: "services" },
+      { full_name: "Praveen Kumar",     role: "senior_site_manager",stream: "all" },
+      { full_name: "Arun Kumar B R",    role: "site_manager",       stream: "all" },
+      { full_name: "Preethi S",         role: "jr_architect",       stream: "design" },
+      { full_name: "Satish M",          role: "services_engineer",  stream: "services" },
+      { full_name: "Sahana R",          role: "team_lead",          stream: "design" },
+      { full_name: "Pallavi Shrinath",  role: "coordinator",        stream: "all" }
+    ]
+  }
+};
+
+// ─── APP.renderMonthly (verbatim from app.js line 2207, but targeting the preview div) ───
+async function renderMonthlyPreview() {
+  const el = document.getElementById('content-monthly');
+  const data = SAMPLE_MONTHLY;
+  const projects = (data?.projects || []).filter(p => p.status === 'active' || p.status === 'at-risk');
+  let html = '';
+  projects.forEach(p => {
+    const trades = Object.entries(p.trades || {});
+    if (!trades.length) return;
+    html += `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${p.name}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--mono)">R0 end: ${UI.fmtDate(p.r0_end_date)}</div>
+        </div>
+        ${UI.statusBadge(p.status)}
+      </div>
+      ${trades.map(([trade,pct])=>{
+        const col=TRADE_COLORS[trade]||'#5a5a5a';
+        return `<div class="prog-row">
+          <div class="prog-label">${trade.split(' ')[0]}</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
+          <div class="prog-pct">${pct}%</div>
+        </div>`;
+      }).join('')}
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px">
+        <div><span style="font-family:var(--mono);font-size:14px;font-weight:600;color:${(p.stats?.open_queries||0)>0?'#c8a040':'var(--text)'}">${p.stats?.open_queries||0}</span><span style="font-size:10px;color:var(--muted);margin-left:4px">Queries</span></div>
+        <div><span style="font-family:var(--mono);font-size:14px;font-weight:600;color:${(p.stats?.flagged_tasks||0)>0?'#c87060':'var(--text)'}">${p.stats?.flagged_tasks||0}</span><span style="font-size:10px;color:var(--muted);margin-left:4px">Flags</span></div>
+        <div><span style="font-family:var(--mono);font-size:14px;font-weight:600;color:${(p.stats?.overdue_materials||0)>0?'#c87060':'var(--text)'}">${p.stats?.overdue_materials||0}</span><span style="font-size:10px;color:var(--muted);margin-left:4px">Overdue</span></div>
+      </div>
+    </div>`;
+  });
+  if (!html) html = UI.empty('📊','No active projects');
+  el.innerHTML = html;
+}
+
+// ─── APP.renderProjectDetail (verbatim from app.js line 5398, but targeting the preview div) ───
+async function renderProjectDetailPreview() {
+  const el = document.getElementById('content-detail');
+  const data = SAMPLE_DETAIL;
+  const p = data.project || data;
+
+  let html = `
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">${p.name||'—'}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px">${p.client_name||'—'}</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5">${p.location||''}</div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      ${p.jurisdiction ? `<span class="badge b-navy">${p.jurisdiction}</span>` : ''}
+      ${UI.statusBadge(p.status||'active')}
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-card">
+      <span class="stat-val">${p.open_issues||0}</span>
+      <span class="stat-lbl">Issues</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-val">${p.pending_cns||0}</span>
+      <span class="stat-lbl">CNs</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-val">${p.team_count||0}</span>
+      <span class="stat-lbl">Team</span>
+    </div>
+  </div>
+
+  <div class="sec-label">Key Dates</div>
+  <div class="card">
+    <div class="prog-row">
+      <div class="prog-label">Start</div>
+      <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${UI.fmtDate(p.start_date)}</div>
+    </div>
+    <div class="prog-row">
+      <div class="prog-label">Completion</div>
+      <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${UI.fmtDate(p.completion_date)}</div>
+    </div>
+    <div class="prog-row">
+      <div class="prog-label">Contract</div>
+      <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--navy)">${Money.formatRupee(p.contract_value||0)}</div>
+    </div>
+  </div>
+
+  <div class="sec-label">Team</div>
+  ${(p.team||[]).map(t => `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="card-title">${t.full_name}</div>
+        <div class="card-meta" style="text-transform:capitalize">${(t.role||'').replace('_',' ')}</div>
+      </div>
+      <span class="badge b-navy">${t.stream||'all'}</span>
+    </div>
+  </div>`).join('')}`;
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+}
+
+renderMonthlyPreview();
+renderProjectDetailPreview();
+</script>
+
+</body>
+</html>
