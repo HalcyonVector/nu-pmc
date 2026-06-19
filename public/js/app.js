@@ -1790,8 +1790,19 @@ Tomorrow: start formwork on next bay."
       if (APP.state.lookaheadMonthFilter !== 'all') {
         filteredTasks = tasks.filter(t => t.start_date && t.start_date.startsWith(APP.state.lookaheadMonthFilter));
       } else {
-        // Only show future tasks and overdue tasks by default in Look Ahead
-        filteredTasks = tasks.filter(t => (t.start_date >= todayStr) || (t.end_date < todayStr && t.pct_complete < 100));
+        // Show all tasks: future tasks, overdue incomplete tasks, and recently
+        // completed tasks (completed within the last day). Tasks completed more
+        // than 1 day ago are hidden to keep the view focused.
+        const yesterdayObj = new Date(todayObj.getTime() - 86400000);
+        const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA');
+        filteredTasks = tasks.filter(t => {
+          if (t.pct_complete >= 100) {
+            // Completed: show only if end_date is recent (within last day)
+            return t.end_date >= yesterdayStr;
+          }
+          // All incomplete tasks (future, current, or overdue) always show
+          return true;
+        });
       }
       
       // Group tasks by date
@@ -1954,10 +1965,15 @@ Tomorrow: start formwork on next bay."
           `;
           
           dayTasks.forEach(t => {
+            const isOverdue = t.end_date < todayStr && t.pct_complete < 100;
+            const isDone = t.pct_complete >= 100;
+            const borderColor = isOverdue ? '#ebccd1' : isDone ? '#d6e9c6' : 'var(--border)';
             html += `
-              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);">
+              <div style="background:var(--white);border:1px solid ${borderColor};border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);">
                 <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;">
                   <div style="font-weight:600;font-size:13px;color:var(--text);">${t.task_name}</div>
+                  ${isOverdue ? '<span class="badge b-red" style="font-size:9px">Overdue</span>' : ''}
+                  ${isDone ? '<span class="badge b-green" style="font-size:9px">Done</span>' : ''}
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;flex-wrap:wrap;gap:8px;">
                   <div style="display:flex;align-items:center;gap:4px;">
@@ -1965,6 +1981,11 @@ Tomorrow: start formwork on next bay."
                     <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#e8f4fd;color:#0275d8;padding:2px 6px;border-radius:4px;">${t.pct_complete}% Done</span>
                   </div>
                 </div>
+                ${!isDone ? `<div class="pct-wrap" style="margin-top:6px;">
+                  <input type="range" class="pct-slider" min="0" max="100" step="5" value="${t.pct_complete}"
+                    oninput="APP.liveUpdatePct(${t.id},${pid},'${todayStr}',this)">
+                  <div class="pct-val" id="pv-${t.id}">${t.pct_complete}%</div>
+                </div>` : ''}
               </div>
             `;
           });
