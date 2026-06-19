@@ -619,11 +619,9 @@ router.get('/:project_id/lookahead/workspace', requireAuth, requireProjectScope(
       `SELECT st.id, st.task_name, st.trade,
               DATE_FORMAT(st.start_date, '%Y-%m-%d') AS start_date,
               DATE_FORMAT(st.end_date, '%Y-%m-%d') AS end_date,
-              st.priority, st.description, st.assignee_id,
-              u.full_name AS assignee_name,
+              st.display_order,
               COALESCE(tu.pct_complete, 0) AS pct_complete
        FROM schedule_tasks st
-       LEFT JOIN users u ON u.id = st.assignee_id
        LEFT JOIN (
          SELECT tu1.task_id, tu1.pct_complete
          FROM task_updates tu1
@@ -702,9 +700,9 @@ router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandl
     const nextOrder = (maxOrder?.max_ord || 0) + 1;
 
     const [r] = await db.query(
-      `INSERT INTO schedule_tasks (project_id, schedule_version_id, trade, task_name, start_date, end_date, description, assignee_id, priority, display_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [project_id, version.id, trade || 'General', task_name, planned_date, planned_date, description || null, assignee_id ? parseInt(assignee_id) : null, priority || 'medium', nextOrder]
+      `INSERT INTO schedule_tasks (project_id, schedule_version_id, trade, task_name, start_date, end_date, display_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [project_id, version.id, trade || 'General', task_name, planned_date, planned_date, nextOrder]
     );
 
     audit.log({
@@ -712,7 +710,7 @@ router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandl
       action: 'schedule_task.create',
       entityType: 'schedule_tasks',
       entityId: r.insertId,
-      details: { project_id: parseInt(project_id), task_name, planned_date, priority },
+      details: { project_id: parseInt(project_id), task_name, planned_date },
       req
     });
 

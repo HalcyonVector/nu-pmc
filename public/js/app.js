@@ -1954,24 +1954,15 @@ Tomorrow: start formwork on next bay."
           `;
           
           dayTasks.forEach(t => {
-            const pColors = { low: 'var(--muted)', medium: 'var(--navy)', high: '#d9534f', urgent: '#d9534f' };
-            const pBg = { low: '#f0f0f0', medium: '#eef2f7', high: '#fdf2f2', urgent: '#fdf2f2' };
-            const priorityLabel = t.priority.toUpperCase();
-            
             html += `
               <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);">
                 <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;">
                   <div style="font-weight:600;font-size:13px;color:var(--text);">${t.task_name}</div>
-                  <span class="badge" style="background:${pBg[t.priority]};color:${pColors[t.priority]};font-size:9px;font-weight:700;text-transform:uppercase;">${priorityLabel}</span>
                 </div>
-                ${t.description ? `<div style="font-size:11px;color:var(--text2);line-height:1.4;">${t.description}</div>` : ''}
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;flex-wrap:wrap;gap:8px;">
                   <div style="display:flex;align-items:center;gap:4px;">
                     <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#f5f5f5;padding:2px 6px;border-radius:4px;">${t.trade}</span>
                     <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#e8f4fd;color:#0275d8;padding:2px 6px;border-radius:4px;">${t.pct_complete}% Done</span>
-                  </div>
-                  <div style="font-size:11px;color:var(--muted);">
-                    ${t.assignee_name || 'Unassigned'}
                   </div>
                 </div>
               </div>
