@@ -1702,9 +1702,6 @@ Tomorrow: start formwork on next bay."
       
       if (!tasks.length) {
         const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-        const assigneeOptions = assignees.map(u => 
-          `<option value="${u.id}">${u.full_name} (${APP._roleLabel(u.role)})</option>`
-        ).join('');
         let emptyHtml = `
           <div style="text-align:center;padding:40px;color:var(--muted)">
             <p style="margin-bottom:16px;">No tasks scheduled yet. Create your first task to get started.</p>
@@ -1719,7 +1716,7 @@ Tomorrow: start formwork on next bay."
                 <h3 style="margin:0;font-size:14px;font-weight:600;">Schedule Future Task</h3>
                 <button type="button" style="background:none;border:none;color:var(--white);font-size:18px;cursor:pointer;" onclick="document.getElementById('task-create-dialog').style.display='none'">×</button>
               </div>
-              <form id="task-create-form" style="padding:16px;display:flex;flex-direction:column;gap:12px;" onsubmit="APP.submitLookaheadTask(event, ${pid})">
+              <form id="task-create-form" style="padding:16px;display:flex;flex-direction:column;gap:12px;" onsubmit="event.preventDefault();APP.submitLookaheadTask(event, ${pid})">
                 <div>
                   <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Task Name *</label>
                   <input type="text" name="task_name" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
@@ -1746,24 +1743,16 @@ Tomorrow: start formwork on next bay."
                     </select>
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                  <div>
-                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Assignee</label>
-                    <select name="assignee_id" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
-                      <option value="">Unassigned</option>
-                      ${assigneeOptions}
-                    </select>
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Priority</label>
-                    <select name="priority" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
-                      <option value="low">Low</option>
-                      <option value="medium" selected>Medium</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Priority</label>
+                  <select name="priority" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
                 </div>
+                <input type="hidden" name="assignee_id" value="">
                 <div style="display:flex;justify-content:end;gap:8px;margin-top:8px;">
                   <button type="button" class="btn-secondary" style="padding:8px 16px;font-size:12px;" onclick="document.getElementById('task-create-dialog').style.display='none'">Cancel</button>
                   <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:12px;">Save Task</button>
@@ -1887,7 +1876,7 @@ Tomorrow: start formwork on next bay."
               <h3 style="margin:0;font-size:14px;font-weight:600;">Schedule Future Task</h3>
               <button type="button" style="background:none;border:none;color:var(--white);font-size:18px;cursor:pointer;" onclick="document.getElementById('task-create-dialog').style.display='none'">×</button>
             </div>
-            <form id="task-create-form" style="padding:16px;display:flex;flex-direction:column;gap:12px;" onsubmit="APP.submitLookaheadTask(event, ${pid})">
+            <form id="task-create-form" style="padding:16px;display:flex;flex-direction:column;gap:12px;" onsubmit="event.preventDefault();APP.submitLookaheadTask(event, ${pid})">
               <div>
                 <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Task Name *</label>
                 <input type="text" name="task_name" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
