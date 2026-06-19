@@ -9076,7 +9076,7 @@ APP.renderSubmittals = async function() {
 
   const role = APP.user.role;
   const canSubmit = ['site_manager','senior_site_manager','pmc_head'].includes(role);
-  const canReview = ['design_head','services_head','pmc_head','principal','design_principal','team_lead'].includes(role);
+  const canReview = ['design_head','services_head','pmc_head','principal','design_principal'].includes(role);
 
   let html = '';
   if (canSubmit) {
@@ -9134,6 +9134,7 @@ APP.renderSubmittals = async function() {
 APP.reviewSubmittal = async function(id, status) {
   const res = await API.patch(`/submittals/${id}/review`, { status });
   if (res?.success) { UI.toast(status==='approved'?'Approved ✓':'Returned'); APP.renderSubmittals(); }
+  else if (res?.error) { UI.toast(res.error, 'error'); }
 };
 APP.showSubmittalForm = function() {
   document.getElementById('modal-overlay').classList.add('open');

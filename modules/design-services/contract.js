@@ -381,10 +381,13 @@ module.exports = {
       if (Array.isArray(projectIds) && projectIds.length === 0) return 0;
       const cleanPids = projectIds ? projectIds.filter(Boolean) : null;
       const params = [];
+      // Count only the latest version per drawing (highest dv.id per drawing_id)
+      // to avoid inflated counts when multiple revisions sit at a pending status.
       let q = `SELECT COUNT(*) AS cnt
                FROM drawing_versions dv
                JOIN drawings d ON dv.drawing_id = d.id
-               WHERE dv.status IN (${statuses.map(()=>'?').join(',')})`;
+               WHERE dv.status IN (${statuses.map(()=>'?').join(',')})
+                 AND dv.id = (SELECT MAX(dv2.id) FROM drawing_versions dv2 WHERE dv2.drawing_id = dv.drawing_id)`;
       params.push(...statuses);
       if (cleanPids && cleanPids.length) {
         q += ` AND d.project_id IN (${cleanPids.map(()=>'?').join(',')})`;
