@@ -4,7 +4,7 @@ const express = require('express');
 const db      = require('../../../middleware/db');
 const users = require('../../../services/users-lookup');
 const { validators } = require('../../../middleware/validate');
-const { requireAuth, requirePMC, requireRole, requireProjectScope, requireScopeFromEntity } = require('../../../middleware/auth');
+const { requireAuth, requirePMC, requireRole, requireProjectScope, requireScopeFromEntity, PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/permissions');
 const { upload } = require('../../../middleware/upload');
 const notif   = require('../../../services/notifications');
@@ -36,9 +36,26 @@ async function getProjectAssignee(projectId, role) {
 // GET /api/issues/all - get all issues across user's projects
 router.get('/all', requireAuth, asyncHandler(async (req, res) => {
     const { type, status } = req.query;
+    const me = req.session.user;
     
-    // Get user's project IDs
-    const projectIds = req.session.user.projects?.map(p => p.id) || [];
+    // Get user's project IDs fresh from DB (not session cache) to avoid stale data
+    let projectIds;
+    if (PROJECT_SCOPED_ROLES.includes(me.role)) {
+      const [rows] = await db.query(
+        `SELECT pa.project_id FROM project_assignments pa
+         JOIN projects p ON pa.project_id = p.id
+         WHERE pa.user_id = ? AND pa.is_active = 1 AND p.status != 'completed'`,
+        [me.id]
+      );
+      projectIds = rows.map(r => r.project_id);
+    } else {
+      // Firm-wide roles see all active projects
+      const [rows] = await db.query(
+        `SELECT id FROM projects WHERE status IN ('active','initialising')`
+      );
+      projectIds = rows.map(r => r.id);
+    }
+    
     if (!projectIds.length) {
         return res.json({ issues: [], projects: [] });
     }

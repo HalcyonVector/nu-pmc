@@ -65,11 +65,19 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   const role = me.role;
   const items = [];
 
-  // Extract assigned project ids for scoped roles. Firm-wide roles → null
-  // (no scope filter).
-  const projectIds = PROJECT_SCOPED_ROLES.includes(role)
-    ? (me.projects || []).map(p => p.id)
-    : null;
+  // Query project assignments fresh from DB (not session cache) to avoid stale counts.
+  let projectIds;
+  if (PROJECT_SCOPED_ROLES.includes(role)) {
+    const [rows] = await db.query(
+      `SELECT pa.project_id FROM project_assignments pa
+       JOIN projects p ON pa.project_id = p.id
+       WHERE pa.user_id = ? AND pa.is_active = 1 AND p.status != 'completed'`,
+      [me.id]
+    );
+    projectIds = rows.map(r => r.project_id);
+  } else {
+    projectIds = null; // firm-wide — no filter
+  }
 
   // Helper for concise per-item logic
   const push = (type, count, label, tab) => {
