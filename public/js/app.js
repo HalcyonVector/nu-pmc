@@ -1701,7 +1701,78 @@ Tomorrow: start formwork on next bay."
       const metrics = data?.metrics || { upcoming: 0, dueThisWeek: 0, overdue: 0, completedThisWeek: 0 };
       
       if (!tasks.length) {
-        el.innerHTML = subTabs + UI.empty('', 'No schedule uploaded yet — upload a schedule to use Look Ahead');
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        const assigneeOptions = assignees.map(u => 
+          `<option value="${u.id}">${u.full_name} (${APP._roleLabel(u.role)})</option>`
+        ).join('');
+        let emptyHtml = `
+          <div style="text-align:center;padding:40px;color:var(--muted)">
+            <p style="margin-bottom:16px;">No tasks scheduled yet. Create your first task to get started.</p>
+            <button class="btn-primary" style="padding:10px 20px;font-size:13px;" onclick="document.getElementById('task-create-dialog').style.display='flex'">
+              + Schedule Task
+            </button>
+          </div>
+          <!-- Task Creation Dialog -->
+          <div id="task-create-dialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;padding:16px;">
+            <div style="background:var(--white);width:100%;max-width:480px;border-radius:var(--r);box-shadow:var(--shadow2);overflow:hidden;animation:fadeIn .2s;">
+              <div style="padding:16px;background:var(--navy);color:var(--white);display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:14px;font-weight:600;">Schedule Future Task</h3>
+                <button type="button" style="background:none;border:none;color:var(--white);font-size:18px;cursor:pointer;" onclick="document.getElementById('task-create-dialog').style.display='none'">×</button>
+              </div>
+              <form id="task-create-form" style="padding:16px;display:flex;flex-direction:column;gap:12px;" onsubmit="APP.submitLookaheadTask(event, ${pid})">
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Task Name *</label>
+                  <input type="text" name="task_name" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Description</label>
+                  <textarea name="description" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;resize:none;"></textarea>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <div>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Planned Date *</label>
+                    <input type="date" name="planned_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Trade</label>
+                    <select name="trade" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                      <option value="General">General</option>
+                      <option value="Civil">Civil</option>
+                      <option value="Structural">Structural</option>
+                      <option value="HVAC">HVAC</option>
+                      <option value="Electrical">Electrical</option>
+                      <option value="Plumbing">Plumbing</option>
+                      <option value="Finishes">Finishes</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <div>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Assignee</label>
+                    <select name="assignee_id" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                      <option value="">Unassigned</option>
+                      ${assigneeOptions}
+                    </select>
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Priority</label>
+                    <select name="priority" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
+                      <option value="low">Low</option>
+                      <option value="medium" selected>Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:end;gap:8px;margin-top:8px;">
+                  <button type="button" class="btn-secondary" style="padding:8px 16px;font-size:12px;" onclick="document.getElementById('task-create-dialog').style.display='none'">Cancel</button>
+                  <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:12px;">Save Task</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+        el.innerHTML = subTabs + emptyHtml;
         return;
       }
       
