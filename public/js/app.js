@@ -9169,6 +9169,19 @@ APP.renderSubmittals = async function() {
   const pid = APP.state.selectedProject;
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
+  // Project selector for firm-wide roles
+  const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'].includes(APP.user?.role);
+  let projectSelectorHtml = '';
+  if (isFirmWide) {
+    const projects = APP.user?.projects || [];
+    projectSelectorHtml = `<div style="margin-bottom:14px">
+      <select style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);cursor:pointer"
+        onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderSubmittals()">
+        ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${p.name}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+
   const data = await API.get(`/submittals/${pid}`);
   if (!data) return;
   const subs = data.submittals || [];
@@ -9177,7 +9190,7 @@ APP.renderSubmittals = async function() {
   const canSubmit = ['site_manager','senior_site_manager','pmc_head'].includes(role);
   const canReview = ['design_head','services_head','pmc_head','principal','design_principal'].includes(role);
 
-  let html = '';
+  let html = projectSelectorHtml;
   if (canSubmit) {
     html += `<button class="btn-primary" onclick="APP.showSubmittalForm()" style="margin-bottom:16px">+ New Submittal</button>`;
   }
@@ -9265,7 +9278,9 @@ APP.renderWeeklyHealth = async function() {
 
   let html = `<div class="sec-label">Weekly Health — All Projects</div>`;
   if (!projects.length) { html += UI.empty('','No active projects'); }
-  else projects.forEach(p => {
+  else {
+    html += `<div class="projects-grid">`;
+    projects.forEach(p => {
     const sched = p.schedule || {};
     const drift = sched.drift_days || 0;
     const driftColor = drift > 14 ? 'red' : drift > 7 ? 'amber' : 'green';
@@ -9305,6 +9320,8 @@ APP.renderWeeklyHealth = async function() {
       </div>` : ''}
     </div>`;
   });
+    html += `</div>`;
+  }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
