@@ -3602,6 +3602,19 @@ Tomorrow: start formwork on next bay."
     const pid = APP.state.selectedProject;
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
+    // Project selector for firm-wide roles
+    const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'].includes(APP.user?.role);
+    let projectSelectorHtml = '';
+    if (isFirmWide) {
+      const projects = APP.user?.projects || [];
+      projectSelectorHtml = `<div style="margin-bottom:14px">
+        <select style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);cursor:pointer"
+          onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderMaterials()">
+          ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+      </div>`;
+    }
+
     const [reqData, boqData, versionData] = await Promise.all([
       API.getRequests(pid),
       API.getBOQ(pid),
@@ -3619,7 +3632,8 @@ Tomorrow: start formwork on next bay."
     const currentServices = currentByStream.services;
     const canEditBOQ = ['design_head','services_head','principal','design_principal'].includes(APP.user.role);
 
-    let html = `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">+ New Material Request</button>`;
+    let html = projectSelectorHtml;
+    html += `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">+ New Material Request</button>`;
 
     // BOQ header — shows current version + item count per stream + action buttons
     html += `<div class="card" style="margin-bottom:12px">
@@ -7359,6 +7373,19 @@ APP.renderBudget = async function() {
   const pid = APP.state.selectedProject;
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
+  // Project selector for firm-wide roles
+  const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'].includes(APP.user?.role);
+  let projectSelectorHtml = '';
+  if (isFirmWide) {
+    const projects = APP.user?.projects || [];
+    projectSelectorHtml = `<div style="margin-bottom:14px">
+      <select style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);cursor:pointer"
+        onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderBudget()">
+        ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${p.name}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+
   const data = await API.get(`/budget/${pid}`);
   if (!data) return;
   const heads = data.cost_heads || [];
@@ -7369,7 +7396,7 @@ APP.renderBudget = async function() {
   const sanctioned = parseFloat(totals.sanctioned) || 0;
   const committed = parseFloat(totals.committed) || 0;
 
-  let html = APP._budgetToggleHTML() + `
+  let html = projectSelectorHtml + APP._budgetToggleHTML() + `
   <div class="stat-row">
     <div class="stat-card">
       <span class="stat-val">₹${(sanctioned/100000).toFixed(1)}L</span>
@@ -9629,27 +9656,52 @@ APP._removePmcAssignment = async function(pid, kind) {
 APP.showAssignSiteManager = async function(pid) {
   const usersRes = await API.get('/users');
   const allUsers = usersRes?.users || [];
-  const siteManagers = allUsers.filter(u => ['site_manager','senior_site_manager'].includes(u.role) && u.is_active);
-  if (!siteManagers.length) { UI.toast('No site managers found — create one first'); return; }
-  const options = siteManagers.map(u => `<option value="${u.id}">${u.full_name} (${u.role === 'senior_site_manager' ? 'Senior' : 'Site Mgr'})</option>`).join('');
-  UI.showModal('Assign Site Manager', `
-    <div class="field"><label>Site Manager</label>
-      <select id="sm-assign-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r)">${options}</select>
+  const siteManagers = allUsers.filter(u => u.role === 'site_manager' && u.is_active);
+  const seniorSiteManagers = allUsers.filter(u => u.role === 'senior_site_manager' && u.is_active);
+
+  const smOptions = siteManagers.length
+    ? siteManagers.map(u => `<option value="${u.id}">${u.full_name}</option>`).join('')
+    : '<option value="">— No site managers available —</option>';
+  const ssmOptions = seniorSiteManagers.length
+    ? seniorSiteManagers.map(u => `<option value="${u.id}">${u.full_name}</option>`).join('')
+    : '<option value="">— No senior site managers available —</option>';
+
+  UI.showModal('Assign Site Managers', `
+    <div class="field" style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Site Manager</label>
+      <select id="sm-assign-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r)">
+        <option value="">— None —</option>
+        ${smOptions}
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">Senior Site Manager</label>
+      <select id="ssm-assign-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r)">
+        <option value="">— None —</option>
+        ${ssmOptions}
+      </select>
     </div>
     <button class="btn-primary" style="width:100%;margin-top:12px" onclick="APP.doAssignSiteManager(${pid})">Assign</button>
   `);
 };
 
 APP.doAssignSiteManager = async function(pid) {
-  const userId = document.getElementById('sm-assign-user')?.value;
-  if (!userId) { UI.toast('Select a user'); return; }
-  const res = await API.post(`/projects/${pid}/assign-site-manager`, { user_id: parseInt(userId) });
-  if (res?.success) {
+  const smId = document.getElementById('sm-assign-user')?.value;
+  const ssmId = document.getElementById('ssm-assign-user')?.value;
+  if (!smId && !ssmId) { UI.toast('Select at least one'); return; }
+  let success = true;
+  if (smId) {
+    const res = await API.post(`/projects/${pid}/assign-site-manager`, { user_id: parseInt(smId) });
+    if (!res?.success) { UI.toast(res?.error || 'Failed to assign site manager'); success = false; }
+  }
+  if (ssmId) {
+    const res = await API.post(`/projects/${pid}/assign-site-manager`, { user_id: parseInt(ssmId) });
+    if (!res?.success) { UI.toast(res?.error || 'Failed to assign senior site manager'); success = false; }
+  }
+  if (success) {
     UI.closeModal();
-    UI.toast('Site manager assigned ✓');
+    UI.toast('Site manager(s) assigned ✓');
     APP.renderProjectDetail();
-  } else {
-    UI.toast(res?.error || 'Assignment failed');
   }
 };
 
