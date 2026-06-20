@@ -185,7 +185,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
          ANY_VALUE(sv.drift_days) AS drift_days,
          ANY_VALUE(sv.label)      AS schedule_version
        FROM projects p
-       LEFT JOIN issues dq ON dq.project_id = p.id AND dq.status != 'closed'
+       LEFT JOIN issues dq ON dq.project_id = p.id AND dq.status != 'closed' AND dq.drawing_version_id IS NOT NULL
        LEFT JOIN task_updates tu    ON tu.project_id = p.id AND tu.is_flagged = 1
        LEFT JOIN change_notices cn  ON cn.project_id = p.id AND cn.status NOT IN ('approved','rejected')
        LEFT JOIN schedule_versions sv ON sv.project_id = p.id AND sv.is_current = 1

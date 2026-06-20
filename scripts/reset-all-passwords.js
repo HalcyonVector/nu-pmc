@@ -42,10 +42,10 @@ async function run() {
 
   // Update all active users
   const [result] = await db.execute(
-    `UPDATE users 
-     SET password_hash = ?, 
-         force_password_change = 1, 
-         login_count = 0 
+    `UPDATE users
+     SET password_hash = ?,
+         force_password_change = 1,
+         login_count = 0
      WHERE is_active = 1`,
     [hash]
   );

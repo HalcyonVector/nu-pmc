@@ -36,7 +36,9 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
 router.post('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
     const { engagement_id, title, submittal_type } = req.body;
     if (!engagement_id || !title) return res.status(400).json({ error: 'Engagement and title required' });
-    const canSubmit = ['pmc_head','site_manager','design_head','services_head',
+    const canSubmit = ['pmc_head','site_manager','senior_site_manager',
+                       'design_head','services_head','team_lead',
+                       'jr_architect','services_engineer','jr_engineer',
                        'principal','design_principal'].includes(req.session.user.role);
     if (!canSubmit) return res.status(403).json({ error: 'Not authorised to raise submittals' });
 

@@ -267,13 +267,16 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
 
   // ─── NEEDS YOU (Principal / Design Principal / Audit) ──────────────
   if (['principal','design_principal','audit'].includes(role)) {
-    // PRs awaiting principal review
+    // PRs awaiting principal review.
+    // Matches the same status set that the weekly-batch route shows principals:
+    // 'pmc_approved' catches any older payments that pre-date the threshold routing,
+    // 'pending_principal' is the current explicit state for above-threshold payments.
     const [prs] = await db.query(
       `SELECT pr.id, pr.amount_requested, pr.vendor_id, pr.project_id,
-              TIMESTAMPDIFF(DAY, pr.pmc_reviewed_at, NOW()) AS age_days
+              TIMESTAMPDIFF(DAY, COALESCE(pr.pmc_reviewed_at, pr.raised_at), NOW()) AS age_days
          FROM payment_requests pr
-        WHERE pr.status = 'pending_principal'
-        ORDER BY pr.pmc_reviewed_at ASC
+        WHERE pr.status IN ('pending_principal', 'pmc_approved')
+        ORDER BY COALESCE(pr.pmc_reviewed_at, pr.raised_at) ASC
         LIMIT 50`
     );
     const Onboarding = require('../../onboarding/contract');
@@ -289,6 +292,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
         label: `${pr.vendor_name || 'Vendor'} — ₹${Number(pr.amount_requested).toLocaleString('en-IN')}`,
         sub:   `${pr.project_name} · pending your review`,
         age_days: pr.age_days,
+        project_id: pr.project_id,
         tab: 'payments',
       });
     }
@@ -317,6 +321,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
         label: `${c.cn_number} — ${(c.title || '').substring(0,60)}`,
         sub:   `${c.project_name} · ${scheduleNote}${c.age_days}d pending`,
         age_days: c.age_days,
+        project_id: c.project_id,
         tab: 'changes',
       });
     }

@@ -7,10 +7,11 @@ const toggles = require('../../../services/ai-toggles');
 const audit = require('../../../services/audit');
 const router = express.Router();
 
-// GET /api/ai-settings — list all toggles with current state
+// GET /api/ai-settings — list all toggles with current state + API key status
 router.get('/', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
   const features = await toggles.getAll();
-  res.json({ features });
+  const apiKeySet = !!process.env.ANTHROPIC_API_KEY;
+  res.json({ features, api_key_set: apiKeySet });
 }));
 
 // GET /api/ai-settings/enabled — returns just enabled feature keys (any auth user)

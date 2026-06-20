@@ -37,7 +37,7 @@ async function loadProjectsForUser(user) {
     // policy is later set (currently on_hold writes are NOT blocked, so the
     // project should remain visible to scoped users for the same reason).
     const [projects] = await db.query(
-      `SELECT p.id, p.code, p.name, p.client, p.location FROM project_assignments pa
+      `SELECT p.id, p.code, p.name, p.client, p.location, p.status FROM project_assignments pa
        JOIN projects p ON pa.project_id = p.id
        WHERE pa.user_id = ? AND pa.is_active = 1
          AND p.status != 'completed'

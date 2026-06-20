@@ -529,74 +529,80 @@ body {
    A single horizontal row showing "Pending Actions (N)" title + pill chips,
    one per approval category. Mobile stacks chips to full-width rows.
    ── */
+/* ── PENDING ACTIONS STRIP ─────────────────────────────────────────────────── */
 .pa-strip {
   background: var(--white);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--navy);
-  border-radius: var(--r);
-  padding: 10px 16px;
+  border-radius: 12px;
+  padding: 10px 14px;
   margin-bottom: 12px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
 }
 .pa-strip-inner {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .pa-strip-title {
-  font-family: var(--mono);
-  font-size: var(--text-sm);
+  font-size: 11px;
   font-weight: 700;
   color: var(--navy);
-  letter-spacing: .06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .pa-total-badge {
   background: var(--navy);
   color: var(--white);
   font-size: 11px;
   font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
   font-family: var(--mono);
+  line-height: 1.4;
 }
 .pa-strip-chips {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 6px;
+  align-items: center;
 }
 .pa-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 7px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
   background: var(--bg);
-  border-radius: var(--r);
+  border-radius: 20px;
   cursor: pointer;
-  min-height: 44px;
   font-family: var(--sans);
-  transition: border-color .15s, background .15s;
+  transition: border-color .15s, background .15s, box-shadow .15s;
   text-align: left;
-  width: 100%;
+  white-space: nowrap;
 }
-.pa-chip:hover { border-color: var(--navy); background: var(--white); }
-.pa-chip-label { font-size: var(--text-sm); font-weight: 500; color: var(--text); }
+.pa-chip:hover {
+  border-color: var(--navy);
+  background: var(--white);
+  box-shadow: 0 1px 5px rgba(0,0,0,0.09);
+}
+.pa-chip-label { font-size: 13px; font-weight: 500; color: var(--text); }
 .pa-chip-count {
   background: var(--navy);
   color: var(--white);
   font-size: 11px;
   font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 10px;
+  padding: 1px 7px;
+  border-radius: 20px;
   font-family: var(--mono);
   flex-shrink: 0;
+  line-height: 1.5;
 }
 
 /* ── SECTION HEADER ROW — title + action button ────────────────────────────
@@ -1267,9 +1273,13 @@ textarea { resize: none; }
 .st-step.done .st-dot    { border-color: var(--green); background: var(--green); color: white; }
 .st-step.current .st-dot { border-color: var(--navy); background: var(--white); }
 .st-step.current .st-dot::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--navy); }
+/* When a step is both done AND current (latest completed step), green tick wins */
+.st-step.done.current .st-dot { border-color: var(--green); background: var(--green); color: white; }
+.st-step.done.current .st-dot::after { display: none; }
 .st-label { font-size: var(--text-sm); color: var(--muted); margin-top: 5px; text-align: center; letter-spacing: .03em; line-height: 1.3; font-family: var(--mono); }
 .st-step.done .st-label    { color: var(--green); }
 .st-step.current .st-label { color: var(--navy); }
+.st-step.done.current .st-label { color: var(--green); }
 
 /* ── DRAWINGS ── */
 .drawing-item {
@@ -2731,11 +2741,14 @@ html[data-theme="dark"] .filter-chip.sel {
 .signoff-slot .label {
   font-family: var(--mono);
   font-size: 9px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 4px;
+  letter-spacing:
+/* ── Global select styling — suppress native OS arrow, inject consistent ▼ ── */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23999999' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px !important;
 }
-.signoff-slot .who { font-size: 12px; font-weight: 600; color: var(--text); }
-.signoff-slot .status { font-size: 10px; color: var(--muted); margin-top: 3px; }
-.signoff-slot.signed .status { color: var(--green); }

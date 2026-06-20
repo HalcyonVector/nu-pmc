@@ -98,6 +98,34 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
 
   }));
 
+// GET /api/schedule/:project_id/tasks/active — tasks active on a given date (default: today IST)
+// Used by the photo viewer to populate the task-tag selector.
+router.get('/:project_id/tasks/active', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+  const pid  = req.params.project_id;
+  const date = req.query.date ||
+    new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+  // Include tasks active today + tasks starting within the next 14 days
+  // so photos can be tagged to upcoming tasks even before they officially begin.
+  const lookahead = new Date(date);
+  lookahead.setDate(lookahead.getDate() + 14);
+  const lookaheadStr = lookahead.toLocaleDateString('en-CA');
+
+  const [tasks] = await db.query(
+    `SELECT st.id, st.task_name, st.trade, st.start_date, st.end_date
+       FROM schedule_tasks st
+       JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+      WHERE st.project_id = ?
+        AND st.end_date >= ?
+        AND st.start_date <= ?
+        AND (st.is_section IS NULL OR st.is_section = 0)
+      ORDER BY st.start_date ASC, st.trade, st.task_name
+      LIMIT 100`,
+    [pid, date, lookaheadStr]
+  );
+  res.json({ tasks, date });
+}));
+
 // GET /api/schedule/flags/all — all open flags across accessible projects (for Flags tab)
 // Must be declared BEFORE /:project_id/flags to avoid route param collision.
 router.get('/flags/all', requireAuth, asyncHandler(async (req, res) => {
@@ -745,27 +773,4 @@ router.post('/:project_id/vendor-signoff', requireAuth, requireProjectScope(),
     if (!tasks.length) return res.status(404).json({ error: 'Tasks not found' });
 
     const taskLines = tasks.map(t => {
-      const start = new Date(t.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-      const end   = new Date(t.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-      return `  • ${t.task_name} — ${start} to ${end}`;
-    }).join('\n');
-
-    const pollMessage = [
-      message || 'Schedule for your commitment — please confirm you can meet these dates:',
-      taskLines,
-    ].join('\n');
-
-    const notif = require('../../../services/notifications');
-    await notif.notifyVendor(
-      vendor_id,
-      pollMessage,
-      ['✅ Accepted — I commit to these dates', '❌ Cannot commit']
-    );
-
-    audit.log({ userId: me.id, action: 'schedule.vendor_signoff_sent',
-      entityType: 'schedule_tasks', entityId: null,
-      details: { project_id: parseInt(req.params.project_id), vendor_id, task_count: tasks.length }, req });
-
-    res.json({ success: true, tasks_sent: tasks.length });
-  })
-);
+      const start = new Date(t.start_date).toLocaleDateString

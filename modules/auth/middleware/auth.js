@@ -289,6 +289,22 @@ function requireProjectScope(getProjectId) {
   };
 }
 
+// Allowlist of table names permitted in requireScopeFromEntity.
+// All callers in this codebase use hardcoded string literals, but this
+// allowlist prevents a future bad caller from injecting an arbitrary table
+// name into the SQL query via the `table` parameter.
+const SCOPE_ENTITY_TABLES = new Set([
+  'issues',
+  'grns',
+  'change_notices',
+  'meetings',
+  'handover_checklist_items',
+  'drawings',
+  'drawing_versions',
+  'submittals',
+  'payment_requests',
+]);
+
 // Variant that checks scope based on a SQL lookup — for endpoints that
 // take an entity ID and you need to derive project_id from it.
 // Example: PATCH /api/issues/:id/resolve — we look up issues.project_id
@@ -298,6 +314,15 @@ function requireProjectScope(getProjectId) {
 //   router.patch('/:id/resolve', requireAuth,
 //     requireScopeFromEntity('issues', 'id'), handler);
 function requireScopeFromEntity(table, idParam = 'id') {
+  // Validate at definition time (startup), not per-request, so a bad
+  // call is caught immediately during boot rather than on first hit.
+  if (!SCOPE_ENTITY_TABLES.has(table)) {
+    throw new Error(
+      `[requireScopeFromEntity] Unknown table "${table}". ` +
+      `Add it to SCOPE_ENTITY_TABLES in middleware/auth.js if it is a new project-scoped table.`
+    );
+  }
+
   return async (req, res, next) => {
     const me = req.session?.user;
     if (!me) return res.status(401).json({ error: 'Not authenticated' });
@@ -318,6 +343,7 @@ function requireScopeFromEntity(table, idParam = 'id') {
     let row;
     try {
       const db = require('../../../middleware/db');
+      // `table` is validated against SCOPE_ENTITY_TABLES above — safe to interpolate.
       const [[r]] = await db.query(
         `SELECT e.project_id, p.status
          FROM \`${table}\` e LEFT JOIN projects p ON e.project_id = p.id

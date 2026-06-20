@@ -750,12 +750,8 @@ router.get('/:project_id/history', requireAuth,
   requireRole('principal','design_principal','pmc_head','finance_admin'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
-    // Finance admin disburses payments via ICICI bulk and therefore needs to
-    // see the aggregate history including amounts. Previously an inner check
-    // denied finance_admin here — see pass2-findings.md (2026-04-24).
-    // Audit is also allowed: documented read-only bypass (compliance review).
-    const canSeeAmounts = ['principal','design_principal','pmc_head','finance_admin','audit'].includes(me.role);
-    if (!canSeeAmounts) return res.status(403).json({ error: 'Not authorised' });
+    // requireRole above already gates this to the exact set that can see amounts.
+    // Audit role bypasses role gates on GETs globally (blockAuditWrites in server.js).
 
     const [payments] = await db.query(`
       SELECT * FROM vendor_payments
@@ -1105,7 +1101,15 @@ router.post('/utr-webhook', async (req, res) => {
       return res.status(503).json({ error: 'Webhook not configured' });
     }
     const got = req.get('X-Webhook-Secret') || req.query.secret || req.body._secret;
-    if (got !== expected) {
+    // Use timing-safe comparison to prevent secret-length leak via timing attack.
+    // timingSafeEqual requires equal-length buffers; pad/truncate to expected.length
+    // so a too-short or missing token never short-circuits early.
+    const crypto = require('crypto');
+    const expectedBuf = Buffer.from(expected);
+    const gotBuf     = Buffer.alloc(expectedBuf.length);
+    if (got) Buffer.from(String(got)).copy(gotBuf);
+    const secretOk = crypto.timingSafeEqual(expectedBuf, gotBuf) && !!got;
+    if (!secretOk) {
       console.warn('[UTR-Webhook] Invalid/missing webhook secret');
       return res.status(401).json({ error: 'Unauthorised' });
     }
@@ -1179,35 +1183,6 @@ router.post('/utr-webhook', async (req, res) => {
     // Notify PMC
     const Auth = require('../../auth/contract');
     const pmcHeads = await Auth.functions.getPmcHeadsForProject(payment.project_id);
-
-    // First payment to a recently-changed bank account — FYI to Principal (V8 §4 awareness)
-    {
-      const [[recentChange]] = await db.query(
-        `SELECT vbcr.id, vbcr.new_value AS new_account
-           FROM vendor_bank_change_requests vbcr
-           JOIN vendor_engagements ve ON ve.vendor_id = vbcr.vendor_id
-           JOIN payment_requests pr ON pr.engagement_id = ve.id
-          WHERE pr.id = ?
-            AND vbcr.status = 'approved'
-            AND vbcr.field_changed = 'bank_account_no'
-            AND vbcr.effective_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-          ORDER BY vbcr.effective_at DESC LIMIT 1`,
-        [payment.id]
-      );
-      if (recentChange) {
-        const matrixAdapter = require('../../../services/matrix-adapter');
-        const [principals] = await db.query(
-          `SELECT matrix_room_id FROM users
-            WHERE role IN ('principal','design_principal') AND is_active = 1 AND matrix_room_id IS NOT NULL`
-        );
-        const tail = String(recentChange.new_account).slice(-4);
-        const fyi = `📊 FYI — ${payment.vendor_name} — ${formattedAmt} paid to recently-changed account ending ${tail}. UTR: ${utr}`;
-        for (const p of principals) {
-          await matrixAdapter.sendText({ roomId: p.matrix_room_id, body: fyi })
-            .catch(e => console.warn('[payments.utr-webhook] bank-change FYI failed:', e.message));
-        }
-      }
-    }
 
     if (payment.is_urgent) {
       // Urgent — post to project's internal room so the whole team sees it.

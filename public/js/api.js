@@ -271,17 +271,6 @@ const API = {
   getPaymentSheet: (pid, w)      => API.call('GET',   `/payments/${pid}/sheet${w?'?week_ending='+w:''}`),
 };
 
-// ── GRN
-API.getGRNs     = (pid)     => API.call('GET',   `/grn/${pid}`);
-API.approveGRN  = (id)      => API.call('PATCH', `/grn/${id}/approve`);
-API.rejectGRN   = (id)      => API.call('PATCH', `/grn/${id}/reject`);
-API.raiseGRN    = (pid, d)  => API.call('POST',  `/grn/${pid}`, d);
-
-// ── ISSUES
-API.getIssues   = (pid)     => API.call('GET',   `/issues/${pid}`);
-API.raiseIssue  = (pid, d)  => API.call('POST',  `/issues/${pid}`, d);
-API.confirmIssue= (id)      => API.call('PATCH', `/issues/${id}/confirm`);
-
 // ── MEETINGS (unified site visits + MOMs)
 API.getMeetings       = (pid)    => API.call('GET',   `/meetings/${pid}`);
 API.getMeetingActions = (id)     => API.call('GET',   `/meetings/${id}/action-items`);

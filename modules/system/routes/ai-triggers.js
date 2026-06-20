@@ -270,8 +270,8 @@ router.post('/settings', requireAuth, asyncHandler(async (req, res) => {
 // GET /api/ai/settings/active — public (authenticated) list of enabled features
 router.get('/settings/active', requireAuth, asyncHandler(async (req, res) => {
   const toggles = require('../../../services/ai-toggles');
-  const all = await toggles.getAll();
-  const active = Object.entries(all).filter(([,v]) => v).map(([k]) => k);
+  const all = await toggles.getAll(); // array of { feature_key, enabled, ... }
+  const active = all.filter(f => f.enabled).map(f => f.feature_key);
   res.json({ active });
 }));
 

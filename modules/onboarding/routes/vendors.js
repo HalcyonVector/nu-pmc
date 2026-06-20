@@ -881,7 +881,7 @@ router.post('/master/:id/onboard-link',
 // see Project B's vendor list, including bank details if their role is
 // in CLIENT_RATE_ROLES. Now: project scope enforced.
 router.get('/:project_id/engagements', requireAuth, requireProjectScope(),
-  requireRole('principal','design_principal','pmc_head','design_head','services_head','finance_admin','senior_site_manager','site_manager','team_lead','team_lead','coordinator'),
+  requireRole('principal','design_principal','pmc_head','design_head','services_head','finance_admin','senior_site_manager','site_manager','team_lead','coordinator','jr_architect','services_engineer','jr_engineer'),
   asyncHandler(async (req, res) => {
     const me        = req.session.user;
     const pid       = req.params.project_id;

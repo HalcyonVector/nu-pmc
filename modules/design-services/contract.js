@@ -381,13 +381,20 @@ module.exports = {
       if (Array.isArray(projectIds) && projectIds.length === 0) return 0;
       const cleanPids = projectIds ? projectIds.filter(Boolean) : null;
       const params = [];
-      // Count only the latest version per drawing (highest dv.id per drawing_id)
-      // to avoid inflated counts when multiple revisions sit at a pending status.
+      // Count only the is_current version per drawing — matches the filter used
+      // by GET /api/drawings/:pid which joins on dv.is_current = 1. Using MAX(dv.id)
+      // diverged when is_current was not the highest-ID row (e.g. after a reject/re-upload).
+      // Join projects to restrict to active/initialising only — mirrors the
+      // getActiveProjects() filter used to build APP.user.projects on the frontend.
+      // Without this, firm-wide roles (projectIds = null) counted drawings from
+      // completed projects that never appear in the portfolio view.
       let q = `SELECT COUNT(*) AS cnt
                FROM drawing_versions dv
                JOIN drawings d ON dv.drawing_id = d.id
+               JOIN projects p ON p.id = d.project_id
                WHERE dv.status IN (${statuses.map(()=>'?').join(',')})
-                 AND dv.id = (SELECT MAX(dv2.id) FROM drawing_versions dv2 WHERE dv2.drawing_id = dv.drawing_id)`;
+                 AND dv.is_current = 1
+                 AND p.status IN ('active','initialising')`;
       params.push(...statuses);
       if (cleanPids && cleanPids.length) {
         q += ` AND d.project_id IN (${cleanPids.map(()=>'?').join(',')})`;
@@ -398,7 +405,6 @@ module.exports = {
       return row?.cnt || 0;
     },
   },
-
   routes: {
     drawings:  require('./routes/drawings'),
     register:  require('./routes/register'),

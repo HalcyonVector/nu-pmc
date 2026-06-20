@@ -122,8 +122,7 @@ if (process.env.DISABLE_API_RATE_LIMIT !== '1') {
 
 // Login-specific rate limit — 10 attempts/15min per IP (brute-force defence).
 // Can be disabled for automated test runs that churn through many role logins
-// in quick succession. NEVER set this env var outside test/CI environments.
-// TEMP: limiter disabled while debugging local setup. Re-enable before deploy.
+// in quick succession (DISABLE_LOGIN_RATE_LIMIT=1). NEVER set outside test/CI.
 console.log(`Login rate limiter is ${process.env.DISABLE_LOGIN_RATE_LIMIT === '1' ? 'DISABLED' : 'ENABLED'}`);
 if (process.env.DISABLE_LOGIN_RATE_LIMIT !== '1') {
   const loginLimiter = rateLimit({

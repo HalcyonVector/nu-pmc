@@ -727,6 +727,12 @@ const APP = {
     // Today's Report — only fetched for site roles and only when a project
     // is selected (endpoint is project-scoped).
     let todayCard = '';
+    const siteProjects = (APP.user?.projects || []).filter(p => p.status === 'active' || !p.status);
+    // Auto-pick first active project for site managers if nothing selected
+    if (isSiteManager && !APP.state.selectedProject && siteProjects.length) {
+      APP.state.selectedProject = siteProjects[0].id;
+      APP._updateTopbar();
+    }
     if (isSiteManager && APP.state.selectedProject) {
       if (!APP._todayReportAt || (now - APP._todayReportAt) > 30000) {
         try {
@@ -757,7 +763,17 @@ const APP = {
         const flagNote = (t.state === 'flagged' && t.flag_reason)
           ? `<div style="font-size:11px;color:var(--red);margin-top:4px">Flag: ${UI.escapeText(t.flag_reason)}</div>`
           : '';
+        const projPickerHtml = siteProjects.length > 1
+          ? `<div style="position:relative;width:100%;margin-bottom:8px">
+              <select style="width:100%;padding:5px 30px 5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--white);cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;color:var(--text)"
+                onchange="APP.state.selectedProject=parseInt(this.value);APP._todayReportAt=0;APP._updateTopbar();APP._renderWorkPinned()">
+                ${siteProjects.map(p => `<option value="${p.id}" ${String(p.id)===String(APP.state.selectedProject)?'selected':''}>${UI.escapeText(p.name)}</option>`).join('')}
+              </select>
+              <div style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);font-size:11px">▼</div>
+            </div>`
+          : '';
         todayCard = `<div class="wp-card" style="border-left-color:var(--amber)">
+          ${projPickerHtml}
           <div class="wp-label">Today's Report</div>
           <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
             <span class="wp-row-label">${UI.escapeText(t.date || '')}</span>
@@ -781,7 +797,7 @@ const APP = {
       const chips = nyData.items.map(it => {
         const onclick = it.kind === 'radar'
           ? (it.project ? `APP._radarTap('${it.tab}',${it.project},${it.item || 'null'})` : `APP.switchTab('${it.tab}')`)
-          : `APP.switchTab('${it.tab}')`;
+          : `APP.openPendingChip('${it.tab}','${it.type}')`;
         const badge = it.kind === 'radar' ? '⚠' : it.count;
         return `<button class="pa-chip" onclick="${onclick}">
           <span class="pa-chip-label">${UI.escapeText(it.label)}</span>
@@ -852,6 +868,9 @@ const APP = {
     // a user list for picking an acting user. Server-side route exists
     // only when NODE_ENV=development. Using client-side detection of the
     // literal dev credentials avoids changing normal login behaviour.
+    // If dev-login is unavailable or doesn't return a user list, fall
+    // through to the normal /auth/login path so real users named 'user1'
+    // can still authenticate.
     try {
       if (u.toLowerCase() === 'user1' && p === 'Start@123') {
         const devRes = await API.post('/auth/dev-login', { username: u, password: p });
@@ -860,9 +879,8 @@ const APP = {
           APP._openDevPicker(devRes.users);
           return;
         }
-        // Fall through to normal error handling if dev-login failed
-        errEl.textContent = devRes?.error || 'Dev login failed';
-        return;
+        // dev-login exists but didn't return a user list — fall through to
+        // normal login so the real user1 account can still authenticate.
       }
     } catch (e) {
       // If dev-login route isn't present or errors, continue with normal login
@@ -1013,6 +1031,11 @@ Tomorrow: start formwork on next bay."
 
   switchTab(id) {
     APP.currentTab = id;
+    // Clear portfolio mode when navigating away from its originating tab
+    if (APP.state.portfolioMode && APP.state.portfolioMode !== id) {
+      APP.state.portfolioMode = null;
+      APP.state.portfolioPendingOnly = false;
+    }
     const ca = document.getElementById('content-area'); if (ca) ca.scrollTop = 0;
 
     // If DB-driven nav is active, ensure the bucket containing this tab is
@@ -1448,7 +1471,7 @@ Tomorrow: start formwork on next bay."
     const today = APP.state.serverToday || UI.todayIST();
     const date  = APP.state.selectedDate;
     const sub   = APP.state.scheduleView;
-    const pid   = APP.state.selectedProject || APP.user.projects?.[0]?.id;
+    const pid   = APP._ensurePid();
 
     if (!pid) { el.innerHTML = UI.empty('','No project assigned yet'); return; }
 
@@ -1462,34 +1485,41 @@ Tomorrow: start formwork on next bay."
       return;
     }
 
-    // Load dates with notes
+    // Load dates with notes — aggregate across all visible projects so the
+    // date-strip dots light up whenever any project has a note on that date.
+    const allPidsForNotes = APP._visibleProjects().map(p => p.id);
     const datesWithNotes = new Set();
     try {
-      const listRes = await API.call('GET', `/daily-reports/${pid}`);
-      const reports = listRes?.reports || [];
-      reports.forEach(r => {
-        if (r.overall_notes && r.overall_notes.trim()) {
-          let dStr = r.report_date;
-          if (dStr) {
-            if (typeof dStr === 'string') {
-              dStr = dStr.slice(0, 10);
-            } else if (dStr instanceof Date) {
-              dStr = dStr.toISOString().slice(0, 10);
+      const noteResults = await Promise.all(
+        allPidsForNotes.map(p => API.call('GET', `/daily-reports/${p}`).catch(() => null))
+      );
+      noteResults.forEach(listRes => {
+        (listRes?.reports || []).forEach(r => {
+          if (r.overall_notes && r.overall_notes.trim()) {
+            let dStr = r.report_date;
+            if (dStr) {
+              datesWithNotes.add(typeof dStr === 'string' ? dStr.slice(0, 10) : dStr.toISOString().slice(0, 10));
             }
-            datesWithNotes.add(dStr);
           }
-        }
+        });
       });
     } catch (e) {
       console.warn('Failed to load daily reports list:', e);
     }
 
-    // Pre-fetch the selected date's daily-report so the Site Notes textarea pre-fills
-    try {
-      const dr = await API.call('GET', `/daily-reports/${pid}/today?date=${date}`);
-      APP.state._scheduleNotesPrefill = dr?.notes || '';
-    } catch (e) {
-      APP.state._scheduleNotesPrefill = '';
+    // Pre-fetch site notes for today's date
+    APP.state._scheduleNotesPrefill = '';
+    const isSiteRoleForNotes = ['site_manager','senior_site_manager'].includes(APP.user?.role);
+    // Use allPidsForNotes.length (not multiProject which is defined later) to avoid TDZ error
+    const notesFetchPid = (isSiteRoleForNotes && allPidsForNotes.length > 1)
+      ? (APP.state._notesProjectId || allPidsForNotes[0])
+      : (allPidsForNotes.length === 1 ? pid : null);
+    if (notesFetchPid) {
+      APP.state._notesProjectId = notesFetchPid;
+      try {
+        const dr = await API.call('GET', `/daily-reports/${notesFetchPid}/today?date=${date}`);
+        APP.state._scheduleNotesPrefill = dr?.notes || '';
+      } catch (e) { /* ignore */ }
     }
 
     // Date strip (past 3 days, today, future 3 days)
@@ -1517,81 +1547,135 @@ Tomorrow: start formwork on next bay."
     }
     strip += '</div>';
 
-    const data = await API.getSchedule(pid, date);
-    const tasks = data?.tasks || [];
-    const byTrade = APP.groupByTrade(tasks);
+    const projects = APP._visibleProjects();
+    const multiProject = projects.length > 1;
 
-    // Build final HTML
-    let finalHtml = subTabs + strip;
-
-    // Flagged tasks section — shown to principals/PMC at the top (fetched across all dates)
-    const isPrincipalView = ['principal','design_principal','pmc_head'].includes(APP.user?.role || APP.user?.real_role);
-    if (isPrincipalView) {
-      try {
-        const flagData = await API.get(`/schedule/${pid}/flags`);
-        const flaggedTasks = flagData?.flags || [];
-        if (flaggedTasks.length) {
-          finalHtml += `<div class="sec-label" style="color:var(--red)">Flagged Tasks (${flaggedTasks.length})</div>`;
-          flaggedTasks.forEach(t => {
-            finalHtml += `<div class="action-item c-red" style="margin-bottom:6px">
-              <div class="ai-body">
-                <div class="ai-title">${t.task_name} (${t.trade || '—'})</div>
-                <div class="ai-meta">${t.flag_note || 'Auto-flagged: behind plan'} · ${t.pct_complete || 0}% · ${t.flagged_by_name || ''}</div>
-              </div>
-              <button class="btn-sm" onclick="APP.resolveFlag(${pid},${t.update_id})">Resolve</button>
-            </div>`;
-          });
-        }
-      } catch (_e) {}
+    // Fetch today's tasks — all projects in parallel when user has multiple projects,
+    // single fetch otherwise.
+    let projectResults; // [{project, tasks}]
+    if (multiProject) {
+      const fetches = await Promise.all(
+        projects.map(p => API.getSchedule(p.id, date).catch(() => null))
+      );
+      projectResults = projects.map((p, i) => ({ project: p, tasks: fetches[i]?.tasks || [] }));
+    } else {
+      const data = await API.getSchedule(pid, date);
+      projectResults = [{ project: projects[0] || { id: pid, name: '' }, tasks: data?.tasks || [] }];
     }
 
-    if (!tasks.length) {
-      finalHtml += UI.empty('','No tasks scheduled today');
-    } else {
-      const done2 = tasks.filter(t=>(APP.state.taskPct[t.id]??t.pct_complete??0)===100).length;
-      finalHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Tasks — ${date===today?'Today':UI.fmtDate(date)}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${done2}/${tasks.length} done</span>
-      </div>`;
-      Object.entries(byTrade).forEach(([trade,tlist])=>{
-        const col=TRADE_COLORS[trade]||'#5a5a5a';
-        const tdone=tlist.filter(t=>(APP.state.taskPct[t.id]??t.pct_complete??0)===100).length;
-        finalHtml+=`<div class="trade-group"><div class="trade-hdr">
-          <div class="trade-dot" style="background:${col}"></div>
-          <div class="trade-name">${trade}</div>
-          <div class="trade-prog">${tdone}/${tlist.length}</div>
-        </div>`;
-        tlist.forEach(t=>{
-          const pct2=APP.state.taskPct[t.id]??t.pct_complete??0;
-          const isDone2=pct2===100;
-          finalHtml+=`<div class="task-item${isDone2?' task-done':pct2>0?' task-progress':''}">
-            <div class="task-dot"></div>
-            <div style="flex:1">
-              <div class="task-name">${t.task_name}</div>
-              <div class="pct-wrap">
-                <input type="range" class="pct-slider" min="0" max="100" step="5" value="${pct2}"
-                  oninput="APP.liveUpdatePct(${t.id},${pid},'${date}',this)">
-                <div class="pct-val" id="pv-${t.id}">${pct2}%</div>
-              </div>
-              <div class="task-actions">
-                <button class="btn-sm${t.is_flagged?' flagged':''}" onclick="APP.toggleFlag(${t.id},${pid},'${date}',${t.update_id||'null'})">${t.is_flagged?'Flagged':'Flag'}</button>
-              </div>
+    // Aggregate totals for header label
+    const allTasks = projectResults.flatMap(r => r.tasks);
+
+    // Build final HTML — no project selector in TODAY (we show all projects together)
+    let finalHtml = subTabs + strip;
+
+    // Flagged tasks — principals/PMC see these at the top
+    const isPrincipalView = ['principal','design_principal','pmc_head'].includes(APP.user?.role || APP.user?.real_role);
+    if (isPrincipalView) {
+      // Fetch flags for each project and merge
+      const flagResults = await Promise.all(
+        projects.map(p => API.get(`/schedule/${p.id}/flags`).catch(() => null))
+      );
+      const allFlags = flagResults.flatMap((r, i) => (r?.flags || []).map(f => ({ ...f, _projectName: projects[i].name, _pid: projects[i].id })));
+      if (allFlags.length) {
+        finalHtml += `<div class="sec-label" style="color:var(--red)">Flagged Tasks (${allFlags.length})</div>`;
+        allFlags.forEach(t => {
+          const projLabel = multiProject ? `<span style="font-size:10px;color:var(--muted);font-family:var(--mono)"> · ${UI.escapeText(t._projectName)}</span>` : '';
+          finalHtml += `<div class="action-item c-red" style="margin-bottom:6px">
+            <div class="ai-body">
+              <div class="ai-title">${UI.escapeText(t.task_name)} (${t.trade || '—'})${projLabel}</div>
+              <div class="ai-meta">${t.flag_note || 'Auto-flagged: behind plan'} · ${t.pct_complete || 0}% · ${t.flagged_by_name || ''}</div>
             </div>
+            <button class="btn-sm" onclick="APP.resolveFlag(${t._pid},${t.update_id})">Resolve</button>
           </div>`;
         });
-        finalHtml+=`</div>`;
+      }
+    }
+
+    if (!allTasks.length) {
+      finalHtml += UI.empty('','No tasks scheduled today');
+    } else {
+      const totalDone = allTasks.filter(t => (APP.state.taskPct[t.id] ?? t.pct_complete ?? 0) === 100).length;
+      finalHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Tasks — ${date===today?'Today':UI.fmtDate(date)}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${totalDone}/${allTasks.length} done</span>
+      </div>`;
+
+      projectResults.forEach(({ project: proj, tasks }) => {
+        if (!tasks.length) return;
+        if (multiProject) {
+          finalHtml += `<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--navy);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">${UI.escapeText(proj.name)}</div>`;
+        }
+        const byTrade = APP.groupByTrade(tasks);
+        Object.entries(byTrade).forEach(([trade, tlist]) => {
+          const col = TRADE_COLORS[trade] || '#5a5a5a';
+          const tdone = tlist.filter(t => (APP.state.taskPct[t.id] ?? t.pct_complete ?? 0) === 100).length;
+          finalHtml += `<div class="trade-group"><div class="trade-hdr">
+            <div class="trade-dot" style="background:${col}"></div>
+            <div class="trade-name">${trade}</div>
+            <div class="trade-prog">${tdone}/${tlist.length}</div>
+          </div>`;
+          tlist.forEach(t => {
+            const pct2 = APP.state.taskPct[t.id] ?? t.pct_complete ?? 0;
+            const isDone2 = pct2 === 100;
+            finalHtml += `<div class="task-item${isDone2?' task-done':pct2>0?' task-progress':''}">
+              <div class="task-dot"></div>
+              <div style="flex:1">
+                <div class="task-name">${UI.escapeText(t.task_name)}</div>
+                <div class="pct-wrap">
+                  <input type="range" class="pct-slider" min="0" max="100" step="5" value="${pct2}"
+                    oninput="APP.liveUpdatePct(${t.id},${proj.id},'${date}',this)">
+                  <div class="pct-val" id="pv-${t.id}">${pct2}%</div>
+                </div>
+                <div class="task-actions">
+                  <button class="btn-sm${t.is_flagged?' flagged':''}" onclick="APP.toggleFlag(${t.id},${proj.id},'${date}',${t.update_id||'null'})">${t.is_flagged?'Flagged':'Flag'}</button>
+                </div>
+              </div>
+            </div>`;
+          });
+          finalHtml += `</div>`;
+        });
       });
     }
 
-    const isPast = date < today;
-    finalHtml+=`<div style="margin-top:16px">
-      <div class="field-row"><label class="field-label" for="schedule-site-notes">Site Notes</label>
-        <textarea id="schedule-site-notes" rows="3" placeholder="Work done, observations, blockers…"${isPast ? ' disabled' : ''}>${UI.escapeText(APP.state._scheduleNotesPrefill || '')}</textarea>
-      </div>
-      ${!isPast
-        ? `<button class="btn-primary" onclick="APP.saveScheduleNotes(${pid})">Save Notes</button>`
-        : `<div class="field-help" style="color:var(--muted);font-size:12px">Notes cannot be edited for past dates.</div>`}
-    </div>`;
+    // Site notes — always show for site roles (they enter notes per project).
+    // For non-site roles in multi-project mode, hide (notes are project-specific).
+    const isSiteRole = ['site_manager','senior_site_manager'].includes(APP.user?.role);
+    if (!multiProject || isSiteRole) {
+      const isPast = date < today;
+      if (multiProject && isSiteRole) {
+        // Multi-project: show project picker so it's clear which project the notes belong to
+        const notesPid = APP.state._notesProjectId || pid;
+        const projectOpts = APP._visibleProjects().map(p =>
+          `<option value="${p.id}"${p.id === notesPid ? ' selected' : ''}>${UI.escapeText(p.name)}</option>`
+        ).join('');
+        finalHtml += `<div style="margin-top:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <label class="field-label" style="margin-bottom:0;white-space:nowrap">Site Notes for</label>
+            <div style="position:relative;flex:1;min-width:0">
+              <select id="schedule-notes-project" onchange="APP.switchNotesProject(parseInt(this.value))" style="width:100%;font-size:13px;padding:4px 28px 4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);-webkit-appearance:none;-moz-appearance:none;appearance:none;cursor:pointer">
+                ${projectOpts}
+              </select>
+              <div style="position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);font-size:11px">▼</div>
+            </div>
+          </div>
+          <textarea id="schedule-site-notes" rows="3" placeholder="Work done, observations, blockers…"${isPast ? ' disabled' : ''}>${UI.escapeText(APP.state._scheduleNotesPrefill || '')}</textarea>
+          ${!isPast
+            ? `<button class="btn-primary" style="margin-top:6px" onclick="APP.saveScheduleNotes(APP.state._notesProjectId)">Save Notes</button>`
+            : `<div class="field-help" style="color:var(--muted);font-size:12px;margin-top:4px">Notes cannot be edited for past dates.</div>`}
+        </div>`;
+      } else {
+        finalHtml += `<div style="margin-top:16px">
+          <div class="field-row"><label class="field-label" for="schedule-site-notes">Site Notes</label>
+            <textarea id="schedule-site-notes" rows="3" placeholder="Work done, observations, blockers…"${isPast ? ' disabled' : ''}>${UI.escapeText(APP.state._scheduleNotesPrefill || '')}</textarea>
+          </div>
+          ${!isPast
+            ? `<button class="btn-primary" onclick="APP.saveScheduleNotes(${pid})">Save Notes</button>`
+            : `<div class="field-help" style="color:var(--muted);font-size:12px">Notes cannot be edited for past dates.</div>`}
+        </div>`;
+      }
+    }
+
     el.innerHTML = finalHtml;
   },
 
@@ -1612,6 +1696,36 @@ Tomorrow: start formwork on next bay."
     } else {
       UI.toast(res?.error || 'Could not save notes');
     }
+  },
+
+  // Switch which project's notes are shown in the multi-project site notes selector
+  async switchNotesProject(pid) {
+    APP.state._notesProjectId = pid;
+    const date = APP.state.selectedDate;
+    try {
+      const dr = await API.call('GET', `/daily-reports/${pid}/today?date=${date}`);
+      const ta = document.getElementById('schedule-site-notes');
+      if (ta) ta.value = dr?.notes || '';
+      APP.state._scheduleNotesPrefill = dr?.notes || '';
+    } catch (e) {
+      /* leave textarea as-is if fetch fails */
+    }
+  },
+
+  // ── Pending Actions chip tap ──────────────────────────────────────────────
+  // For tabs that support cross-project portfolio view (drawings, submittals),
+  // set portfolioMode so renderDrawings/renderSubmittals show pending items
+  // across all projects instead of the last-selected single project.
+  openPendingChip(tab, type) {
+    const portfolioTabs = ['drawings', 'submittals'];
+    if (portfolioTabs.includes(tab) && APP._visibleProjects().length > 1) {
+      APP.state.portfolioMode = tab;   // e.g. 'drawings'
+      APP.state.portfolioPendingOnly = true;
+    } else {
+      APP.state.portfolioMode = null;
+      APP.state.portfolioPendingOnly = false;
+    }
+    APP.switchTab(tab);
   },
 
   liveUpdatePct(taskId, pid, date, input) {
@@ -1702,9 +1816,9 @@ Tomorrow: start formwork on next bay."
       
       if (!tasks.length) {
         const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-        let emptyHtml = `
+        let emptyHtml = APP._projectSelectHtml('APP.state.scheduleView=\'ahead\';APP.renderSchedule()') + `
           <div style="text-align:center;padding:40px;color:var(--muted)">
-            <p style="margin-bottom:16px;">No tasks scheduled yet. Create your first task to get started.</p>
+            <p style="margin-bottom:16px;">No tasks scheduled yet. Upload a schedule to see look-ahead tasks.</p>
             <button class="btn-primary" style="padding:10px 20px;font-size:13px;" onclick="document.getElementById('task-create-dialog').style.display='flex'">
               + Schedule Task
             </button>
@@ -1778,8 +1892,12 @@ Tomorrow: start formwork on next bay."
       const startOfWeekStr = startOfWeek.toLocaleDateString('en-CA');
       const endOfWeekStr = endOfWeek.toLocaleDateString('en-CA');
       
+      // "Active" = not yet complete and end_date hasn't passed (includes in-progress tasks
+      // that have already started but whose end_date is today or in the future).
+      // This ensures tasks like "started Jun 2, ends Aug 1" aren't lost in a gap between
+      // "upcoming" (start_date >= today) and "overdue" (end_date < today).
       const dynMetrics = {
-        upcoming: tasks.filter(t => t.start_date >= todayStr).length,
+        upcoming: tasks.filter(t => t.pct_complete < 100 && t.end_date >= todayStr).length,
         dueThisWeek: tasks.filter(t => t.end_date >= startOfWeekStr && t.end_date <= endOfWeekStr && t.pct_complete < 100).length,
         overdue: tasks.filter(t => t.end_date < todayStr && t.pct_complete < 100).length,
         completedThisWeek: metrics?.completedThisWeek || 0
@@ -1843,23 +1961,23 @@ Tomorrow: start formwork on next bay."
       ).join('');
       
       // Render layout HTML
-      let html = `
+      let html = APP._projectSelectHtml('APP.state.scheduleView=\'ahead\';APP.renderSchedule()') + `
         <!-- Metrics Grid -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:20px;">
-          <div style="background:#f4f7fa;border:1px solid #d4dce5;border-radius:var(--r);padding:14px;text-align:center;">
-            <div style="font-size:22px;font-weight:700;color:var(--navy);margin-bottom:4px;">${dynMetrics.upcoming}</div>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:4px;">${dynMetrics.upcoming}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Upcoming Tasks</div>
           </div>
-          <div style="background:#fcf8e3;border:1px solid #faebcc;border-radius:var(--r);padding:14px;text-align:center;">
-            <div style="font-size:22px;font-weight:700;color:#8a6d3b;margin-bottom:4px;">${dynMetrics.dueThisWeek}</div>
+          <div style="background:rgba(218,165,32,0.12);border:1px solid rgba(218,165,32,0.3);border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:var(--amber);margin-bottom:4px;">${dynMetrics.dueThisWeek}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Due This Week</div>
           </div>
-          <div style="background:#f2dede;border:1px solid #ebccd1;border-radius:var(--r);padding:14px;text-align:center;">
-            <div style="font-size:22px;font-weight:700;color:#a94442;margin-bottom:4px;">${dynMetrics.overdue}</div>
+          <div style="background:rgba(200,112,96,0.12);border:1px solid rgba(200,112,96,0.3);border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:#C87060;margin-bottom:4px;">${dynMetrics.overdue}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Overdue Tasks</div>
           </div>
-          <div style="background:#dff0d8;border:1px solid #d6e9c6;border-radius:var(--r);padding:14px;text-align:center;">
-            <div style="font-size:22px;font-weight:700;color:#3c763d;margin-bottom:4px;">${dynMetrics.completedThisWeek}</div>
+          <div style="background:rgba(12,166,120,0.12);border:1px solid rgba(12,166,120,0.3);border-radius:var(--r);padding:14px;text-align:center;">
+            <div style="font-size:22px;font-weight:700;color:var(--green);margin-bottom:4px;">${dynMetrics.completedThisWeek}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Completed This Week</div>
           </div>
         </div>
@@ -2034,7 +2152,7 @@ Tomorrow: start formwork on next bay."
   // ── SCHEDULE VIEW (PMC / Admin)
   async renderScheduleView() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getSchedule(pid);
@@ -2042,7 +2160,7 @@ Tomorrow: start formwork on next bay."
     const tasks = data?.tasks || [];
     const byTrade = APP.groupByTrade(tasks);
 
-    let html = '';
+    let html = APP._projectSelectHtml('APP.renderScheduleView()');
     if (ver) {
       html += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
         <span class="badge b-blue">Schedule ${ver.label}</span>
@@ -2124,7 +2242,11 @@ Tomorrow: start formwork on next bay."
   // ── DRAWINGS
   async renderDrawings() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject || APP.user.projects?.[0]?.id;
+    // Portfolio mode: show pending drawings across all projects
+    if (APP.state.portfolioMode === 'drawings') {
+      return APP._renderDrawingsPortfolio(el);
+    }
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getDrawings(pid);
@@ -2135,6 +2257,7 @@ Tomorrow: start formwork on next bay."
                        'design_head','services_head','principal','design_principal'].includes(role);
 
     let html = '<div class="drawings-page">';
+    html += APP._projectSelectHtml('APP.renderDrawings()');
 
     if (canUpload) {
       html += `<div style="margin-bottom:16px;background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px">
@@ -2214,6 +2337,63 @@ Tomorrow: start formwork on next bay."
     el.innerHTML = html;
   },
 
+  // ── Cross-project pending drawings portfolio ─────────────────────────────
+  async _renderDrawingsPortfolio(el) {
+    UI.loading(el);
+    const role = APP.user.role;
+    const projects = APP._visibleProjects();
+    const pendingStatuses = new Set(['pending_l1','pending_l2']);
+
+    // Determine which status this role cares about
+    const myStatuses = role === 'design_head'   ? ['pending_l2'] :
+                       role === 'services_head' ? ['pending_l1'] :
+                       role === 'team_lead'      ? ['pending_l1'] :
+                       ['pending_l1','pending_l2'];
+
+    // Fetch all projects in parallel
+    const results = await Promise.all(
+      projects.map(p => API.getDrawings(p.id).then(d => ({ p, drawings: d?.drawings || [] })))
+    );
+
+    const role_stream = role === 'services_head' ? 'services' : 'design';
+    let totalPending = 0;
+    let html = '<div class="drawings-page">';
+
+    // Header row with exit button
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px">
+      <div>
+        <div style="font-weight:700;font-size:15px;color:var(--navy)">Pending Review — All Projects</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Drawings awaiting your action across all projects</div>
+      </div>
+      <button class="btn-sm" onclick="APP.state.portfolioMode=null;APP.state.portfolioPendingOnly=false;APP.renderDrawings()" style="flex-shrink:0">View by Project ▾</button>
+    </div>`;
+
+    for (const { p, drawings } of results) {
+      // Filter to pending drawings this role can act on
+      const pending = drawings.filter(d => {
+        if (!myStatuses.includes(d.version_status)) return false;
+        // Stream-scoped roles only see their stream
+        if (['design_head','services_head','team_lead'].includes(role) && d.stream !== role_stream) return false;
+        return true;
+      });
+      if (!pending.length) continue;
+      totalPending += pending.length;
+
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px">
+        <div class="sec-label" style="margin:0">${UI.escapeText(p.name)}</div>
+        <button class="btn-sm" onclick="APP.state.portfolioMode=null;APP.state.portfolioPendingOnly=false;APP.state.selectedProject=${p.id};APP._updateTopbar();APP.renderDrawings()" style="font-size:11px">All drawings →</button>
+      </div>`;
+      pending.forEach(d => { html += APP.drawingCard(d, role, p.id); });
+    }
+
+    if (!totalPending) {
+      html += UI.empty('✓', 'No pending drawings across any project');
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+  },
+
   drawingCard(d, role, pid) {
     const isPending = d.version_status?.startsWith('pending');
     const isIssued  = d.version_status === 'issued';
@@ -2230,25 +2410,33 @@ Tomorrow: start formwork on next bay."
       ? (d.stream === 'design' ? 'Team Lead' : 'Services Head')
       : d.version_status === 'pending_l2' ? 'Design Head' : '';
 
-    return `<div class="drawing-item${myTurn?' '+''  :''}" style="${myTurn?'border-color:var(--steel)':''}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
-        <div>
-          <div class="di-num">${d.drawing_number}</div>
-          <div class="di-name">${d.drawing_name}</div>
-          <div class="di-meta">${d.category} · ${d.project_id} · ${d.uploaded_at?.split('T')[0]||''} · ${d.uploaded_by_name||''}</div>
+    const hasFooter = d.view_url || isIssued || myTurn || (isSite && isIssued) ||
+      (!isIssued && ['principal','design_principal','design_head','services_head'].includes(role));
+    return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px${myTurn?';border-color:var(--steel)':''}">
+      <div style="padding:14px 16px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--navy)">${UI.escapeText(d.drawing_number)}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(d.drawing_name)}</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px">${UI.escapeText(d.category)} · ${d.uploaded_at?.split('T')[0]||''} · ${UI.escapeText(d.uploaded_by_name||'')}</div>
+          </div>
+          <span class="di-rev ${isIssued?'rev-issued':isPending?'rev-pending':'rev-superseded'}" style="flex-shrink:0;white-space:nowrap">${UI.escapeText(d.revision)}${isPending?' · pending':''}</span>
         </div>
-        <div class="di-rev ${isIssued?'rev-issued':isPending?'rev-pending':'rev-superseded'}">${d.revision}${isPending?' · pending':''}</div>
+        ${d.notes ? `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:8px;padding:7px 10px;background:var(--bg);border-radius:6px;border-left:2px solid var(--border)">${UI.escapeText(d.notes)}</div>` : ''}
+        ${awaiting && !myTurn ? `<div style="font-size:11px;color:var(--muted);margin-top:7px;display:flex;align-items:center;gap:4px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Awaiting ${awaiting}
+        </div>` : ''}
       </div>
-      ${d.notes?`<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${d.notes}</div>`:''}
-      ${awaiting&&!myTurn?`<div style="font-size:10px;color:var(--muted);margin-bottom:6px">Awaiting: ${awaiting}</div>`:''}
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${d.view_url?`<a class="btn-sm" href="${d.view_url}" target="_blank">View PDF</a>`:''}
-        ${isIssued?'<span class="badge b-green">Issued</span>':''}
-        ${myTurn?`<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${role === 'team_lead'?'Mark Reviewed':'Approve & Issue'}</button>
-          <button class="btn-sm reject" onclick="APP.rejectDrawing(${d.version_id})">Reject</button>`:''}
-        ${isSite && isIssued?`<button class="btn-sm query" onclick="APP.raiseQueryForDrawing(${d.version_id},'${d.drawing_number} ${d.revision}',${pid})">Raise Query</button>`:''}
-        ${!isIssued && ['principal','design_principal','design_head','services_head'].includes(role) ? `<button class="btn-sm" style="color:#C84040;font-size:10px" onclick="APP.deleteDrawing(${d.version_id})">Delete</button>` : ''}
-      </div>
+      ${hasFooter ? `<div style="border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--bg)">
+        ${d.view_url ? `<a class="btn-sm" href="${d.view_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>View PDF</a>` : ''}
+        ${isIssued ? '<span class="btn-sm approve" style="cursor:default;pointer-events:none;text-transform:uppercase;letter-spacing:.05em">Issued</span>' : ''}
+        ${myTurn ? `<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${role === 'team_lead' ? 'Mark Reviewed' : 'Approve & Issue'}</button>
+          <button class="btn-sm reject" onclick="APP.rejectDrawing(${d.version_id})">Reject</button>` : ''}
+        ${isSite && isIssued ? `<button class="btn-sm query" onclick="APP.raiseQueryForDrawing(${d.version_id},'${UI.escapeAttr(d.drawing_number)} ${UI.escapeAttr(d.revision)}',${pid})">Raise Query</button>` : ''}
+        ${!isIssued && ['principal','design_principal','design_head','services_head'].includes(role) ? `<button class="btn-sm" style="color:var(--red)" onclick="APP.deleteDrawing(${d.version_id})">Delete</button>` : ''}
+      </div>` : ''}
     </div>`;
   },
 
@@ -2441,7 +2629,7 @@ Tomorrow: start formwork on next bay."
   // ── DRAWING REGISTER
   async renderRegister() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     const role = APP.user?.role;
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
@@ -2472,6 +2660,7 @@ Tomorrow: start formwork on next bay."
 
     let html = `
       <div class="drawings-page">
+      ${APP._projectSelectHtml('APP.renderRegister()')}
       <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Drawing Register</div>
         <div style="font-size:13px;color:#666;line-height:1.5">Master list of every main drawing expected on this project. Uploaded at project initiation by PMC Head (design) and Services Head (services). Only drawings on the register can be uploaded as <strong>main</strong>.</div>
@@ -3017,18 +3206,20 @@ Tomorrow: start formwork on next bay."
 
     // ── WA failure alert (IT Admin / Principal) — shown FIRST if present
     if (waFails.length) {
-      html += `<div class="sec-label" style="color:var(--red)">WhatsApp delivery failures</div>`;
-      waFails.slice(0,5).forEach(f => {
-        html += `<div class="wa-fail-card">
-          <div class="wa-fail-title">${f.count} messages failed to send${f.oldest ? ` — oldest ${f.oldest}` : ''}</div>
-          <div class="wa-fail-meta">Type: ${f.message_type || 'various'} · Check Twilio dashboard</div>
-        </div>`;
-      });
-      html += `<div class="action-item c-red" style="margin-bottom:16px">
-        <div class="ai-icon">📵</div>
-        <div class="ai-body">
-          <div class="ai-title">WhatsApp not delivering</div>
-          <div class="ai-meta">Users will not receive notifications until resolved. Team can still use the app normally.</div>
+      html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;border-left:3px solid var(--red)">
+        <div style="padding:12px 16px;display:flex;align-items:center;gap:12px">
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(200,112,96,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">📵</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:var(--red)">WhatsApp delivery failures</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Users won't receive notifications until resolved. The app still works normally.</div>
+          </div>
+        </div>
+        ${waFails.slice(0,5).map(f => `<div style="border-top:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;color:var(--text);font-weight:500">${f.count} messages failed${f.oldest ? ` — oldest ${f.oldest}` : ''}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${f.message_type || 'various'}</span>
+        </div>`).join('')}
+        <div style="border-top:1px solid var(--border);padding:8px 16px;background:var(--bg)">
+          <span style="font-size:11px;color:var(--muted)">Check Twilio dashboard to resolve</span>
         </div>
       </div>`;
     }
@@ -3043,11 +3234,11 @@ Tomorrow: start formwork on next bay."
     // Summary stat row (include flags in the count)
     const pendingTotal = blocked.length + needsYou.length + navDrafts.length;
     html += `<div class="stat-row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:16px">
-      <div class="stat-card">
+      <div class="stat-card" style="${blocked.length ? 'cursor:pointer' : ''}" onclick="${blocked.length ? "document.getElementById('pending-blocked-section')?.scrollIntoView({behavior:'smooth'})" : ''}">
         <span class="stat-val ${blocked.length?'red':''}">${blocked.length}</span>
         <span class="stat-lbl">Blocked</span>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" style="${(needsYou.length+navDrafts.length) ? 'cursor:pointer' : ''}" onclick="${(needsYou.length+navDrafts.length) ? "document.getElementById('pending-needs-you-section')?.scrollIntoView({behavior:'smooth'})" : ''}">
         <span class="stat-val ${(needsYou.length+navDrafts.length)?'navy':''}">${needsYou.length + navDrafts.length}</span>
         <span class="stat-lbl">Needs You</span>
       </div>
@@ -3059,8 +3250,10 @@ Tomorrow: start formwork on next bay."
 
     // ── Open Flags summary (shown in Pending tab as a call-to-action)
     if (openFlagsAll.length) {
-      html += `<div class="sec-label" style="color:var(--red)">⚑ Open Site Flags (${openFlagsAll.length})</div>`;
-      // Group by project
+      html += `<div class="sec-label" style="margin-bottom:8px">
+        <span style="color:var(--red);margin-right:4px">⚑</span> Open Site Flags
+        <span style="background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;font-family:var(--mono);margin-left:6px">${openFlagsAll.length}</span>
+      </div>`;
       const flagsByProject = {};
       openFlagsAll.forEach(f => {
         if (!flagsByProject[f.project_id]) flagsByProject[f.project_id] = { name: f.project_name, flags: [] };
@@ -3068,37 +3261,43 @@ Tomorrow: start formwork on next bay."
       });
       Object.values(flagsByProject).forEach(grp => {
         const first = grp.flags[0];
-        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--red);width:100%;text-align:left"
+        html += `<button class="card" style="padding:0;overflow:hidden;margin-bottom:8px;border-left:3px solid var(--red);width:100%;text-align:left;cursor:pointer"
                      onclick="APP.state.flagFilterProject=${grp.flags[0].project_id};APP.switchTab('flags')">
-          <div class="card-title" style="font-size:13px;color:var(--red)">${UI.escapeText(grp.name)}</div>
-          <div class="card-meta">${grp.flags.length} open flag${grp.flags.length===1?'':'s'} · ${UI.escapeText((first.flag_note||'').substring(0,60))}${(first.flag_note||'').length>60?'…':''}</div>
+          <div style="padding:12px 16px">
+            <div style="font-weight:600;font-size:13px;color:var(--red)">${UI.escapeText(grp.name)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${grp.flags.length} open flag${grp.flags.length===1?'':'s'}${first.flag_note ? ' · ' + UI.escapeText((first.flag_note).substring(0,60)) + ((first.flag_note).length>60?'…':'') : ''}</div>
+          </div>
         </button>`;
       });
-      html += `<button class="btn-sm" style="width:100%;margin-bottom:16px" onclick="APP.state.flagFilterProject=null;APP.switchTab('flags')">View all flags →</button>`;
+      html += `<button class="btn-sm" style="width:100%;margin-bottom:16px;justify-content:center" onclick="APP.state.flagFilterProject=null;APP.switchTab('flags')">View all flags →</button>`;
     }
 
     // ── Nav change drafts (Principal only) — shown first since they're rare + urgent
     if (navDrafts.length) {
-      html += `<div class="sec-label">🧭 Nav change proposals</div>`;
+      html += `<div class="sec-label" style="margin-bottom:8px">Nav change proposals</div>`;
       navDrafts.forEach(d => {
-        // Build a plain-English diff: current vs proposed
         const cur  = (d.current || []).map(r => `${r.bucket}.${r.tab_key}`);
         const next = (d.items  || []).map(r => `${r.bucket}.${r.tab_key}`);
         const added   = next.filter(k => !cur.includes(k));
         const removed = cur.filter(k => !next.includes(k));
-        const summary = (added.length || removed.length)
-          ? `+${added.length} / −${removed.length} tabs`
-          : 'Reorder only';
+        const summary = (added.length || removed.length) ? `+${added.length} / −${removed.length} tabs` : 'Reorder only';
 
-        html += `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--navy)">
-          <div class="card-title" style="font-size:13px">Nav for <b>${d.role.replace(/_/g,' ')}</b></div>
-          <div class="card-meta">Proposed by ${UI.escapeText(d.proposed_by)} · ${UI.fmtDate(d.proposed_at)} · ${summary}</div>
-          ${d.note ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;padding:6px 8px;background:var(--bg);border-radius:3px">${UI.escapeText(d.note)}</div>`:''}
-          ${added.length   ? `<div style="font-size:11px;color:var(--green);margin-top:4px">Added: ${added.join(', ')}</div>`:''}
-          ${removed.length ? `<div style="font-size:11px;color:var(--red);margin-top:4px">Removed: ${removed.join(', ')}</div>`:''}
-          <div class="btn-row" style="margin-top:10px">
-            <button class="btn-approve" onclick="APP.approveNavDraft(${d.draft_group_id})">Approve</button>
-            <button class="btn-reject" onclick="APP.rejectNavDraft(${d.draft_group_id})">Reject</button>
+        html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;border-left:3px solid var(--navy)">
+          <div style="padding:14px 16px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
+              <div>
+                <div style="font-weight:700;font-size:13px;color:var(--navy)">Nav for <span style="text-transform:capitalize">${d.role.replace(/_/g,' ')}</span></div>
+                <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px">Proposed by ${UI.escapeText(d.proposed_by)} · ${UI.fmtDate(d.proposed_at)}</div>
+              </div>
+              <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;background:#EEF2FF;color:var(--navy);font-family:var(--mono);flex-shrink:0">${summary}</span>
+            </div>
+            ${d.note ? `<div style="font-size:12px;color:var(--text);font-style:italic;padding:7px 10px;background:var(--bg);border-radius:6px;border-left:2px solid var(--border);margin-bottom:6px">${UI.escapeText(d.note)}</div>`:''}
+            ${added.length ? `<div style="font-size:11px;color:var(--green);font-family:var(--mono);margin-top:4px">+ ${added.join(', ')}</div>`:''}
+            ${removed.length ? `<div style="font-size:11px;color:var(--red);font-family:var(--mono);margin-top:2px">− ${removed.join(', ')}</div>`:''}
+          </div>
+          <div style="border-top:1px solid var(--border);padding:10px 16px;background:var(--bg);display:flex;gap:8px">
+            <button class="btn-sm approve" onclick="APP.approveNavDraft(${d.draft_group_id})">Approve</button>
+            <button class="btn-sm reject" onclick="APP.rejectNavDraft(${d.draft_group_id})">Reject</button>
           </div>
         </div>`;
       });
@@ -3106,25 +3305,36 @@ Tomorrow: start formwork on next bay."
 
     // ── Blocked section — items overdue in others' queues
     if (blocked.length) {
-      html += `<div class="sec-label">Blocked — waiting on others</div>`;
+      html += `<div class="sec-label" id="pending-blocked-section" style="margin-bottom:8px">Waiting on others</div>`;
       blocked.forEach(b => {
-        const ageStyle = b.age_days >= 7 ? 'color:var(--red)' : b.age_days >= 3 ? 'color:var(--amber)' : 'color:var(--muted)';
-        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left"
-                     onclick="APP.switchTab('${b.tab}')">
-          <div class="card-title" style="font-size:13px">${UI.escapeText(b.label)}</div>
-          <div class="card-meta" style="${ageStyle}">${UI.escapeText(b.sub)}</div>
+        const isOld = b.age_days >= 7;
+        const isMid = b.age_days >= 3 && !isOld;
+        const ageColor = isOld ? 'var(--red)' : isMid ? 'var(--amber)' : 'var(--muted)';
+        html += `<button class="card" style="padding:12px 16px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left;border-left:3px solid var(--border)"
+                     onclick="APP._tryNav('${b.tab}')">
+          <div style="font-weight:600;font-size:13px;color:var(--text)">${UI.escapeText(b.label)}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:${ageColor};margin-top:4px">${UI.escapeText(b.sub)}</div>
         </button>`;
       });
     }
 
     // ── Needs You section — items routed to you
     if (needsYou.length) {
-      html += `<div class="sec-label" style="margin-top:14px">Needs your action</div>`;
+      html += `<div class="sec-label" id="pending-needs-you-section" style="margin-top:16px;margin-bottom:8px">Needs your action</div>`;
       needsYou.forEach(n => {
-        html += `<button class="card" style="min-height:44px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--navy);width:100%;text-align:left"
-                     onclick="APP.switchTab('${n.tab}')">
-          <div class="card-title" style="font-size:13px">${UI.escapeText(n.label)}</div>
-          <div class="card-meta">${UI.escapeText(n.sub)}</div>
+        const onclick = n.project_id
+          ? `APP.state.selectedProject=${n.project_id};APP.switchTab('${n.tab}')`
+          : `APP.switchTab('${n.tab}')`;
+        html += `<button class="card" style="padding:0;overflow:hidden;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--navy);width:100%;text-align:left"
+                     onclick="${onclick}">
+          <div style="padding:12px 16px;display:flex;align-items:center;gap:12px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--navy);flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;color:var(--navy)">${UI.escapeText(n.label)}</div>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px">${UI.escapeText(n.sub)}</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
         </button>`;
       });
     }
@@ -3172,25 +3382,38 @@ Tomorrow: start formwork on next bay."
       ? allFlags.filter(f => f.project_id === filterPid)
       : allFlags;
 
-    // Build project filter chips
+    // Build project filter — "All" pill + dropdown for individual projects (scales to any count)
     const totalCount = allFlags.length;
-    let filterHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">`;
-    filterHtml += `<button class="chip${!filterPid ? ' active' : ''}" onclick="APP.state.flagFilterProject=null;APP.renderFlags()" style="font-size:12px">All (${totalCount})</button>`;
-    projects.forEach(p => {
-      const cnt = allFlags.filter(f => f.project_id === p.id).length;
-      const isActive = filterPid === p.id;
-      filterHtml += `<button class="chip${isActive ? ' active' : ''}" onclick="APP.state.flagFilterProject=${p.id};APP.renderFlags()" style="font-size:12px">${UI.escapeText(p.name)} (${cnt})</button>`;
-    });
-    filterHtml += `</div>`;
+    const selectedName = filterPid ? (projectMap[filterPid] || '') : '';
+    const filterHtml = `<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <button style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid ${!filterPid?'var(--navy)':'var(--border)'};background:${!filterPid?'var(--navy)':'var(--bg)'};border-radius:20px;cursor:pointer;font-size:12px;font-weight:${!filterPid?'700':'500'};color:${!filterPid?'var(--white)':'var(--text)'};white-space:nowrap"
+        onclick="APP.state.flagFilterProject=null;APP.renderFlags()">All <span style="background:${!filterPid?'rgba(255,255,255,0.25)':'var(--navy)'};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;font-family:var(--mono)">${totalCount}</span>
+      </button>
+      ${projects.length > 0 ? `<div style="position:relative;display:inline-flex;align-items:center">
+        <select onchange="const v=this.value;APP.state.flagFilterProject=v?parseInt(v):null;APP.renderFlags()"
+          style="appearance:none;-webkit-appearance:none;padding:5px 32px 5px 12px;border:1px solid ${filterPid?'var(--navy)':'var(--border)'};background:${filterPid?'var(--navy)':'var(--bg)'};color:${filterPid?'var(--white)':'var(--text)'};border-radius:20px;font-size:12px;font-weight:${filterPid?'700':'500'};cursor:pointer;font-family:var(--sans);min-width:0;max-width:180px">
+          <option value="">Project…</option>
+          ${projects.map(p => {
+            const cnt = allFlags.filter(f => f.project_id === p.id).length;
+            return `<option value="${p.id}" ${filterPid===p.id?'selected':''}>${UI.escapeText(p.name)} (${cnt})</option>`;
+          }).join('')}
+        </select>
+        <span style="position:absolute;right:10px;pointer-events:none;font-size:10px;color:${filterPid?'var(--white)':'var(--muted)'}">▾</span>
+      </div>` : ''}
+    </div>`;
 
     // Header
     let html = `
-      <div class="sec-label" style="display:flex;align-items:center;gap:8px">
-        <span style="color:var(--red)">⚑</span>
-        Open Flags (${displayFlags.length})
-        ${filterPid ? `<span style="font-size:11px;color:var(--muted);font-weight:400">— ${projectMap[filterPid] || ''}</span>` : ''}
-      </div>
-      ${filterHtml}`;
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:var(--navy);display:flex;align-items:center;gap:8px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            Open Flags${displayFlags.length ? ` <span style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;font-family:var(--mono)">${displayFlags.length}</span>` : ''}
+          </div>
+          ${filterPid ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${UI.escapeText(projectMap[filterPid] || '')}</div>` : ''}
+        </div>
+        ${filterHtml}
+      </div>`;
 
     if (!displayFlags.length) {
       html += UI.empty('✓', filterPid ? 'No open flags for this project' : 'No open flags — all clear');
@@ -3205,31 +3428,33 @@ Tomorrow: start formwork on next bay."
       Object.values(grouped).forEach(grp => {
         // Only show project header if showing multiple projects
         if (!filterPid && projects.length > 1) {
-          html += `<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase;margin:14px 0 8px">${UI.escapeText(grp.name)}</div>`;
+          html += `<div class="sec-label" style="margin:16px 0 8px">${UI.escapeText(grp.name)}</div>`;
         }
 
         grp.flags.forEach(f => {
           const daysAgo = f.report_date ? Math.round((Date.now() - new Date(f.report_date)) / 86400000) : null;
           const ageStr = daysAgo !== null ? (daysAgo === 0 ? 'Today' : `${daysAgo}d ago`) : '';
-          const tradeBadge = f.trade ? `<span style="font-size:10px;background:rgba(200,112,96,0.15);color:var(--red);padding:2px 6px;border-radius:10px;font-weight:600">${UI.escapeText(f.trade)}</span>` : '';
-          const pctBadge = `<span style="font-size:10px;color:var(--muted)">${f.pct_complete || 0}% done</span>`;
+          const isOld = daysAgo !== null && daysAgo >= 3;
 
-          html += `<div class="action-item c-red" style="margin-bottom:10px;border-left:3px solid var(--red)">
-            <div class="ai-body" style="flex:1">
-              <div class="ai-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                ${UI.escapeText(f.task_name)}
-                ${tradeBadge}
+          html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;border-left:3px solid var(--red)">
+            <div style="padding:14px 16px">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:14px;color:var(--text);line-height:1.35">${UI.escapeText(f.task_name)}</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+                    ${f.trade ? `<span style="font-size:10px;background:rgba(200,112,96,0.15);color:var(--red);padding:2px 7px;border-radius:20px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px">${UI.escapeText(f.trade)}</span>` : ''}
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${f.pct_complete || 0}% complete</span>
+                    ${ageStr ? `<span style="font-family:var(--mono);font-size:11px;color:${isOld?'var(--red)':'var(--muted)'};font-weight:${isOld?'700':'400'}">${ageStr}</span>` : ''}
+                  </div>
+                </div>
+                <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;background:${isOld?'rgba(200,112,96,0.12)':'rgba(255,193,7,0.12)'};color:${isOld?'var(--red)':'var(--amber)'};font-family:var(--mono);flex-shrink:0;white-space:nowrap">FLAG</span>
               </div>
-              <div class="ai-meta" style="margin-top:4px;line-height:1.5">
-                ${UI.escapeText(f.flag_note || 'Auto-flagged: behind plan')}
-              </div>
-              <div style="display:flex;gap:10px;margin-top:6px;align-items:center">
-                ${pctBadge}
-                ${f.flagged_by_name ? `<span style="font-size:10px;color:var(--muted)">by ${UI.escapeText(f.flagged_by_name)}</span>` : ''}
-                ${ageStr ? `<span style="font-size:10px;color:var(--muted)">${ageStr}</span>` : ''}
-              </div>
+              ${f.flag_note ? `<div style="font-size:12px;color:var(--text);font-style:italic;padding:7px 10px;background:var(--bg);border-radius:6px;border-left:2px solid var(--red);line-height:1.5">${UI.escapeText(f.flag_note)}</div>` : ''}
+              ${f.flagged_by_name ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)">Flagged by ${UI.escapeText(f.flagged_by_name)}${f.project_name && !filterPid ? ' · ' + UI.escapeText(f.project_name) : ''}</div>` : ''}
             </div>
-            <button class="btn-sm" style="flex-shrink:0;margin-left:8px" onclick="APP.resolveFlag(${f.project_id},${f.update_id})">Resolve</button>
+            <div style="border-top:1px solid var(--border);padding:10px 16px;background:var(--bg)">
+              <button class="btn-sm approve" onclick="APP.resolveFlag(${f.project_id},${f.update_id})">Mark Resolved</button>
+            </div>
           </div>`;
         });
       });
@@ -3241,14 +3466,14 @@ Tomorrow: start formwork on next bay."
   // ── WEEKLY SIGN-OFF (3-way)
   async renderWeeklySignoff() {
     const el = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.get(`/reports/${pid}`).catch(() => null);
     const reports = data?.reports || [];
     const drafts = reports.filter(r => r.status === 'draft' || r.status === 'pending_approval');
 
-    let html = `<div class="sec-label">Weekly Client Report — Sign-off</div>`;
+    let html = APP._projectSelectHtml('APP.renderWeeklySignoff()') + `<div class="sec-label">Weekly Client Report — Sign-off</div>`;
 
     if (!drafts.length) {
       html += `<div style="color:#93A3B4;font-size:13px;padding:20px;text-align:center;border:1px dashed #CDD3DC;border-radius:10px">
@@ -3352,104 +3577,104 @@ Tomorrow: start formwork on next bay."
   // ── PHOTO TAG REVIEW (stream audit view)
   async renderPhotoTagReview() {
     const el = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.get(`/photo-tags/disputes/${pid}`).catch(() => null);
-    const disputes = data?.disputes || [];
+    const suggestions = data?.suggestions || [];
 
-    let html = `<div class="sec-label">Photo Tag Review — AI Disputes</div>
-      <div style="font-size:13px;color:#3D5068;margin-bottom:16px;max-width:640px">
-        Photos where AI disagrees with the human tag. Correct the tag, or accept AI's suggestion.
-        Stream team members (Design/Services) can correct tags until the photo is used in a sent weekly report.
+    const confColor = c => c === 'high' ? 'var(--green)' : c === 'medium' ? 'var(--amber)' : 'var(--muted)';
+
+    let html = `<div class="sec-label">Photo Review — AI Suggestions</div>`;
+
+    if (!suggestions.length) {
+      html += `<div class="card" style="text-align:center;padding:32px 16px;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:10px">✓</div>
+        <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:6px">All caught up</div>
+        <div style="font-size:13px;line-height:1.5">AI suggestions appear here after photos are uploaded.<br>Photos need an active schedule to generate suggestions.</div>
       </div>`;
-
-    if (!disputes.length) {
-      html += `<div style="color:#93A3B4;font-size:13px;padding:20px;text-align:center;border:1px dashed #CDD3DC;border-radius:10px">
-        No tag disputes to review. All photos look consistently tagged.</div>`;
-      el.innerHTML = html;
+      el.innerHTML = `<div class="fade-in">${html}</div>`;
       return;
     }
 
-    for (const d of disputes) {
-      html += `
-        <div class="card" style="display:flex;gap:16px;align-items:flex-start">
-          <img src="${API.fileUrl(d.file_url || d.file_path, 'photos')}"
-               alt="Drawing ${UI.escapeAttr(d.drawing_number)}: ${UI.escapeAttr(d.name)}"
-               style="width:160px;height:120px;object-fit:cover;border-radius:8px;flex-shrink:0"
-               onerror="this.style.display='none'">
-          <div style="flex:1">
-            <div style="font-size:11px;letter-spacing:1.2px;color:#93A3B4;text-transform:uppercase;margin-bottom:4px">${new Date(d.uploaded_at).toLocaleString('en-IN')}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
-              <div style="background:#EBF0F7;padding:10px;border-radius:6px">
-                <div style="font-size:10px;color:#1D3D62;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Human (${d.human_tagger || '—'})</div>
-                <div style="font-size:13px;color:#1A2332">${d.human_task_name || '—'}</div>
-                ${d.human_caption ? `<div style="font-size:12px;color:#657B90;margin-top:4px">${d.human_caption}</div>` : ''}
+    html += `<div style="font-size:12px;color:var(--muted);margin-bottom:12px">${suggestions.length} photo${suggestions.length>1?'s':''} awaiting review</div>`;
+
+    for (const s of suggestions) {
+      const dateStr = s.photo_date || s.uploaded_at?.split('T')[0] || '';
+      const capEsc  = (s.ai_caption||'').replace(/'/g,"\\'");
+      html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
+        <div style="display:flex;gap:14px;padding:14px 16px;align-items:flex-start">
+          <img src="${API.fileUrl(s.file_url || s.file_path, 'photos')}"
+               style="width:80px;height:80px;object-fit:cover;border-radius:var(--r2);flex-shrink:0;background:var(--bg)"
+               onerror="this.style.opacity='0.3'">
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px">${dateStr}</div>
+            <div style="background:var(--bg);border-radius:var(--r2);padding:10px;border-left:3px solid var(--amber)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--amber)">AI suggests</div>
+                <span style="font-size:10px;font-weight:600;color:${confColor(s.ai_confidence)};text-transform:uppercase">${s.ai_confidence||'low'} confidence</span>
               </div>
-              <div style="background:#F5ECDB;padding:10px;border-radius:6px">
-                <div style="font-size:10px;color:#8a6415;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">AI suggests (${d.ai_confidence || 'low'})</div>
-                <div style="font-size:13px;color:#1A2332">${d.ai_task_name || '—'}</div>
-                ${d.ai_caption ? `<div style="font-size:12px;color:#657B90;margin-top:4px">${d.ai_caption}</div>` : ''}
-                ${d.ai_note ? `<div style="font-size:11px;color:#8a6415;margin-top:6px;font-style:italic">${d.ai_note}</div>` : ''}
-              </div>
+              <div style="font-weight:600;font-size:13px;color:var(--navy)">${UI.escapeText(s.ai_task_name||'Unknown task')}</div>
+              ${s.ai_trade ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${UI.escapeText(s.ai_trade)}</div>` : ''}
+              ${s.ai_caption ? `<div style="font-size:12px;color:var(--text);margin-top:6px;font-style:italic">"${UI.escapeText(s.ai_caption)}"</div>` : ''}
+              ${s.ai_note ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${UI.escapeText(s.ai_note)}</div>` : ''}
             </div>
-            <div style="display:flex;gap:8px;margin-top:10px">
-              <button class="btn-secondary" onclick="APP.acceptAITag(${d.photo_id}, ${d.ai_task_id}, '${(d.ai_caption||'').replace(/'/g,"\\'")}')">Accept AI</button>
-              <button class="btn-ghost" onclick="APP.keepHumanTag(${d.photo_id})">Keep Human Tag</button>
-              <button class="btn-ghost" onclick="APP.editPhotoTag(${d.photo_id})">Edit…</button>
-            </div>
+            ${s.human_task_name ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">Previously tagged: <strong>${UI.escapeText(s.human_task_name)}</strong></div>` : ''}
           </div>
-        </div>`;
+        </div>
+        <div style="border-top:1px solid var(--border);padding:10px 16px;background:var(--bg);display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm approve" onclick="APP.acceptAITag(${s.photo_id},${s.ai_task_id},'${capEsc}')">Accept</button>
+          <button class="btn-sm" onclick="APP.correctPhotoTag(${s.photo_id},${s.ai_task_id})">Correct</button>
+          <button class="btn-sm reject" onclick="APP.dismissAITag(${s.photo_id})">Dismiss</button>
+        </div>
+      </div>`;
     }
-    el.innerHTML = html;
+    el.innerHTML = `<div class="fade-in">${html}</div>`;
   },
 
   async acceptAITag(photoId, taskId, caption) {
     const res = await API.post(`/photo-tags/${photoId}`, { task_id: taskId, caption });
-    if (res?.success) { UI.toast('AI tag accepted ✓'); APP.renderPhotoTagReview(); }
+    if (res?.success) { UI.toast('Accepted ✓'); APP.renderPhotoTagReview(); }
     else UI.toast(res?.error || 'Failed');
   },
 
-  async keepHumanTag(photoId) {
-    // Re-saving the current human tag as current clears the AI dispute
-    const hist = await API.get(`/photo-tags/${photoId}/history`).catch(() => null);
-    const human = (hist?.history || []).find(t => t.tag_source !== 'ai');
-    if (!human) { UI.toast('No human tag to keep'); return; }
-    const res = await API.post(`/photo-tags/${photoId}`, {
-      task_id: human.task_id, caption: human.caption, trade: human.trade
-    });
-    if (res?.success) { UI.toast('Human tag retained'); APP.renderPhotoTagReview(); }
+  async dismissAITag(photoId) {
+    // Save a human tag with task_id = null to clear it from the review queue
+    const res = await API.post(`/photo-tags/${photoId}`, { task_id: null, caption: '' });
+    if (res?.success) { UI.toast('Dismissed'); APP.renderPhotoTagReview(); }
+    else UI.toast(res?.error || 'Failed');
   },
 
-  async editPhotoTag(photoId) {
-    UI.openModal('Edit Photo Tag', `
-      <div class="field-row"><label class="field-label" for="pt-caption">Caption</label>
-        <textarea id="pt-caption" rows="3"></textarea>
-      </div>
-      <div class="field-row"><label class="field-label" for="pt-trade">Trade</label>
-        <select id="pt-trade">
-          <option value="">—</option>
-          ${['Civil','Architectural','Structural','Interior','Electrical','HVAC','Plumbing','Fire','IT'].map(t => `<option>${t}</option>`).join('')}
-        </select>
-      </div>
-      <button class="btn-primary" onclick="APP.doEditPhotoTag(${photoId})">Save Tag</button>
+  async correctPhotoTag(photoId, currentAiTaskId) {
+    // Fetch today's tasks so user can pick the right one
+    const pid = APP.state.selectedProject;
+    const tasksData = await API.get(`/schedule/${pid}/tasks/active`).catch(() => null);
+    const tasks = tasksData?.tasks || [];
+    UI.showModal('Correct Task Tag', `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Select the correct schedule task for this photo.</div>
+      <select id="correct-task-select" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--bg);color:var(--text);margin-bottom:12px">
+        <option value="">— Select task —</option>
+        ${tasks.map(t => `<option value="${t.id}" ${t.id===currentAiTaskId?'selected':''}>${UI.escapeText(t.task_name)} · ${UI.escapeText(t.trade||'')}</option>`).join('')}
+      </select>
+      <input id="correct-caption" type="text" placeholder="Caption (optional)"
+        style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;margin-bottom:12px">
+      <button class="btn-primary" style="width:100%" onclick="APP._saveCorrection(${photoId})">Save Correction</button>
     `);
   },
 
-  async doEditPhotoTag(photoId) {
-    const body = {
-      caption: document.getElementById('pt-caption').value.trim(),
-      trade:   document.getElementById('pt-trade').value,
-    };
-    const res = await API.post(`/photo-tags/${photoId}`, body);
-    if (res?.success) { UI.closeModal(); UI.toast('Tag updated ✓'); APP.renderPhotoTagReview(); }
+  async _saveCorrection(photoId) {
+    const taskId  = document.getElementById('correct-task-select')?.value;
+    const caption = document.getElementById('correct-caption')?.value?.trim() || '';
+    if (!taskId) { UI.toast('Select a task'); return; }
+    const res = await API.post(`/photo-tags/${photoId}`, { task_id: parseInt(taskId), caption });
+    if (res?.success) { UI.closeModal(); UI.toast('Correction saved ✓'); APP.renderPhotoTagReview(); }
     else UI.toast(res?.error || 'Failed');
   },
 
   // ── QUERIES (PMC)
   async renderQueries() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getQueries(pid);
@@ -3458,7 +3683,7 @@ Tomorrow: start formwork on next bay."
     const fresh   = queries.filter(q => q.status !== 'closed' && q.days_open < 3);
     const resolved= queries.filter(q => q.status === 'closed');
 
-    let html = '';
+    let html = APP._projectSelectHtml('APP.renderQueries()');
     if (overdue.length) { html += `<div class="sec-label">Overdue — 3+ Days</div>`; overdue.forEach(q => { html += APP.queryCard(q, true); }); }
     if (fresh.length)   { html += `<div class="sec-label">Open — Within 3 Days</div>`; fresh.forEach(q => { html += APP.queryCard(q, true); }); }
     if (resolved.length){ html += `<div class="sec-label" style="margin-top:20px">Resolved</div>`; resolved.forEach(q => { html += APP.queryCard(q, false); }); }
@@ -3469,12 +3694,12 @@ Tomorrow: start formwork on next bay."
 
   async renderQueriesSite() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const data = await API.getQueries(pid);
     const queries = data?.queries || [];
-    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    let html = APP._projectSelectHtml('APP.renderQueriesSite()') + `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div class="sec-label" style="margin:0">Queries & RFIs</div>
       <button class="btn-primary" onclick="APP.showRaiseQueryModal(${pid})">+ Raise Query</button>
     </div>`;
@@ -3599,21 +3824,8 @@ Tomorrow: start formwork on next bay."
   // ── MATERIALS
   async renderMaterials() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
-
-    // Project selector for firm-wide roles
-    const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'].includes(APP.user?.role);
-    let projectSelectorHtml = '';
-    if (isFirmWide) {
-      const projects = APP.user?.projects || [];
-      projectSelectorHtml = `<div style="margin-bottom:14px">
-        <select style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);cursor:pointer"
-          onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderMaterials()">
-          ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${p.name}</option>`).join('')}
-        </select>
-      </div>`;
-    }
 
     const [reqData, boqData, versionData] = await Promise.all([
       API.getRequests(pid),
@@ -3632,30 +3844,53 @@ Tomorrow: start formwork on next bay."
     const currentServices = currentByStream.services;
     const canEditBOQ = ['design_head','services_head','principal','design_principal'].includes(APP.user.role);
 
-    let html = projectSelectorHtml;
-    html += `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">+ New Material Request</button>`;
+    let html = APP._projectSelectHtml('APP.renderMaterials()');
 
-    // BOQ header — shows current version + item count per stream + action buttons
-    html += `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div style="flex:1">
-          <div class="card-title">BOQ</div>
-          <div class="card-meta" style="font-family:var(--mono);font-size:11px">
-            ${currentDesign   ? `Design: ${currentDesign.label} · ${currentDesign.item_count} items`       : 'Design: —'}<br>
-            ${currentServices ? `Services: ${currentServices.label} · ${currentServices.item_count} items` : 'Services: —'}
+    // ── New Request button
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">
+      <span style="display:flex;align-items:center;justify-content:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Material Request
+      </span>
+    </button>`;
+
+    // ── BOQ card — icon header + stream version metrics + footer actions
+    const boqTotalItems = (currentDesign?.item_count || 0) + (currentServices?.item_count || 0);
+    html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:14px;padding:16px">
+        <div style="width:44px;height:44px;border-radius:10px;background:#EEF2FF;color:#4263EB;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px;color:var(--navy)">Bill of Quantities</div>
+          <div style="display:flex;gap:20px;margin-top:7px">
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Design</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);margin-top:2px;font-family:var(--mono)">${currentDesign ? `${currentDesign.label} · ${currentDesign.item_count} items` : '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Services</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);margin-top:2px;font-family:var(--mono)">${currentServices ? `${currentServices.label} · ${currentServices.item_count} items` : '—'}</div>
+            </div>
           </div>
         </div>
-        ${canEditBOQ ? `<button class="btn-sm navy" onclick="APP.showBOQVersions(${pid})">Versions</button>` : ''}
+        ${canEditBOQ ? `<button class="btn-sm" onclick="APP.showBOQVersions(${pid})" style="flex-shrink:0">Versions</button>` : ''}
       </div>
       ${canEditBOQ ? `
-        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <div style="border-top:1px solid var(--border);display:flex">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 8px;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;border-right:1px solid var(--border);background:var(--bg)">
           <input type="file" id="boq-file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadBOQ(${pid},this)">
-          <button class="btn-sm gold" onclick="document.getElementById('boq-file').click()">Upload New BOQ</button>
-          <button class="btn-sm" onclick="APP.showAddBOQItem(${pid})">+ Add Item</button>
-        </div>` : ''}
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload New BOQ
+        </label>
+        <button style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 8px;font-size:13px;font-weight:600;color:var(--text);background:var(--bg);border:none;cursor:pointer" onclick="APP.showAddBOQItem(${pid})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Item
+        </button>
+      </div>` : ''}
     </div>`;
 
-    // BOQ item list (current version only) — show inline so heads can edit/delete directly
+    // ── BOQ Items grouped by trade — single card with dividers per group
     if (canEditBOQ && boqItems.length) {
       const byTradeList = {};
       boqItems.filter(i => !i.is_section).forEach(i => {
@@ -3666,23 +3901,29 @@ Tomorrow: start formwork on next bay."
       if (tradeNames.length) {
         html += `<div class="sec-label">BOQ Items (current version)</div>`;
         tradeNames.forEach(trade => {
-          html += `<div style="font-size:11px;font-weight:600;color:var(--navy);background:#f4f4f4;padding:4px 10px;margin-top:6px">${UI.escapeText(trade)} (${byTradeList[trade].length})</div>`;
-          byTradeList[trade].forEach(item => {
-            html += `<div class="card" style="margin:4px 0;padding:8px 10px">
-              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:500">${UI.escapeText(item.item_name)}</div>
-                  <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">
-                    ${item.item_code ? UI.escapeText(item.item_code)+' · ' : ''}${item.quantity||0} ${UI.escapeText(item.unit||'')}
-                  </div>
-                </div>
-                <div style="display:flex;gap:4px">
-                  <button class="btn-sm" onclick="APP.showEditBOQItem(${pid},${item.id})">✎</button>
-                  <button class="btn-sm" onclick="APP.deleteBOQItem(${pid},${item.id},'${UI.escapeAttr(item.item_name)}')">🗑</button>
-                </div>
+          const items = byTradeList[trade];
+          html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
+            <div style="padding:8px 16px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px">${UI.escapeText(trade)}</span>
+              <span style="font-size:11px;color:var(--muted)">${items.length} item${items.length!==1?'s':''}</span>
+            </div>`;
+          items.forEach((item, idx) => {
+            html += `<div style="display:flex;align-items:center;gap:12px;padding:11px 16px${idx>0?';border-top:1px solid var(--border)':''}">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--text)">${UI.escapeText(item.item_name)}</div>
+                <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px">${item.item_code ? UI.escapeText(item.item_code)+' · ' : ''}${item.quantity||0} ${UI.escapeText(item.unit||'')}</div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn-sm" onclick="APP.showEditBOQItem(${pid},${item.id})" style="padding:5px 10px" title="Edit">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="btn-sm" onclick="APP.deleteBOQItem(${pid},${item.id},'${UI.escapeAttr(item.item_name)}')" style="padding:5px 10px;color:var(--red)" title="Delete">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                </button>
               </div>
             </div>`;
           });
+          html += `</div>`;
         });
       }
     }
@@ -3699,12 +3940,13 @@ Tomorrow: start formwork on next bay."
 
   async renderMaterialsSite() {
     const el  = UI.contentEl();
-    const pid = APP.user.projects?.[0]?.id;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','No project assigned'); return; }
 
     const [reqData] = await Promise.all([API.getRequests(pid)]);
     const requests = reqData?.requests || [];
-    let html = `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">+ New Request</button>`;
+    let html = APP._projectSelectHtml('APP.renderMaterialsSite()');
+    html += `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseRequest(${pid})">+ New Request</button>`;
     requests.forEach(r => { html += APP.matCard(r, r.is_overdue); });
     if (!requests.length) html += UI.empty('','No material requests yet');
     el.innerHTML = html;
@@ -3712,25 +3954,35 @@ Tomorrow: start formwork on next bay."
 
   matCard(r, isOverdue) {
     const step = (r.status || 1) - 1;
-    return `<div class="card" style="${isOverdue?'border-color:rgba(168,74,58,.5)':''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="card-title">${r.item_name}</div>
-          <div class="card-meta">${r.trade} · ${r.unit}</div>
+    const canAdvance = ['pmc_head','principal','design_principal'].includes(APP.user.role) && r.status < 5;
+    const borderStyle = isOverdue ? 'border-left:3px solid var(--red)' : '';
+    return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;${borderStyle}">
+      <div style="padding:14px 16px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(r.item_name)}</div>
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;font-weight:600">${UI.escapeText(r.trade)} · ${UI.escapeText(r.unit)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            ${isOverdue ? '<span class="badge b-red">OVERDUE</span>' : ''}
+            <span style="font-size:12px;font-weight:700;color:var(--navy);background:#EEF2FF;padding:4px 10px;border-radius:6px;font-family:var(--mono);white-space:nowrap">${r.quantity_needed} ${UI.escapeText(r.unit)}</span>
+          </div>
         </div>
-        ${isOverdue?'<span class="badge b-red">OVERDUE</span>':`<span class="badge b-navy">${r.quantity_needed} ${r.unit}</span>`}
+        <div style="font-size:12px;color:${isOverdue?'var(--red)':'var(--muted)'};margin-bottom:4px">
+          <span style="font-weight:600">Needed by</span> ${UI.fmtDate(r.needed_by_date)}
+        </div>
+        <div class="status-track">
+          ${MAT_STATUSES.map((s,i)=>`<div class="st-step${i<step+1?' done':''}${i===step?' current':''}">
+            <div class="st-dot">${i<step+1?'✓':''}</div>
+            <div class="st-label">${s.split(' ')[0]}</div>
+          </div>`).join('')}
+        </div>
       </div>
-      <div class="card-meta" style="margin-top:4px">Needed by: ${UI.fmtDate(r.needed_by_date)}</div>
-      <div class="status-track">
-        ${MAT_STATUSES.map((s,i)=>`<div class="st-step${i<step+1?' done':''}${i===step?' current':''}">
-          <div class="st-dot">${i<step+1?'✓':''}</div>
-          <div class="st-label">${s.split(' ')[0]}</div>
-        </div>`).join('')}
-      </div>
-      ${['pmc_head','principal','design_principal'].includes(APP.user.role) && r.status < 5 ?
-        `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-          ${MAT_STATUSES.slice(r.status).map((s,i)=>`<button class="btn-sm" onclick="APP.updateMatStatus(${r.id},${r.status+i+1})">${s}</button>`).join('')}
-        </div>` : ''}
+      ${canAdvance ? `
+      <div style="border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;background:var(--bg)">
+        <span style="font-size:11px;color:var(--muted);font-weight:600;align-self:center;text-transform:uppercase;letter-spacing:0.4px">Advance to:</span>
+        ${MAT_STATUSES.slice(r.status).map((s,i)=>`<button class="btn-sm" onclick="APP.updateMatStatus(${r.id},${r.status+i+1})" style="font-size:12px">${s}</button>`).join('')}
+      </div>` : ''}
     </div>`;
   },
 
@@ -3961,20 +4213,20 @@ Tomorrow: start formwork on next bay."
   // ── CHANGES
   async renderChanges() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
     const role = APP.user?.role || APP.user?.real_role;
     const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head'].includes(role);
 
-    let data;
+    let data, pid;
     if (isFirmWide) {
       data = await API.get('/changes/all');
     } else {
+      pid = APP._ensurePid();
       if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
       data = await API.getChanges(pid);
     }
     const changes = data?.changes || [];
 
-    let html = '';
+    let html = isFirmWide ? '' : APP._projectSelectHtml('APP.renderChanges()');
     if (['principal','design_principal'].includes(role)) {
       html += `<button class="btn-primary" style="margin-bottom:16px" onclick="APP.showRaiseChange(${pid || 0})">+ New Change Notice</button>`;
     }
@@ -3983,31 +4235,48 @@ Tomorrow: start formwork on next bay."
       html += UI.empty('','No change notices pending');
     } else {
       changes.forEach(c => {
-        const allSigned = c.sig_design_head && c.sig_services_head && c.sig_pmc;
-        const canSign   = ['design_head','services_head','pmc_head'].includes(role);
-        const canApprove= ['principal','design_principal'].includes(role) && allSigned;
-        const projLabel = c.project_name ? `<span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${c.project_code || ''} ${c.project_name}</span>` : '';
+        const allSigned  = c.sig_design_head && c.sig_services_head && c.sig_pmc;
+        const canSign    = ['design_head','services_head','pmc_head'].includes(role);
+        const canApprove = ['principal','design_principal'].includes(role) && allSigned;
+        const myTurnSign = canSign && !allSigned;
 
-        html += `<div class="card">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--navy)">${c.cn_number}</div>
-            <span class="badge ${allSigned?'b-amber':'b-blue'}">${allSigned?'PENDING APPROVAL':'COLLECTING SIGS'}</span>
+        const sigDot = (signed) => `<div style="display:flex;align-items:center;gap:5px">
+          <div style="width:18px;height:18px;border-radius:50%;background:${signed?'var(--green)':'var(--border)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            ${signed?`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`:''}
+          </div>`;
+
+        html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px${myTurnSign?';border-color:var(--steel)':''}">
+          <div style="padding:14px 16px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--navy);margin-bottom:4px">${UI.escapeText(c.cn_number)}</div>
+                <div style="font-weight:600;font-size:14px;color:var(--text);line-height:1.35">${UI.escapeText(c.title)}</div>
+                ${c.project_name ? `<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px">${UI.escapeText(c.project_code||'')} · ${UI.escapeText(c.project_name)}</div>` : ''}
+              </div>
+              <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:${allSigned?'rgba(230,172,0,0.12)':'rgba(66,99,235,0.1)'};color:${allSigned?'var(--amber)':'var(--navy)'}">${allSigned?'PENDING APPROVAL':'COLLECTING SIGS'}</span>
+            </div>
+            ${c.description ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:7px 10px;background:var(--bg);border-radius:6px;border-left:2px solid var(--border);margin-bottom:8px;line-height:1.5">${UI.escapeText((c.description||'').substring(0,120))}${(c.description||'').length>120?'…':''}</div>` : ''}
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+              <div style="font-size:11px;color:var(--muted)"><span style="font-weight:600;color:var(--text)">Source</span> ${UI.escapeText(c.source||'—')}</div>
+              ${c.schedule_impact_days ? `<div style="font-size:11px;color:var(--amber);font-weight:600">+${c.schedule_impact_days}d schedule</div>` : ''}
+              ${c.affected_drawings ? `<div style="font-size:11px;color:var(--muted)"><span style="font-weight:600;color:var(--text)">Drawings</span> ${UI.escapeText(c.affected_drawings)}</div>` : ''}
+              <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${UI.escapeText(c.raised_by_name||'—')} · ${c.raised_at?.split('T')[0]||''}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${[['Design Head',c.sig_design_head],['Services Head',c.sig_services_head],['PMC',c.sig_pmc]].map(([label,signed]) =>
+                `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:${signed?'rgba(12,166,120,0.1)':'var(--bg)'};border:1px solid ${signed?'var(--green)':'var(--border)'}">
+                  <div style="width:14px;height:14px;border-radius:50%;background:${signed?'var(--green)':'var(--border)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    ${signed?`<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`:''}
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:${signed?'var(--green)':'var(--muted)'}">${label}</span>
+                </div>`
+              ).join('')}
+            </div>
           </div>
-          ${projLabel ? `<div style="margin-bottom:4px">${projLabel}</div>` : ''}
-          <div class="card-title">${c.title}</div>
-          <div class="card-meta">${c.raised_by_name || '—'} · ${c.raised_at?.split('T')[0]||''} · Source: ${c.source}</div>
-          <div class="card-meta" style="margin-top:3px">Drawings: ${c.affected_drawings||'—'} · Schedule: +${c.schedule_impact_days||0}d</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">${c.description || ''}</div>
-          <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-            <span class="sig-chip ${c.sig_design_head?'sig-signed':'sig-pending'}">Design Head ${c.sig_design_head?'✓':'○'}</span>
-            <span class="sig-chip ${c.sig_services_head?'sig-signed':'sig-pending'}">Services Head ${c.sig_services_head?'✓':'○'}</span>
-            <span class="sig-chip ${c.sig_pmc?'sig-signed':'sig-pending'}">PMC ${c.sig_pmc?'✓':'○'}</span>
-          </div>
-          ${canSign && !allSigned?`<button class="btn-sm gold" style="margin-top:10px" onclick="APP.signChange(${c.id})">Sign Off</button>`:''}
-          ${canApprove?`<div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn-approve" onclick="APP.approveChange(${c.id})">Approve</button>
-            <button class="btn-reject" onclick="APP.rejectChange(${c.id})">Reject</button>
-          </div>`:''}
+          ${(myTurnSign || canApprove) ? `<div style="border-top:1px solid var(--border);padding:10px 16px;background:var(--bg);display:flex;gap:8px">
+            ${myTurnSign ? `<button class="btn-sm approve" onclick="APP.signChange(${c.id})">Sign Off</button>` : ''}
+            ${canApprove ? `<button class="btn-sm approve" onclick="APP.approveChange(${c.id})">Approve</button><button class="btn-sm reject" onclick="APP.rejectChange(${c.id})">Reject</button>` : ''}
+          </div>` : ''}
         </div>`;
       });
     }
@@ -4065,9 +4334,11 @@ Tomorrow: start formwork on next bay."
   // ── PHOTOS
   async renderPhotos() {
     const el  = UI.contentEl();
-    const pid = APP.user.projects?.[0]?.id;
-    const date= APP.state.selectedDate;
+    const pid = APP._ensurePid();
     const today = APP.state.serverToday || UI.todayIST();
+    // Default to today so first load and subsequent loads return the same photos
+    if (!APP.state.selectedDate) APP.state.selectedDate = today;
+    const date = APP.state.selectedDate;
     if (!pid) { el.innerHTML = UI.empty('','No project assigned'); return; }
 
     // Filter: 'all' (progress + defects), 'progress' only, 'defects' only.
@@ -4132,7 +4403,7 @@ Tomorrow: start formwork on next bay."
     const filterRow = `<div style="padding:6px 4px 10px">${chip('all','All')}${chip('progress','Progress')}${chip('defects','Defects')}</div>`;
 
     const count = photos.length;
-    let html = strip + filterRow + `
+    let html = APP._projectSelectHtml('APP.renderPhotos()') + strip + filterRow + `
       <input type="file" id="photo-input" accept="image/*" multiple capture="environment" style="display:none"
         onchange="APP.uploadPhotos(${pid},this)">
       <button class="upload-btn${count?' has-files':''}" onclick="document.getElementById('photo-input').click()"><span class="upload-btn-icon">📷</span><span>${count?`${count} photo${count>1?'s':''} ${filter==='defects'?'with defects':filter==='progress'?'(progress)':'in gallery'} · Tap to add more`:'Tap to Upload Site Photos'}</span></button>`;
@@ -4149,10 +4420,10 @@ Tomorrow: start formwork on next bay."
         const defectPip = isDefect
           ? `<div style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:${pipColor};border:2px solid #fff;box-shadow:0 0 2px rgba(0,0,0,0.4)" title="${p.linked_issue?.issue_number||'Defect'}"></div>`
           : '';
-        html += `<button style="min-height:44px;position:relative;width:60px;height:60px;cursor:pointer" onclick="APP.openPhotoViewer(${pid}, ${p.id}, ${i})">
-          <img src="${API.fileUrl(p.file_url || p.file_path, 'photos')}" alt="Site photo ${i+1}" style="width:60px;height:60px;border-radius:var(--r);object-fit:cover;border:1px solid var(--border)" onerror="this.style.background='var(--bg)'">
+        html += `<button style="min-height:44px;position:relative;width:120px;height:120px;cursor:pointer" onclick="APP.openPhotoViewer(${pid}, ${p.id}, ${i})">
+          <img src="${API.fileUrl(p.file_url || p.file_path, 'photos')}" alt="Site photo ${i+1}" style="width:120px;height:120px;border-radius:var(--r);object-fit:cover;border:1px solid var(--border)" onerror="this.style.background='var(--bg)'">
           ${defectPip}
-          <div style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.7);font-size:8px;color:#fff;padding:1px 3px;border-radius:2px;font-family:var(--mono)">${i+1}</div>
+          <div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.7);font-size:9px;color:#fff;padding:2px 5px;border-radius:3px;font-family:var(--mono)">${i+1}</div>
         </button>`;
       });
       html += `</div>`;
@@ -4170,7 +4441,7 @@ Tomorrow: start formwork on next bay."
   // this photo via the snag-from-photo workflow (uses entity_photo_links —
   // the photo is NOT duplicated). If the photo is ALREADY a defect photo,
   // shows the linked defect info instead.
-  openPhotoViewer(projectId, photoId, idx) {
+  async openPhotoViewer(projectId, photoId, idx) {
     const photo = (APP._photosCache || [])[idx];
     if (!photo) { UI.toast('Photo not found'); return; }
     const uploadedBy = photo.uploaded_by_name || 'Unknown';
@@ -4178,8 +4449,15 @@ Tomorrow: start formwork on next bay."
     const isDefect = photo.entity_type === 'issue' && photo.linked_issue?.issue_type === 'snag';
     const isProgress = photo.entity_type === 'project_progress';
     const sevColor = { critical:'#C84040', major:'#C87060', minor:'#C8A040' };
+    const role = APP.user?.role;
 
-    let footerHtml;
+    // Roles that can tag photos to schedule tasks:
+    //   site_manager / senior_site_manager — own photos only, 12h window (enforced by backend)
+    //   design_head / services_head / team_lead / jr_architect / services_engineer — any photo, no time limit
+    const canTag = ['site_manager','senior_site_manager','design_head','services_head',
+                    'team_lead','jr_architect','services_engineer'].includes(role);
+
+    let footerHtml = '';
     if (isDefect) {
       const li = photo.linked_issue;
       const col = sevColor[li.severity] || '#C87060';
@@ -4187,33 +4465,80 @@ Tomorrow: start formwork on next bay."
         <div style="background:#fef5f0;border:1px solid ${col};border-left:4px solid ${col};padding:10px;border-radius:var(--r);margin-bottom:10px">
           <div style="font-size:11px;font-weight:bold;color:${col}">⚠ ${li.severity?li.severity.toUpperCase():'DEFECT'} · ${li.issue_number||''}</div>
           <div style="font-size:12px;color:#444;margin-top:3px">${li.trade||''} · ${li.status||''}</div>
-        </div>
-      `;
+        </div>`;
     } else if (isProgress) {
       footerHtml = `
-        <div style="background:#f0f8ff;border:1px solid #0056b3;border-left:4px solid #0056b3;padding:10px;border-radius:var(--r);margin-bottom:10px">
-          <div style="font-size:11px;font-weight:bold;color:#0056b3">📷 PROGRESS PHOTO</div>
-        </div>
-      `;
+        <div style="background:rgba(12,100,180,0.12);border:1px solid rgba(12,100,180,0.35);border-left:4px solid var(--navy);padding:10px;border-radius:var(--r);margin-bottom:10px">
+          <div style="font-size:11px;font-weight:bold;color:var(--navy)">📷 PROGRESS PHOTO</div>
+        </div>`;
     } else {
       footerHtml = `
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-sm" onclick="APP.flagPhotoAsDefect(${projectId}, ${photoId})" style="background:#C87060;color:#fff">⚠ Flag as Defect</button>
-          <button class="btn-sm" onclick="APP.markPhotoAsProgress(${projectId}, ${photoId})" style="background:#0056b3;color:#fff">📷 Mark as Progress</button>
-        </div>
-      `;
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn-sm" onclick="APP.flagPhotoAsDefect(${projectId}, ${photoId})" style="background:#C87060;color:#fff">Flag as Defect</button>
+          <button class="btn-sm" onclick="APP.markPhotoAsProgress(${projectId}, ${photoId})" style="background:#0056b3;color:#fff">Mark as Progress</button>
+        </div>`;
     }
 
+    // Task tag section — fetch current tag + available tasks
+    let tagHtml = '';
+    if (canTag) {
+      const [tagData, tasksData] = await Promise.all([
+        API.get(`/photo-tags/${photoId}/history`).catch(() => null),
+        API.get(`/schedule/${projectId}/tasks/active`).catch(() => null),
+      ]);
+      const currentTag = (tagData?.history || []).find(t => t.is_current);
+      const tasks = tasksData?.tasks || [];
+      const currentTaskName = currentTag?.task_name || null;
+      const currentCaption  = currentTag?.caption   || '';
+
+      tagHtml = `
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Schedule Task Tag</div>
+          ${currentTaskName
+            ? `<div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:8px">Currently: ${UI.escapeText(currentTaskName)}</div>`
+            : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">No task tagged yet</div>`}
+          ${tasks.length ? `
+          <select id="photo-task-select" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;margin-bottom:8px;background:var(--bg);color:var(--text)">
+            <option value="">— Select task —</option>
+            ${tasks.map(t => `<option value="${t.id}" ${currentTag?.task_id===t.id?'selected':''}>${UI.escapeText(t.task_name)} (${UI.escapeText(t.trade||'')})</option>`).join('')}
+          </select>
+          <input id="photo-caption-input" type="text" placeholder="Caption (optional)" value="${UI.escapeAttr(currentCaption)}"
+            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;margin-bottom:8px;background:var(--bg);color:var(--text);box-sizing:border-box">
+          <button class="btn-sm approve" onclick="APP.savePhotoTag(${photoId})">Save Tag</button>
+          ` : `<div style="font-size:12px;color:var(--muted)">No active tasks today to tag against.</div>`}
+        </div>`;
+    }
+
+    const _dlUrl = API.fileUrl(photo.file_url || photo.file_path, 'photos');
+    const _dlName = (photo.file_path || photo.file_url || 'photo').split('/').pop();
     UI.showModal('Photo', `
-      <div style="text-align:center;margin-bottom:12px">
-        <img src="${API.fileUrl(photo.file_url || photo.file_path, 'photos')}" alt="Site photo" style="max-width:100%;max-height:60vh;border-radius:var(--r2);border:1px solid var(--border)">
+      <div style="text-align:center;margin-bottom:12px;position:relative">
+        <img src="${_dlUrl}" alt="Site photo" style="max-width:100%;max-height:55vh;border-radius:var(--r2);border:1px solid var(--border)">
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
-        Uploaded by ${uploadedBy} · ${dateStr}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:12px;color:var(--muted)">Uploaded by ${uploadedBy} · ${dateStr}</div>
+        <a href="${_dlUrl}" download="${_dlName}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--navy);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg)" title="Download original">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </a>
       </div>
-      ${photo.caption ? `<div style="font-size:13px;margin-bottom:12px">${photo.caption}</div>` : ''}
+      ${photo.caption ? `<div style="font-size:13px;margin-bottom:12px">${UI.escapeText(photo.caption)}</div>` : ''}
       ${footerHtml}
+      ${tagHtml}
     `);
+  },
+
+  async savePhotoTag(photoId) {
+    const taskId = document.getElementById('photo-task-select')?.value;
+    const caption = document.getElementById('photo-caption-input')?.value?.trim() || '';
+    if (!taskId) { UI.toast('Select a task first'); return; }
+    const res = await API.post(`/photo-tags/${photoId}`, { task_id: parseInt(taskId), caption });
+    if (res?.success) {
+      UI.closeModal();
+      UI.toast('Tag saved ✓');
+    } else {
+      UI.toast(res?.error || 'Failed to save tag');
+    }
   },
 
   // Tap "Flag as defect" → shows a small form, calls snag-from-photo
@@ -4277,18 +4602,31 @@ Tomorrow: start formwork on next bay."
 
     const filter = APP.state.photoFilter || 'all';
 
-    // If uploading from "all" tab, ask user to choose a tag
+    // If uploading from "all" tab, ask progress vs defect
     if (filter === 'all') {
       APP._pendingUploadFiles = files;
       APP._pendingUploadPid = pid;
-      UI.showModal('Choose Photo Type', `
-        <div style="font-size:13px;color:var(--muted);margin-bottom:12px">
-          What type of photo are you uploading?
-        </div>
-        <button class="btn-primary" style="width:100%;margin-bottom:8px" onclick="APP._doUploadWithTag('progress')">📷 Progress Photo</button>
-        <button class="btn-primary" style="width:100%;background:#C87060" onclick="APP._doUploadWithTag('defect')">⚠ Defect Photo</button>
-      `);
       input.value = '';
+      UI.showModal('Upload Photos', `
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${files.length} photo${files.length>1?'s':''} selected · AI will suggest schedule task automatically</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+          <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:var(--r2);cursor:pointer;background:var(--bg)">
+            <input type="radio" name="upload-type" value="progress" checked style="accent-color:var(--navy)">
+            <div>
+              <div style="font-weight:600;font-size:13px;color:var(--navy)">Progress</div>
+              <div style="font-size:11px;color:var(--muted)">Documents site work</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:var(--r2);cursor:pointer;background:var(--bg)">
+            <input type="radio" name="upload-type" value="defect" style="accent-color:#C87060">
+            <div>
+              <div style="font-weight:600;font-size:13px;color:#C87060">Defect</div>
+              <div style="font-size:11px;color:var(--muted)">Quality issue</div>
+            </div>
+          </label>
+        </div>
+        <button class="btn-primary" style="width:100%" onclick="APP._doUploadWithTag()">Upload</button>
+      `);
       return;
     }
 
@@ -4308,10 +4646,11 @@ Tomorrow: start formwork on next bay."
     }
   },
 
-  async _doUploadWithTag(tag) {
+  async _doUploadWithTag() {
+    const tag = document.querySelector('input[name="upload-type"]:checked')?.value || 'progress';
     UI.closeModal();
     const files = APP._pendingUploadFiles;
-    const pid = APP._pendingUploadPid;
+    const pid   = APP._pendingUploadPid;
     if (!files || !pid) return;
     const fd = new FormData();
     files.forEach(f => fd.append('photo', f));
@@ -4339,7 +4678,7 @@ Tomorrow: start formwork on next bay."
   // Top: "+ New document" uploader (creates v1 of a new doc)
   async renderDocuments() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject || APP.user.projects?.[0]?.id;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','No project selected'); return; }
 
     const data = await API.get(`/documents/${pid}`);
@@ -4353,7 +4692,7 @@ Tomorrow: start formwork on next bay."
       byCat[c].push(d);
     });
 
-    let html = `
+    let html = APP._projectSelectHtml('APP.renderDocuments()') + `
       <div class="sec-label">Document Library</div>
       <input type="file" id="doc-input" accept=".pdf,image/*,.docx,.xlsx,.doc,.xls" style="display:none"
         onchange="APP.uploadNewDocument(${pid}, this)">
@@ -4565,10 +4904,11 @@ Tomorrow: start formwork on next bay."
       const tradesHtml = trades.length > 0
         ? trades.map(([trade, pct]) => {
             const col = TRADE_COLORS[trade] || '#5a5a5a';
+            const pctDisplay = Number(pct).toFixed(2).replace(/\.?0+$/, '') || '0';
             return `<div class="prog-row">
               <div class="prog-label" style="font-size:12px">${trade.split(' ')[0]}</div>
               <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
-              <div class="prog-pct" style="font-size:12px">${pct}%</div>
+              <div class="prog-pct" style="font-size:12px">${pctDisplay}%</div>
             </div>`;
           }).join('')
         : `<div style="font-size:13px; color:var(--muted); margin: 8px 0; font-style: italic">No discipline progress available</div>`;
@@ -4615,7 +4955,7 @@ Tomorrow: start formwork on next bay."
   // Weekly report — list + compose + approve
   async renderWeeklyReports() {
     const el = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
     const role = APP.user?.role;
@@ -4627,7 +4967,7 @@ Tomorrow: start formwork on next bay."
     if (!data) { el.innerHTML = UI.empty('️','Could not load reports'); return; }
     const reports = data.reports || [];
 
-    let html = '';
+    let html = APP._projectSelectHtml('APP.renderWeeklyReports()');
 
     // Section header + action button
     html += `<div class="sec-hdr-row">
@@ -4790,9 +5130,9 @@ Tomorrow: start formwork on next bay."
   // ── GANTT
   async renderGantt() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
-    el.innerHTML = [
+    el.innerHTML = APP._projectSelectHtml('APP.renderGantt()') + [
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">',
       '<div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase">Schedule — Gantt View</div>',
       '<div style="display:flex;gap:8px;">',
@@ -4812,7 +5152,7 @@ Tomorrow: start formwork on next bay."
   // PMC/head-initiated → principal-approved workflow before PRs can be raised.
   async renderVendors() {
     const el  = UI.contentEl();
-    const pid = APP.state.selectedProject;
+    const pid = APP._ensurePid();
     const me  = APP.user;
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
@@ -4828,7 +5168,7 @@ Tomorrow: start formwork on next bay."
     const approved  = engs.filter(e => e.approval_status === 'approved');
     const rejected  = engs.filter(e => e.approval_status === 'rejected');
 
-    let html = '';
+    let html = APP._projectSelectHtml('APP.renderVendors()');
 
     if (canInitiate) {
       html += `<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
@@ -5152,6 +5492,55 @@ Tomorrow: start formwork on next bay."
     const res = await API.markSent(id);
     if (res?.success) { UI.toast('Marked as sent to client ✓'); APP.renderWeeklyReports(); }
   },
+};
+
+// ── PROJECT SELECTOR HELPERS ─────────────────────────────────────────────────
+// Shared by every tab that shows per-project data.
+//
+//   APP._visibleProjects()
+//     Returns the user's project list, filtered to active-only for site
+//     manager / senior_site_manager roles (firm-wide roles see everything).
+//
+//   APP._ensurePid()
+//     Guarantees APP.state.selectedProject is set (picks first visible project
+//     if nothing is selected yet). Returns the pid, or null if no projects.
+//
+//   APP._projectSelectHtml(rerenderExpr)
+//     Returns a full-width <select> HTML string that switches project and
+//     calls rerenderExpr on change. Returns '' when only one project exists.
+// ─────────────────────────────────────────────────────────────────────────────
+
+APP._visibleProjects = function() {
+  const isSiteRole = ['site_manager','senior_site_manager'].includes(APP.user?.role);
+  return (APP.user?.projects || []).filter(p => !isSiteRole || p.status === 'active' || !p.status);
+};
+
+APP._ensurePid = function() {
+  const projects = APP._visibleProjects();
+  // Validate current selection is actually in the visible list;
+  // if not (e.g. selectedProject points to an inactive/inaccessible project),
+  // fall back to the first visible project so the API call uses a valid pid.
+  const inList = projects.some(p => String(p.id) === String(APP.state.selectedProject));
+  if (!APP.state.selectedProject || !inList) {
+    if (projects.length) {
+      APP.state.selectedProject = projects[0].id;
+      if (APP._updateTopbar) APP._updateTopbar();
+    }
+  }
+  return APP.state.selectedProject || null;
+};
+
+APP._projectSelectHtml = function(rerenderExpr) {
+  const projects = APP._visibleProjects();
+  if (projects.length <= 1) return '';
+  const pid = APP.state.selectedProject;
+  return `<div style="position:relative;margin-bottom:14px">
+    <select style="width:100%;padding:8px 32px 8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);color:var(--text);cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;outline:none"
+      onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();${rerenderExpr}">
+      ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${UI.escapeText(p.name)}</option>`).join('')}
+    </select>
+    <div style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);font-size:12px">▼</div>
+  </div>`;
 };
 
 // ── FORCE PASSWORD CHANGE (first login)
@@ -6337,6 +6726,8 @@ APP.suggestHSN = async function(description, trade, targetId) {
     const el = document.getElementById(targetId);
     if (el) el.value = res.suggestion.hsn_code;
     UI.toast(`HSN suggested: ${res.suggestion.hsn_code} (${res.suggestion.confidence} confidence)`);
+  } else {
+    UI.toast('AI could not suggest an HSN code — enter manually');
   }
 };
 
@@ -6412,7 +6803,7 @@ APP.readInvoice = async function(fileInput) {
 // ── DAILY REPORTS — PMC batch approve + anomaly view
 APP.renderDailyReports = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   // Daily reports endpoint (Sprint 3 Item 10). The earlier /reports/:pid endpoint
@@ -6424,7 +6815,7 @@ APP.renderDailyReports = async function() {
   const pending  = reports.filter(r => r.status === 'pending_review');
   const flagged  = reports.filter(r => r.status === 'flagged');
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderDailyReports()');
 
   if (pending.length) {
     html += `<div class="sec-label">Pending Approval (${pending.length})</div>
@@ -6520,7 +6911,7 @@ APP.viewReport = function(id) {
 // ── GRN — raise + approve
 APP.renderGRN = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/grn/${pid}`);
@@ -6532,7 +6923,7 @@ APP.renderGRN = async function() {
   const canRaise = ['site_manager','senior_site_manager','pmc_head'].includes(role);
   const canApprove = ['senior_site_manager','pmc_head','principal','design_principal'].includes(role);
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderGRN()');
 
   if (pending.length && canApprove) {
     html += `<div class="sec-label">Pending Approval (${pending.length})</div>`;
@@ -7011,7 +7402,7 @@ APP.renderMeetings = function() { return APP.renderMOMs(); };
 
 APP.renderMOMs = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/meetings/${pid}`);
@@ -7021,7 +7412,7 @@ APP.renderMOMs = async function() {
   const role = APP.user.role;
   const canCreate = ['pmc_head','principal','design_principal'].includes(role);
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderMOMs()');
 
   // Pending action items across all MOMs
   const allActions = moms.flatMap(m => (m.action_items||[]).filter(a => !a.completed && a.due_date));
@@ -7125,7 +7516,7 @@ APP.submitMOM = async function() {
 // ── LABOUR REGISTER — site manager enters, PMC validates
 APP.renderLabour = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/labour/${pid}`);
@@ -7136,7 +7527,7 @@ APP.renderLabour = async function() {
   const canEnter    = ['site_manager','senior_site_manager'].includes(role);
   const canValidate = ['pmc_head','principal','design_principal'].includes(role);
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderLabour()');
 
   const unvalidated = entries.filter(e => !e.validated_by);
   if (canValidate && unvalidated.length) {
@@ -7284,7 +7675,7 @@ APP.submitLabour = async function() {
 // ── SITE VISITS — log observation + link MOM
 APP.renderVisits = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/meetings/${pid}`);
@@ -7294,7 +7685,7 @@ APP.renderVisits = async function() {
   const role = APP.user.role;
   const canLog = ['pmc_head','principal','design_principal','design_head','services_head'].includes(role);
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderVisits()');
   if (canLog) {
     html += `<button class="btn-primary" onclick="APP.showVisitForm()" style="margin-bottom:16px">+ Log Site Visit</button>`;
   }
@@ -7370,21 +7761,8 @@ APP.renderBudget = async function() {
     return APP.renderBudgetTree();
   }
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
-
-  // Project selector for firm-wide roles
-  const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'].includes(APP.user?.role);
-  let projectSelectorHtml = '';
-  if (isFirmWide) {
-    const projects = APP.user?.projects || [];
-    projectSelectorHtml = `<div style="margin-bottom:14px">
-      <select style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);cursor:pointer"
-        onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderBudget()">
-        ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${p.name}</option>`).join('')}
-      </select>
-    </div>`;
-  }
 
   const data = await API.get(`/budget/${pid}`);
   if (!data) return;
@@ -7396,7 +7774,7 @@ APP.renderBudget = async function() {
   const sanctioned = parseFloat(totals.sanctioned) || 0;
   const committed = parseFloat(totals.committed) || 0;
 
-  let html = projectSelectorHtml + APP._budgetToggleHTML() + `
+  let html = APP._projectSelectHtml('APP.renderBudget()') + APP._budgetToggleHTML() + `
   <div class="stat-row">
     <div class="stat-card">
       <span class="stat-val">₹${(sanctioned/100000).toFixed(1)}L</span>
@@ -7445,7 +7823,7 @@ APP.renderBudget = async function() {
 // They have design-stream oversight on these but not on weekly labour/material cycles.
 APP.renderPayments = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
@@ -7461,36 +7839,46 @@ APP.renderPayments = async function() {
     pending = pending.filter(p => ADVANCE_FINAL_TYPES.includes(p.payment_type));
   }
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderPayments()');
 
   const canApprove = ['principal','design_principal','pmc_head'].includes(APP.user.role);
 
   if (pending.length) {
     const total = pending.reduce((s,p) => s + parseFloat(p.amount_requested||0), 0);
     if (canApprove) {
-      html += `<div class="action-item c-navy" style="margin-bottom:16px">
-        <div class="ai-icon"></div>
-        <div class="ai-body">
-          <div class="ai-title">Approve all — ${Money.formatRupee(total)}</div>
-          <div class="ai-meta">${pending.length} vendor${pending.length>1?'s':''} waiting</div>
+      html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;border-left:3px solid var(--navy)">
+        <div style="padding:14px 16px;display:flex;align-items:center;gap:14px">
+          <div style="width:40px;height:40px;border-radius:10px;background:#EEF2FF;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4263EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px;color:var(--navy)">${Money.formatRupee(total)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${pending.length} vendor${pending.length>1?'s':''} awaiting approval</div>
+          </div>
+          <button class="btn-sm approve" onclick="APP.batchApprovePayments('${pid}')">Approve All</button>
         </div>
-        <button class="btn-sm approve" onclick="APP.batchApprovePayments('${pid}')">Approve All</button>
       </div>`;
     }
-    html += `<div class="sec-label">Payment Queue</div>`;
+    html += `<div class="sec-label" style="margin-bottom:8px">Payment Queue</div>`;
     html += APP._sortToggleHTML('payments', ['default','age']);
     const sortedPending = APP._applySort(pending, APP._getSortMode('payments'), { ageField:'created_at' });
     sortedPending.forEach(p => {
-      html += `<div class="pay-item" data-pr-id="${p.id}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="flex:1">
-            <div class="pay-vendor">${p.vendor_name||'—'}</div>
-            <div class="pay-scope">${(p.scope||'').substring(0,50)}</div>
-            <div class="pay-meta">${UI.fmtDate(p.created_at)}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="pay-amount">${Money.formatRupee(p.amount_requested)}</div>
-            ${canApprove ? `<button class="btn-sm approve" onclick="APP.approvePayment(${p.id})">Approve</button>` : ''}
+      const typeLabel = (p.payment_type||'').replace(/_/g,' ');
+      html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px" data-pr-id="${p.id}">
+        <div style="padding:14px 16px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px;color:var(--navy)">${UI.escapeText(p.vendor_name||'—')}</div>
+              <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.4">${UI.escapeText((p.scope||'').substring(0,60))}</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+                ${typeLabel ? `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;background:#EEF2FF;color:var(--navy);padding:2px 8px;border-radius:20px">${typeLabel}</span>` : ''}
+                <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${UI.fmtDate(p.created_at)}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+              <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--navy)">${Money.formatRupee(p.amount_requested)}</div>
+              ${canApprove ? `<button class="btn-sm approve" onclick="APP.approvePayment(${p.id})">Approve</button>` : ''}
+            </div>
           </div>
         </div>
       </div>`;
@@ -7531,7 +7919,7 @@ APP.batchApprovePayments = async function(pid) {
 // ── PAYMENTS FINANCE — Finance Admin view (Saturday workflow)
 APP.renderPaymentsFin = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
@@ -7540,7 +7928,7 @@ APP.renderPaymentsFin = async function() {
 
   const total = pending.reduce((s,p) => s + parseFloat(p.amount_requested||0), 0);
 
-  let html = `
+  let html = APP._projectSelectHtml('APP.renderPaymentsFin()') + `
   <div class="sec-label">Saturday Payment Workflow</div>
   <div class="stat-row" style="grid-template-columns:1fr 1fr">
     <div class="stat-card">
@@ -7554,45 +7942,43 @@ APP.renderPaymentsFin = async function() {
   </div>`;
 
   if (pending.length) {
-    html += `
-    <div class="sec-label">Steps</div>
-    <div class="card" style="margin-bottom:8px">
-      <div class="card-title">Step 1 — Run pre-upload check</div>
-      <div class="card-meta">Validates account numbers and checks for duplicates</div>
-      <button class="btn-secondary" style="margin-top:10px;width:100%" onclick="APP.runPreUploadCheck('${pid}')">
-        Run Validation Check
-      </button>
-    </div>
-    <div class="card" id="precheck-results" style="display:none;margin-bottom:8px"></div>
-    <div class="card" style="margin-bottom:8px">
-      <div class="card-title">Step 2 — Download ICICI Excel</div>
-      <div class="card-meta">19-column PAB bulk payment format — ready to upload to ICICI portal</div>
-      <button class="btn-primary" style="margin-top:10px" onclick="APP.downloadICICIExcel('${pid}')">
-        Download ICICI Excel
-      </button>
-    </div>
-    <div class="card">
-      <div class="card-title">Step 3 — Upload to ICICI portal</div>
-      <div class="card-meta">Login to ICICI Corporate → Bulk Payments → Upload file</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">
-        UTRs will be pushed back to the app automatically once payments process.
-        Each vendor will receive WhatsApp confirmation with their UTR.
-      </div>
-    </div>`;
+    html += `<div class="sec-label" style="margin-bottom:8px">Steps</div>`;
+    const steps = [
+      { n:'1', title:'Run pre-upload check', meta:'Validates account numbers and checks for duplicates',
+        action:`<button class="btn-sm" style="margin-top:10px;width:100%;justify-content:center" onclick="APP.runPreUploadCheck('${pid}')">Run Validation Check</button>` },
+      { n:'2', title:'Download ICICI Excel', meta:'19-column PAB bulk payment format — ready to upload to ICICI portal',
+        action:`<button class="btn-sm navy" style="margin-top:10px" onclick="APP.downloadICICIExcel('${pid}')">Download Excel</button>` },
+      { n:'3', title:'Upload to ICICI portal', meta:'Login to ICICI Corporate → Bulk Payments → Upload file',
+        action:`<div style="font-size:11px;color:var(--muted);margin-top:8px">UTRs will be pushed back automatically. Each vendor will receive WhatsApp confirmation.</div>` },
+    ];
+    steps.forEach(s => {
+      html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
+        <div style="padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${s.n}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;color:var(--navy)">${s.title}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${s.meta}</div>
+            ${s.action}
+          </div>
+        </div>
+      </div>`;
+    });
+    html += `<div class="card" id="precheck-results" style="display:none;margin-bottom:8px;padding:14px 16px"></div>`;
   } else {
     html += UI.empty('','No approved payments to process');
   }
 
-  html += `<div class="sec-label">Payments</div>`;
+  html += `<div class="sec-label" style="margin-bottom:8px">Payments</div>`;
   pending.forEach(p => {
-    html += `<div class="pay-item">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="pay-vendor">${p.vendor_name||'—'}</div>
-          <div class="pay-scope">${(p.scope||'').substring(0,50)}</div>
-          <div class="pay-meta">${p.bank_ifsc||'—'} · ${(p.bank_ifsc||'').startsWith('ICIC')?'FT':'NEFT'}</div>
+    const xferType = (p.bank_ifsc||'').startsWith('ICIC') ? 'FT' : 'NEFT';
+    html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;color:var(--navy)">${UI.escapeText(p.vendor_name||'—')}</div>
+          <div style="font-size:12px;color:var(--text);margin-top:3px">${UI.escapeText((p.scope||'').substring(0,60))}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px">${p.bank_ifsc||'—'} · <span style="font-weight:600">${xferType}</span></div>
         </div>
-        <div class="pay-amount">${Money.formatRupee(p.amount_requested)}</div>
+        <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--navy);flex-shrink:0">${Money.formatRupee(p.amount_requested)}</div>
       </div>
     </div>`;
   });
@@ -7656,14 +8042,14 @@ APP.downloadICICIExcel = async function(pid) {
 // ── PI — proforma invoices
 APP.renderPI = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
   const data = await API.get(`/invoices/${pid}/pi`);
   if (!data) return;
   const pis = data.invoices || [];
   const canRaise = ['pmc_head','principal','design_principal','finance_admin'].includes(APP.user.role);
 
-  let html = `
+  let html = APP._projectSelectHtml('APP.renderPI()') + `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="sec-label" style="margin:0">Proforma Invoices</div>
       ${canRaise ? `<button class="btn-primary" onclick="APP.showRaisePI(${pid})">+ Raise PI</button>` : ''}
@@ -7759,14 +8145,14 @@ APP.submitRaisePI = async function(pid) {
 // ── PETTY CASH — Finance Admin
 APP.renderPettyCash = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
   const data = await API.get(`/finance/${pid}/petty-cash`);
   if (!data) return;
   const entries = data.entries || [];
   const balance = data.balance || 0;
 
-  let html = `
+  let html = APP._projectSelectHtml('APP.renderPettyCash()') + `
   <div class="stat-row" style="grid-template-columns:1fr 1fr">
     <div class="stat-card">
       <span class="stat-val">${Money.formatRupee(balance)}</span>
@@ -7805,62 +8191,96 @@ APP.renderUsers = async function() {
 
   const resettableIds = new Set((resettable?.users||[]).map(u => u.id));
 
+  // Avatar helpers
+  const _uInitials = n => (n||'').split(' ').filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const _roleAvatar = role => {
+    const map = {
+      principal:['#E3EAFD','#3B5BDB'], design_principal:['#E3EAFD','#3B5BDB'],
+      pmc_head:['#F3F0FF','#7048E8'],
+      design_head:['#E6FCF5','#0CA678'], services_head:['#E6FCF5','#0CA678'],
+      site_manager:['#FFF3BF','#E67700'], senior_site_manager:['#FFF3BF','#E67700'],
+      finance_admin:['#E8F5E9','#2E7D32'], audit:['#F1F3F5','#868E96'],
+    };
+    return map[role] || ['#EEF2FF','#4263EB'];
+  };
+
+  // ── Bulk Upload card — icon + two action buttons in footer bar
   let html = `
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-title">Bulk Upload Users</div>
-    <div class="card-meta">Upload Excel with all team members at once — use the template</div>
-    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px" class="bulk-upload-actions">
-      <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download>
-        <button class="btn-secondary">Download Template</button>
+  <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:14px;padding:16px">
+      <div style="width:44px;height:44px;border-radius:10px;background:#E8F5E9;color:#2E7D32;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px;color:var(--navy)">Bulk Upload Users</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Upload Excel with all team members at once — download the template first</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);display:flex">
+      <a href="/templates/nu_PMC_BulkUpload_Templates_v1.xlsx" download style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 8px;font-size:13px;font-weight:600;color:var(--navy);text-decoration:none;border-right:1px solid var(--border)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Template
       </a>
-      <label>
+      <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 8px;font-size:13px;font-weight:600;color:#fff;background:var(--navy);cursor:pointer">
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="APP.bulkUploadUsers(this)">
-        <button class="btn-primary" onclick="this.previousElementSibling.click()">Upload Excel</button>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+        Upload Excel
       </label>
     </div>
   </div>`;
 
+  // ── Pending Approvals
   const approvals = pending?.pending || [];
   if (approvals.length) {
     html += `<div class="sec-label">Pending Approval (${approvals.length})</div>`;
     approvals.forEach(u => {
-      html += `<div class="action-item c-amber">
-        <div class="ai-icon"></div>
-        <div class="ai-body">
-          <div class="ai-title">${UI.escapeText(u.full_name)}</div>
-          <div class="ai-meta">${u.role} · ${u.email||u.phone||'—'}</div>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn-sm approve" onclick="APP.approveUser(${u.id})">Approve</button>
-          <button class="btn-sm reject"  onclick="APP.rejectUser(${u.id})">Reject</button>
+      const [bg, fg] = _roleAvatar(u.role);
+      html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px;border-left:3px solid var(--amber)">
+        <div style="display:flex;align-items:center;gap:14px;padding:14px 16px">
+          <div style="width:40px;height:40px;border-radius:50%;background:${bg};color:${fg};font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${_uInitials(u.full_name)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px;color:var(--text)">${UI.escapeText(u.full_name)}</div>
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">${APP._roleLabel(u.role)} · ${u.email||u.phone||'—'}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="btn-sm approve" onclick="APP.approveUser(${u.id})">Approve</button>
+            <button class="btn-sm reject"  onclick="APP.rejectUser(${u.id})">Reject</button>
+          </div>
         </div>
       </div>`;
     });
   }
 
+  // ── Active Users
   const isPrincipal = ['principal','design_principal'].includes(APP.user?.role);
   html += `<div class="sec-hdr-row">
     <div class="sec-label" style="margin:0;flex:1">Active Users</div>
     ${isPrincipal ? `<button class="btn-primary sec-hdr-btn" onclick="APP.openAddUserModal()">+ Add User</button>` : ''}
   </div>
   ${isPrincipal ? `<button class="btn-primary sec-action-mobile" onclick="APP.openAddUserModal()">+ Add User</button>` : ''}`;
-  (all?.users||[]).forEach(u => {
-    const canReset = resettableIds.has(u.id);
-    html += `<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+
+  const users = all?.users || [];
+  if (users.length) {
+    html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">`;
+    users.forEach((u, i) => {
+      const [bg, fg] = _roleAvatar(u.role);
+      const canReset = resettableIds.has(u.id);
+      html += `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px${i > 0 ? ';border-top:1px solid var(--border)' : ''}">
+        <div style="width:40px;height:40px;border-radius:50%;background:${bg};color:${fg};font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${_uInitials(u.full_name)}</div>
         <div style="flex:1;min-width:0">
-          <div class="card-title">${UI.escapeText(u.full_name)}</div>
-          <div class="card-meta">${APP._roleLabel(u.role)} · ${u.email||u.phone||'—'}</div>
+          <div style="font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(u.full_name)}</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">${APP._roleLabel(u.role)} · ${u.email||u.phone||'—'}</div>
         </div>
-        <div style="display:flex;gap:12px;flex-shrink:0;align-items:center;justify-content:flex-end;width:182px">
-          <span class="badge b-green" style="height:32px;min-height:32px;width:80px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;margin:0;font-weight:600;font-size:11px;letter-spacing:0.5px">ACTIVE</span>
-          <div style="width:90px;height:32px;display:inline-flex;align-items:center;justify-content:flex-end;flex-shrink:0">
-            ${canReset ? `<button class="btn-sm" onclick="APP.resetUserPassword(${u.id},'${UI.escapeText(u.full_name)}')" style="background:var(--bg);color:var(--navy);border:1px solid var(--border);height:32px;min-height:32px;padding:0;width:100%;font-size:11px;font-weight:600;box-sizing:border-box;margin:0;display:inline-flex;align-items:center;justify-content:center">Reset PW</button>` : ''}
-          </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;width:160px;justify-content:flex-end">
+          <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;width:72px;border-radius:4px;background:#D3F9D8;color:#2F9E44;font-size:11px;font-weight:700;letter-spacing:0.5px;box-sizing:border-box">ACTIVE</span>
+          ${canReset
+            ? `<button onclick="APP.resetUserPassword(${u.id},'${UI.escapeText(u.full_name)}')" style="height:28px;width:72px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-weight:600;cursor:pointer;box-sizing:border-box">Reset PW</button>`
+            : `<div style="height:28px;width:72px"></div>`}
         </div>
-      </div>
-    </div>`;
-  });
+      </div>`;
+    });
+    html += `</div>`;
+  }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
@@ -8111,18 +8531,44 @@ APP.renderAISettings = async function() {
   const data = await API.get('/ai-settings');
   if (!data?.features) { el.innerHTML = UI.empty('', 'Could not load AI settings'); return; }
 
-  let html = '<div class="sec-label">AI Features — Phase 2 Toggles</div>';
-  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">These features call Claude AI when enabled. Off by default — enable gradually. Requires ANTHROPIC_API_KEY on the server.</div>';
+  const keySet = data.api_key_set;
+  const keyBanner = keySet
+    ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#EDF7EE;border:1px solid #B2DFBC;border-radius:var(--r);margin-bottom:16px;font-size:12px;color:#2E7D32">
+        <span>●</span> Anthropic API key configured — all AI features active
+       </div>`
+    : `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#FFF3E0;border:1px solid #FFCC80;border-radius:var(--r);margin-bottom:16px;font-size:12px;color:#E65100">
+        <span>⚠</span> Anthropic API key not set on server — AI features will show fallback messages. Set <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to activate.
+       </div>`;
+
+  let html = keyBanner;
+  html += '<div class="sec-label">Phase 1 — Always Active</div>';
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">These run automatically on relevant actions. When AI is unavailable they show an alert and let work continue — nothing is blocked.</div>';
+  const phase1 = [
+    'BOQ → Vendor Mapping', 'Schedule Look-Ahead Plan', 'Weekly Report Drag Analysis',
+    'Payment Anomaly Narrative', 'Vendor Upload Validation', 'Project Date Sanity Check',
+    'Lessons Learned Draft', 'Drawing Title Block Extraction', 'CN Text Drafting', 'Invoice Scan → Pre-fill',
+  ];
+  html += `<div class="card" style="margin-bottom:16px;padding:12px 16px">`;
+  phase1.forEach((name, i) => {
+    html += `<div style="font-size:12px;color:var(--text);padding:4px 0${i < phase1.length - 1 ? ';border-bottom:1px solid var(--border)' : ''}">
+      <span style="color:${keySet ? '#2E7D32' : 'var(--muted)'}">●</span> ${UI.escapeText(name)}
+    </div>`;
+  });
+  html += '</div>';
+
+  html += '<div class="sec-label">Phase 2 — Toggle-Gated</div>';
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Off by default. Enable individually. Background checks — upload/save actions complete immediately regardless of AI result.</div>';
 
   data.features.forEach(f => {
     const checked = f.enabled ? 'checked' : '';
+    const disabledAttr = keySet ? '' : 'disabled title="Set ANTHROPIC_API_KEY first"';
     html += `<div class="card" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600;color:var(--text)">${UI.escapeText(f.label)}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px">${UI.escapeText(f.description || '')}</div>
       </div>
       <label class="toggle-switch">
-        <input type="checkbox" ${checked} onchange="APP.toggleAIFeature('${f.feature_key}', this.checked)">
+        <input type="checkbox" ${checked} ${disabledAttr} onchange="APP.toggleAIFeature('${f.feature_key}', this.checked)">
         <span class="toggle-slider"></span>
       </label>
     </div>`;
@@ -9093,7 +9539,7 @@ APP._markAllNotifsRead = async function() {
 // ── NCR — Non-Conformance Reports
 APP.renderNCR = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/issues/ncr/${pid}`);
@@ -9103,7 +9549,7 @@ APP.renderNCR = async function() {
   const role = APP.user.role;
   const canRaise = ['pmc_head','principal','design_principal','site_manager','senior_site_manager'].includes(role);
 
-  let html = '';
+  let html = APP._projectSelectHtml('APP.renderNCR()');
   if (canRaise) {
     html += `<button class="btn-primary" onclick="APP.showNCRForm()" style="margin-bottom:16px">+ Raise NCR</button>`;
   }
@@ -9166,31 +9612,20 @@ APP.submitNCR = async function() {
 // ── SUBMITTALS — review queue
 APP.renderSubmittals = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
-
-  // Project selector for firm-wide roles
-  const isFirmWide = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'].includes(APP.user?.role);
-  let projectSelectorHtml = '';
-  if (isFirmWide) {
-    const projects = APP.user?.projects || [];
-    projectSelectorHtml = `<div style="margin-bottom:14px">
-      <select style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--white);cursor:pointer"
-        onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderSubmittals()">
-        ${projects.map(p => `<option value="${p.id}" ${String(p.id)===String(pid)?'selected':''}>${p.name}</option>`).join('')}
-      </select>
-    </div>`;
-  }
 
   const data = await API.get(`/submittals/${pid}`);
   if (!data) return;
   const subs = data.submittals || [];
 
   const role = APP.user.role;
-  const canSubmit = ['site_manager','senior_site_manager','pmc_head'].includes(role);
+  const canSubmit = ['pmc_head','site_manager','senior_site_manager','design_head','services_head',
+                         'team_lead','jr_architect','services_engineer','jr_engineer',
+                         'principal','design_principal'].includes(role);
   const canReview = ['design_head','services_head','pmc_head','principal','design_principal'].includes(role);
 
-  let html = projectSelectorHtml;
+  let html = APP._projectSelectHtml('APP.renderSubmittals()');
   if (canSubmit) {
     html += `<button class="btn-primary" onclick="APP.showSubmittalForm()" style="margin-bottom:16px">+ New Submittal</button>`;
   }
@@ -9248,23 +9683,56 @@ APP.reviewSubmittal = async function(id, status) {
   if (res?.success) { UI.toast(status==='approved'?'Approved ✓':'Returned'); APP.renderSubmittals(); }
   else if (res?.error) { UI.toast(res.error, 'error'); }
 };
-APP.showSubmittalForm = function() {
-  document.getElementById('modal-overlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-title">New Submittal <button class="btn-close" onclick="APP.closeModal()" aria-label="Close">×</button></button>
-    <div class="field-row"><label class="field-label" for="sub-title">Title</label>
-      <input type="text" id="sub-title" placeholder="e.g. Structural steel shop drawings"></div>
-    <div class="field-row"><label class="field-label" for="sub-vendor">Vendor</label>
-      <input type="text" id="sub-vendor" placeholder="Vendor name"></div>
-    <button class="btn-primary" onclick="APP.submitSubmittal()">Submit</button>`;
+APP.showSubmittalForm = async function() {
+  const pid = APP.state.selectedProject;
+  // Fetch vendor engagements for this project
+  const engData = await API.get(`/vendors/${pid}/engagements`).catch(() => null);
+  const engs = (engData?.engagements || []).filter(e => e.approval_status === 'approved' || !e.approval_status);
+
+  const vendorOptions = engs.length
+    ? engs.map(e => `<option value="${e.id}">${UI.escapeText(e.vendor_name)} (${UI.escapeText(e.trade||'')})</option>`).join('')
+    : '';
+
+  UI.showModal('New Submittal', `
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">Title *</label>
+      <input type="text" id="sub-title" placeholder="e.g. Structural steel shop drawings"
+        style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;background:var(--bg);color:var(--text);box-sizing:border-box">
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">Type</label>
+      <select id="sub-type" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;background:var(--bg);color:var(--text);box-sizing:border-box">
+        <option value="shop_drawing">Shop Drawing</option>
+        <option value="material_sample">Material Sample</option>
+        <option value="product_data">Product Data</option>
+        <option value="test_report">Test Report</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div style="margin-bottom:18px">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">Vendor</label>
+      ${vendorOptions
+        ? `<select id="sub-engagement" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;background:var(--bg);color:var(--text);box-sizing:border-box">
+            <option value="">Select vendor…</option>
+            ${vendorOptions}
+           </select>`
+        : `<div style="font-size:13px;color:var(--muted);padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r)">
+            No approved vendor engagements found for this project.
+            Vendors must be engaged via the Vendors tab before raising a submittal.
+           </div>`}
+    </div>
+    ${vendorOptions ? '<button class="btn-primary" style="width:100%" onclick="APP.submitSubmittal()">Submit</button>' : ''}
+  `);
 };
 APP.submitSubmittal = async function() {
   const pid = APP.state.selectedProject;
-  const body = { title: document.getElementById('sub-title').value, vendor_name: document.getElementById('sub-vendor').value };
-  if (!body.title) { UI.toast('Add a title'); return; }
-  const res = await API.post(`/submittals/${pid}`, body);
-  if (res?.success) { APP.closeModal(); UI.toast('Submittal submitted ✓'); APP.renderSubmittals(); }
+  const title = document.getElementById('sub-title')?.value?.trim();
+  const engagement_id = document.getElementById('sub-engagement')?.value;
+  const submittal_type = document.getElementById('sub-type')?.value || 'shop_drawing';
+  if (!title) { UI.toast('Add a title'); return; }
+  if (!engagement_id) { UI.toast('Select a vendor'); return; }
+  const res = await API.post(`/submittals/${pid}`, { title, engagement_id, submittal_type });
+  if (res?.success) { UI.closeModal(); UI.toast('Submittal submitted ✓'); APP.renderSubmittals(); }
   else { UI.toast(res?.error || 'Failed to submit'); }
 };
 
@@ -9281,45 +9749,36 @@ APP.renderWeeklyHealth = async function() {
   else {
     html += `<div class="projects-grid">`;
     projects.forEach(p => {
-    const sched = p.schedule || {};
-    const drift = sched.drift_days || 0;
-    const driftColor = drift > 14 ? 'red' : drift > 7 ? 'amber' : 'green';
+      const sched = p.schedule || {};
+      const drift = sched.drift_days || 0;
+      const driftCls = drift > 14 ? 'red' : drift > 7 ? 'amber' : 'green';
+      const healthStatus = p.health_status || 'active';
+      const borderColor = healthStatus === 'critical' ? 'var(--red)' : healthStatus === 'at_risk' ? 'var(--amber)' : 'var(--green)';
 
-    html += `<div class="proj-card">
-      <div class="pc-top">
-        <div style="flex:1">
-          <div class="pc-name">${p.name}</div>
-          <div class="pc-client">${p.client_name||'—'}</div>
+      html += `<div class="proj-card" style="border-left:3px solid ${borderColor}">
+        <div class="pc-top">
+          <div style="flex:1">
+            <div class="pc-name">${p.name}</div>
+            <div class="pc-client">${p.client_name||'—'}</div>
+          </div>
+          ${UI.statusBadge(healthStatus)}
         </div>
-        ${UI.statusBadge(p.health_status||'active')}
-      </div>
-      <div class="pc-stats">
-        <div class="pc-stat">
-          <span class="pc-stat-val ${driftColor}">${drift>0?'+':''}${drift}d</span>
-          <span class="pc-stat-lbl">Schedule</span>
+        <div class="pc-stats">
+          <div class="pc-stat"><span class="pc-stat-val ${driftCls}">${drift>0?'+':''}${drift}d</span><span class="pc-stat-lbl">Schedule</span></div>
+          <div class="pc-stat"><span class="pc-stat-val ${(p.open_issues||0)>0?'amber':''}">${p.open_issues||0}</span><span class="pc-stat-lbl">Issues</span></div>
+          <div class="pc-stat"><span class="pc-stat-val ${(p.pending_payments||0)>0?'amber':''}">${p.pending_payments||0}</span><span class="pc-stat-lbl">Payments</span></div>
+          <div class="pc-stat"><span class="pc-stat-val ${(p.open_cns||0)>0?'amber':''}">${p.open_cns||0}</span><span class="pc-stat-lbl">CNs</span></div>
         </div>
-        <div class="pc-stat">
-          <span class="pc-stat-val">${p.open_issues||0}</span>
-          <span class="pc-stat-lbl">Issues</span>
-        </div>
-        <div class="pc-stat">
-          <span class="pc-stat-val">${p.pending_payments||0}</span>
-          <span class="pc-stat-lbl">Payments</span>
-        </div>
-        <div class="pc-stat">
-          <span class="pc-stat-val">${p.open_cns||0}</span>
-          <span class="pc-stat-lbl">CNs</span>
-        </div>
-      </div>
-      ${p.riskNarratives?.length ? `<div class="pc-progress">
-        ${p.riskNarratives.slice(0,2).map(n =>
-          `<div style="font-size:11px;color:var(--${n.escalation_level==='critical'?'red':n.escalation_level==='red'?'red':'amber'});line-height:1.4;margin-bottom:4px">
-            ${n.trade}: ${(n.narrative||'').replace(/\s*\(AI narrative.*?\)/i,'')}
-          </div>`
-        ).join('')}
-      </div>` : ''}
-    </div>`;
-  });
+        ${p.riskNarratives?.length ? `<div class="pc-progress">
+          ${p.riskNarratives.slice(0,2).map(n => {
+            const lvlColor = (n.escalation_level==='critical'||n.escalation_level==='red') ? 'var(--red)' : 'var(--amber)';
+            return `<div style="font-size:11px;color:${lvlColor};line-height:1.4;margin-bottom:4px;border-left:2px solid ${lvlColor};padding-left:7px">
+              <strong>${n.trade}:</strong> ${(n.narrative||'').replace(/\s*\(AI narrative.*?\)/i,'')}
+            </div>`;
+          }).join('')}
+        </div>` : ''}
+      </div>`;
+    });
     html += `</div>`;
   }
 
@@ -9329,10 +9788,10 @@ APP.renderWeeklyHealth = async function() {
 // ── SCHEDULE COMPLIANCE — PMC Saturday trigger
 APP.renderScheduleCompliance = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
-  let html = `
+  let html = APP._projectSelectHtml('APP.renderScheduleCompliance()') + `
   <div class="card" style="margin-bottom:16px;border-left:3px solid var(--navy)">
     <div class="card-title">Schedule Compliance Check</div>
     <div class="card-meta">Run before Saturday payment batch. Clears vendors with sufficient progress.</div>
@@ -9452,61 +9911,73 @@ APP.renderProjectDetail = async function() {
   </div>
 
   <div class="sec-label">Key Dates</div>
-  <div class="card" style="margin-bottom:16px">
-    <div class="prog-row">
-      <div class="prog-label" style="width:110px">Start</div>
-      <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${UI.fmtDate(p.start_date)}</div>
-    </div>
-    <div class="prog-row">
-      <div class="prog-label" style="width:110px">Completion</div>
-      <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${UI.fmtDate(p.completion_date)}</div>
-    </div>
-    <div class="prog-row">
-      <div class="prog-label" style="width:110px">Contract</div>
-      <div style="flex:1;font-family:var(--mono);font-size:12px;color:var(--navy)">${Money.formatRupee(p.contract_value||0)}</div>
+  <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr">
+      <div style="padding:14px 16px;border-right:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:5px">Start</div>
+        <div style="font-size:14px;font-weight:600;color:${p.start_date ? 'var(--text)' : 'var(--muted)'}">${UI.fmtDate(p.start_date) || '—'}</div>
+      </div>
+      <div style="padding:14px 16px;border-right:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:5px">Completion</div>
+        <div style="font-size:14px;font-weight:600;color:${p.completion_date ? 'var(--text)' : 'var(--muted)'}">${UI.fmtDate(p.completion_date) || '—'}</div>
+      </div>
+      <div style="padding:14px 16px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:5px">Contract Value</div>
+        <div style="font-size:14px;font-weight:600;color:${p.contract_value ? 'var(--navy)' : 'var(--muted)'}">${p.contract_value ? Money.formatRupee(p.contract_value) : '—'}</div>
+      </div>
     </div>
   </div>`;
 
-  // ── PMC Assignment card (v4.3)
-  // Shows primary + optional backup. Principal/DP see a "Change" button.
+  // ── PMC Assignment card — modern person-card layout
   const pmc = summary.pmc || {};
   const canChange = summary.can_change_pmc;
+  const _initials = n => (n||'').split(' ').filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const _personRow = (name, roleLabel, avatarBg, avatarFg, onclick, unassignedSub, border) => {
+    const b = border ? 'border-top:1px solid var(--border);' : '';
+    if (name) {
+      return `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;${b}">
+        <div style="width:40px;height:40px;border-radius:50%;background:${avatarBg};color:${avatarFg};font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0.3px">${_initials(name)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(name)}</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-top:2px">${roleLabel}</div>
+        </div>
+        ${onclick ? `<button class="btn-sm" onclick="${onclick}">Change</button>` : ''}
+      </div>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;${b}">
+      <div style="width:40px;height:40px;border-radius:50%;background:#F8F9FA;border:1.5px dashed #DEE2E6;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ADB5BD" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--muted)">Not assigned</div>
+        <div style="font-size:11px;color:#CED4DA;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-top:2px">${unassignedSub}</div>
+      </div>
+      ${onclick ? `<button class="btn-sm" onclick="${onclick}">Assign</button>` : ''}
+    </div>`;
+  };
   html += `
   <div class="sec-label">PMC Assignment</div>
-  <div class="card" style="margin-bottom:16px">
-    <div class="prog-row">
-      <div class="prog-label" style="width:110px">Primary</div>
-      <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600">
-        ${pmc.primary_name || '<span style="color:var(--muted);font-weight:400">— Not assigned —</span>'}
-      </div>
-      ${canChange ? `<button class="btn-sm" onclick="APP.openChangePmc(${pid},'primary')" style="margin-left:8px">Change</button>` : ''}
-    </div>
-    <div class="prog-row">
-      <div class="prog-label" style="width:110px">Backup</div>
-      <div style="flex:1;font-family:var(--mono);font-size:13px;color:var(--text2)">
-        ${pmc.backup_name || '<span style="color:var(--muted)">— Optional, for leave cover —</span>'}
-      </div>
-      ${canChange ? `<button class="btn-sm" onclick="APP.openChangePmc(${pid},'backup')" style="margin-left:8px">Change</button>` : ''}
-    </div>
+  <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">
+    ${_personRow(pmc.primary_name, 'Primary PMC', '#E3EAFD', '#3B5BDB', canChange ? `APP.openChangePmc(${pid},'primary')` : null, 'Primary PMC', false)}
+    ${_personRow(pmc.backup_name, 'Backup PMC', '#E6FCF5', '#0CA678', canChange ? `APP.openChangePmc(${pid},'backup')` : null, 'Backup · Optional leave cover', true)}
   </div>`;
 
-  // ── Site Manager Assignment card
-  // PMC Head + Principals can assign a site manager to the project
+  // ── Site Manager Assignment card — same person-card layout
   const canAssignSM = ['pmc_head','principal','design_principal'].includes(APP.user?.role);
   if (canAssignSM) {
     const teamData = await API.get(`/projects/${pid}/team`).catch(() => null);
     const siteManagers = (teamData?.team || []).filter(m => ['site_manager','senior_site_manager'].includes(m.role));
+    const _smColors = { site_manager: ['#FFF3BF','#E67700'], senior_site_manager: ['#F3F0FF','#7048E8'] };
+    const _smLabel  = role => role === 'senior_site_manager' ? 'Senior Site Manager' : 'Site Manager';
+    const smRows = siteManagers.length
+      ? siteManagers.map((sm, i) => {
+          const [bg, fg] = _smColors[sm.role] || ['#F1F3F5','#868E96'];
+          return _personRow(sm.full_name, _smLabel(sm.role), bg, fg, `APP.showAssignSiteManager(${pid})`, '', i > 0);
+        }).join('')
+      : _personRow(null, 'Site Manager', '', '', `APP.showAssignSiteManager(${pid})`, 'Site Manager', false);
     html += `
     <div class="sec-label">Site Manager</div>
-    <div class="card" style="margin-bottom:16px">
-      ${siteManagers.length ? siteManagers.map(sm => `
-        <div class="prog-row">
-          <div style="font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600">${sm.full_name}</div>
-          <span class="badge b-green" style="font-size:10px">${sm.role === 'senior_site_manager' ? 'Senior' : 'Site Manager'}</span>
-        </div>
-      `).join('') : '<div style="font-size:12px;color:var(--muted)">No site manager assigned</div>'}
-      <button class="btn-sm navy" style="margin-top:10px" onclick="APP.showAssignSiteManager(${pid})">+ Assign Site Manager</button>
-    </div>`;
+    <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">${smRows}</div>`;
   }
 
   if (buttons.length) {
@@ -9553,13 +10024,16 @@ APP.renderProjectDetail = async function() {
   // Single card at the bottom that opens a modal for editing the 6 SLA
   // thresholds. Hidden for everyone else.
   if (['principal','design_principal'].includes(APP.user?.role)) {
-    html += `<button class="card ps-btn" style="min-height:44px;margin-top:16px;cursor:pointer" onclick="APP.openSlaSettings(${pid})">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-weight:600;font-size:14px;color:var(--navy)">⏱ SLA Settings</div>
-        <span style="margin-left:auto;color:var(--muted);font-size:12px">tap to edit ▸</span>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px">
-        Per-project thresholds for when items escalate to the Pending tab.
+    html += `<button class="card ps-btn" style="padding:14px 16px;margin-top:16px;cursor:pointer;text-align:left;width:100%;display:block" onclick="APP.openSlaSettings(${pid})">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:40px;height:40px;border-radius:50%;background:#E3EAFD;color:#3B5BDB;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⏱</div>
+        <div style="flex:1;min-width:0;text-align:left">
+          <div style="font-weight:600;font-size:14px;color:var(--navy)">SLA Settings</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Per-project thresholds for when items escalate to the Pending tab</div>
+        </div>
+        <div style="color:var(--muted);font-size:12px;white-space:nowrap;display:flex;align-items:center;gap:3px;flex-shrink:0">
+          Edit <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
       </div>
     </button>`;
   }
@@ -9804,14 +10278,15 @@ APP._revertSla = async function(itemType) {
 // ── CLIENT RECEIPTS — Finance Admin logs incoming payments
 APP.renderClientReceipts = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/finance/${pid}/client-receipts`);
   if (!data) return;
   const receipts = data.receipts || [];
 
-  let html = `<button class="btn-primary" onclick="APP.showReceiptForm()" style="margin-bottom:16px">+ Log Receipt</button>
+  let html = APP._projectSelectHtml('APP.renderClientReceipts()') +
+    `<button class="btn-primary" onclick="APP.showReceiptForm()" style="margin-bottom:16px">+ Log Receipt</button>
   <div class="sec-label">Client Receipts</div>`;
 
   if (!receipts.length) { html += UI.empty('','No receipts logged yet'); }
@@ -9890,14 +10365,14 @@ APP.submitReceipt = async function() {
 // ── TALLY XML EXPORT — Finance Admin
 APP.renderTallyExport = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.get(`/invoices/${pid}/pi`);
   if (!data) return;
   const pis = (data.invoices||[]).filter(p => p.status === 'paid');
 
-  let html = `
+  let html = APP._projectSelectHtml('APP.renderTallyExport()') + `
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Tally XML Export</div>
     <div class="card-meta">${pis.length} paid invoice${pis.length!==1?'s':''} available for export</div>
@@ -10090,6 +10565,18 @@ APP.showActionTriage = function(key) {
     const pid = it.project_id || APP.state.selectedProject || '';
     // For flags, also set flagFilterProject so the Flags tab pre-filters to this project
     const extraState = key === 'open_flags' ? `APP.state.flagFilterProject=${pid};` : '';
+    // pending_approvals: route per request_type to the correct tab.
+    // Drawing approvals no longer appear for principal (removed approvals.register call).
+    // Other types: payment → payments tab, change → changes tab, fallback → pending.
+    let navCall;
+    if (key === 'pending_approvals') {
+      const rt = it.request_type || '';
+      const tabNav = rt.includes('payment') ? 'payments' :
+                     rt.includes('change')  ? 'changes'  : 'pending';
+      navCall = `APP._tryNav('${tabNav}')`;
+    } else {
+      navCall = `APP._tryNav('${meta.tab}')`;
+    }
     return `
       <div class="triage-row">
         <div class="triage-row-icon">${meta.icon}</div>
@@ -10097,7 +10584,7 @@ APP.showActionTriage = function(key) {
           <div class="triage-row-label">${label}</div>
           <div class="triage-row-sub">${sub}</div>
         </div>
-        <button class="btn-sm navy" onclick="UI.closeModal();APP.state.selectedProject=${pid};${extraState}APP._tryNav('${meta.tab}');">Review →</button>
+        <button class="btn-sm navy" onclick="UI.closeModal();APP.state.selectedProject=${pid};${extraState}${navCall};">Review →</button>
       </div>`;
   };
 
@@ -10202,8 +10689,10 @@ APP.renderPMCDashboard = async function() {
 // SITE MANAGER DASHBOARD
 APP.renderSiteDashboard = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
-  if (!pid) { el.innerHTML = UI.empty('','No project assigned'); return; }
+  // Only show active projects in the selector for site roles
+  const activeProjects = APP._visibleProjects();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','No active project assigned'); return; }
 
   const today = APP.state.serverToday || UI.todayIST();
 
@@ -10230,10 +10719,21 @@ APP.renderSiteDashboard = async function() {
     ? grnsData.grns.filter(g => g.status === 'pending').length
     : (scheduleData?.pending_grns ?? 0);
 
+  const projectName = activeProjects.find(p => String(p.id) === String(pid))?.name
+    || APP.user?.project_name || APP.state.projectName || 'Site';
+
+  const projSelector = activeProjects.length > 1
+    ? `<select style="width:100%;margin-top:10px;padding:6px 10px;border:none;border-radius:var(--r);font-size:13px;font-weight:600;background:rgba(255,255,255,.15);color:var(--white);cursor:pointer;-webkit-appearance:none"
+        onchange="APP.state.selectedProject=parseInt(this.value);APP._updateTopbar();APP.renderSiteDashboard()">
+        ${activeProjects.map(p => `<option value="${p.id}" style="color:var(--text);background:var(--white)" ${String(p.id)===String(pid)?'selected':''}>${UI.escapeText(p.name)}</option>`).join('')}
+      </select>`
+    : '';
+
   let html = `
   <div class="card" style="margin-bottom:16px;background:var(--navy);border:none">
     <div style="color:rgba(255,255,255,.7);font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})}</div>
-    <div style="color:var(--white);font-size:22px;font-weight:700;margin-top:4px">${APP.user?.project_name||APP.state.projectName||'Site'}</div>
+    <div style="color:var(--white);font-size:22px;font-weight:700;margin-top:4px">${UI.escapeText(projectName)}</div>
+    ${projSelector}
   </div>
 
   <div class="stat-row">
@@ -10289,9 +10789,11 @@ APP.renderDesignDashboard = async function() {
   <div class="sec-label">Pending — ${streamLabel} Stream</div>`;
 
   // Read correct keys from action_centre
+  // Keep sliced versions for display lists, but track full counts separately
   const pending = (ac.pending_approvals || []).slice(0, 5);
   const queries = [...(ac.overdue_queries || []), ...(ac.fresh_queries || [])].slice(0, 5);
   const pendingChanges = (ac.pending_changes || []).slice(0, 5);
+  const pendingChangesTotal = (ac.pending_changes || []).length;
 
   if (!pending.length && !queries.length && !pendingChanges.length) {
     html += `<div class="card" style="text-align:center;padding:20px">
@@ -10326,9 +10828,10 @@ APP.renderDesignDashboard = async function() {
   }
 
   if (pendingChanges.length) {
-    html += `<div class="action-item c-blue" style="min-height:44px;cursor:pointer;width:100%" onclick="APP._dashAC=data.action_centre;APP.showActionTriage('pending_changes')">
+    // APP._dashAC already set above — do NOT reference `data` in onclick (not in global scope)
+    html += `<div class="action-item c-blue" style="min-height:44px;cursor:pointer;width:100%" onclick="APP.showActionTriage('pending_changes')">
       <div class="ai-icon"></div>
-      <div class="ai-body"><div class="ai-title">Change notices — signatures pending</div><div class="ai-meta">${pendingChanges.length} need sign-off</div></div>
+      <div class="ai-body"><div class="ai-title">Change notices — signatures pending</div><div class="ai-meta">${pendingChangesTotal} need sign-off</div></div>
       <span class="badge b-blue">SIGN</span>
     </div>`;
   }
@@ -10731,12 +11234,12 @@ APP.downloadGSTStatement = function() {
 // ── BOQ MAPPING
 APP.renderBOQMapping = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('', 'Select a project first'); return; }
   const data = await API.get('/boq-mapping/' + pid);
   if (!data) return;
   const { engagements = [], unmapped_count = 0, mappings = [] } = data;
-  let html = `
+  let html = APP._projectSelectHtml('APP.renderBOQMapping()') + `
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">BOQ to Vendor Mapping</div>
     <div class="card-meta">${unmapped_count} unmapped BOQ items · ${engagements.length} engagements</div>
@@ -10824,13 +11327,13 @@ APP.saveManualBOQMap = async function(engId, pid) {
 //   - budget_tree tab directly (Audit role only)
 APP.renderBudgetTree = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('', 'Select a project first'); return; }
   const data = await API.get('/budget/' + pid + '/tree');
   if (!data) return;
   const tree = data.tree || [];
   const fmt = n => Money.formatRupee(n||0);
-  let html = APP._budgetToggleHTML() + '<div class="sec-label">Budget — Committed vs Sanctioned</div>';
+  let html = APP._projectSelectHtml('APP.renderBudgetTree()') + APP._budgetToggleHTML() + '<div class="sec-label">Budget — Committed vs Sanctioned</div>';
   if (!tree.length) { html += UI.empty('', 'No budget data yet'); }
   tree.forEach(trade => {
     const sc = trade.status === 'critical'||trade.status === 'over' ? 'red' : trade.status === 'watch' ? 'amber' : 'green';
@@ -11332,7 +11835,7 @@ APP.deleteBOQItem = async function(pid, itemId, itemName) {
 
 APP.renderClientBOQ = async function() {
   const el  = UI.contentEl();
-  const pid = APP.state.selectedProject;
+  const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
   const data = await API.call('GET', `/client-boq/${pid}`);
@@ -11343,7 +11846,7 @@ APP.renderClientBOQ = async function() {
   const me = APP.user;
   const canEditRate = ['principal','design_principal','pmc_head','design_head','services_head'].includes(me.role);
 
-  let html = `<div class="card" style="margin-bottom:12px">
+  let html = APP._projectSelectHtml('APP.renderClientBOQ()') + `<div class="card" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="card-title">Client Contract BOQ</div>
@@ -11388,7 +11891,7 @@ APP.renderClientBOQ = async function() {
           <div style="font-weight:600;color:var(--text)">₹${rate}</div>
           <div style="color:var(--muted);font-size:11px;margin-top:2px">${amount !== '—' ? '₹' + amount : ''}</div>
         </div>` : ''}
-        ${canEditRate && !item.is_section ? `<button class="btn-sm" style="padding:6px 12px;font-size:13px" onclick="APP.showEditClientBOQItem(${pid},${item.id})">✎ Edit</button>` : ''}
+        ${canEditRate && !item.is_section ? `<button class="btn-sm" style="padding:6px 12px;font-size:13px" onclick="APP.showEditClientBOQItem(${pid},$✎ Edit</button>` : ''}
       </div>
     </div>`;
   };
@@ -11482,7 +11985,7 @@ APP.toggleDarkMode = function() {
   UI.toast(next === 'dark' ? 'Dark mode' : 'Light mode');
 };
 
-// ── PULL TO REFRESH
+// ─PULL TO REFRESH
 (function() {
   let startY = 0, pulling = false;
   const indicator = document.createElement('div');

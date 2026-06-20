@@ -140,14 +140,18 @@ router.post('/:photo_id/ai-tag', requireAuth, asyncHandler(async (req, res) => {
       }
     }
 
-    // Today's candidate tasks for this project
+    // Candidate tasks: active today OR starting within next 14 days
+    // so AI can suggest upcoming tasks for photos taken ahead of schedule start.
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const lookahead14 = new Date();
+    lookahead14.setDate(lookahead14.getDate() + 14);
+    const lookaheadStr = lookahead14.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const [tasks] = await db.query(
       `SELECT st.id, st.task_name, st.trade FROM schedule_tasks st
        JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
-       WHERE st.project_id = ? AND st.start_date <= ? AND st.end_date >= ?
-       LIMIT 30`,
-      [photo.project_id, today, today]
+       WHERE st.project_id = ? AND st.end_date >= ? AND st.start_date <= ?
+       ORDER BY st.start_date ASC LIMIT 30`,
+      [photo.project_id, today, lookaheadStr]
     );
 
     const project = { name: await users.projectName(photo.project_id) };
@@ -192,29 +196,29 @@ router.post('/:photo_id/ai-tag', requireAuth, asyncHandler(async (req, res) => {
 
   }));
 
-// GET /api/photo-tags/disputes/:project_id — photos where AI and human disagree, for PMC dashboard
+// GET /api/photo-tags/disputes/:project_id — photos where AI has suggested a task
+// awaiting human confirmation (includes disputes AND unconfirmed AI-only tags).
+// "Confirmed" means a human has explicitly set a tag with the same task_id as AI.
 router.get('/disputes/:project_id', requireAuth, asyncHandler(async (req, res) => {
     const [rows] = await db.query(
-      `SELECT pp.id AS photo_id, pp.file_path, pp.photo_date, pp.uploaded_at,
-         ht.task_id AS human_task_id, ht.caption AS human_caption, ht.tagged_by AS human_tagger_id,
-         at.task_id AS ai_task_id,   at.caption AS ai_caption,    at.ai_note, at.ai_confidence,
-         st_h.task_name AS human_task_name, st_a.task_name AS ai_task_name
+      `SELECT
+         pp.id AS photo_id, pp.file_path, pp.photo_date, pp.uploaded_at,
+         -- Most recent AI tag for this photo
+         at.id AS ai_tag_id, at.task_id AS ai_task_id, at.caption AS ai_caption,
+         at.ai_note, at.ai_confidence,
+         st_a.task_name AS ai_task_name, st_a.trade AS ai_trade,
+         -- Current human-confirmed tag (if any), with matching task
+         ht.task_id AS human_task_id, ht.tagged_by AS human_tagger_id,
+         st_h.task_name AS human_task_name
        FROM project_photos pp
-       JOIN photo_tags ht ON pp.id = ht.photo_id AND ht.is_current = 1 AND ht.tag_source != 'ai'
-       JOIN photo_tags at ON pp.id = at.photo_id AND at.is_current = 0 AND at.tag_source = 'ai'
-       LEFT JOIN schedule_tasks st_h ON ht.task_id = st_h.id
-       LEFT JOIN schedule_tasks st_a ON at.task_id = st_a.id
-       WHERE pp.project_id = ? AND pp.is_locked = 0
-       ORDER BY pp.uploaded_at DESC LIMIT 100`,
-      [req.params.project_id]
-    );
-    const Auth = require('../../auth/contract');
-    const users = await Auth.functions.getUsers(rows.map(r => r.human_tagger_id).filter(Boolean));
-    rows.forEach(r => {
-      r.human_tagger = users.get(r.human_tagger_id)?.full_name || null;
-      r.file_url = fileUrls.fileUrl(r.file_path);
-    });
-    res.json({ disputes: rows });
-  }));
-
-module.exports = router;
+       -- Latest AI tag that suggested a specific task
+       JOIN photo_tags at ON at.photo_id = pp.id
+         AND at.tag_source = 'ai'
+         AND at.task_id IS NOT NULL
+         AND at.id = (
+           SELECT MAX(id) FROM photo_tags
+           WHERE photo_id = pp.id AND tag_source = 'ai' AND task_id IS NOT NULL
+         )
+       LEFT JOIN schedule_tasks st_a ON st_a.id = at.task_id
+       -- Current human tag (non-AI, must have a task to count as confirmed)
+       LEFT JOIN photo_tags ht ON ht.photo_id =

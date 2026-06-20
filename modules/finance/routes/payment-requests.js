@@ -62,7 +62,8 @@ router.get('/:project_id', requireAuth,
     const [requests] = await db.query(
       `SELECT * FROM payment_requests pr
        WHERE ${where}
-       ORDER BY pr.raised_at DESC`,
+       ORDER BY pr.raised_at DESC
+       LIMIT 200`,
       params
     );
     const Onboarding = require('../../onboarding/contract');

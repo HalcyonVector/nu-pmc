@@ -186,7 +186,11 @@ const drawingVersion = createStateMachine({
   table: 'drawing_versions',
   transitions: {
     pending_l1: ['pending_l2', 'issued', 'rejected', 'superseded'],
-    pending_l2: ['issued', 'rejected', 'pending_l1', 'pending_l2', 'superseded'],
+    // Removed 'pending_l2' self-loop — a state transitioning to itself is
+    // never a valid workflow step and produces ambiguous audit trail entries.
+    // The flag-with-hold path (:559) stays in pending_l2 conceptually via
+    // a hold column update, not a status change.
+    pending_l2: ['issued', 'rejected', 'pending_l1', 'superseded'],
     issued:     ['superseded'],
   },
   terminal: ['rejected'],
@@ -213,11 +217,13 @@ const drawingRegister = createStateMachine({
 // ── SCHEDULE VERSION ─────────────────────────────────────────
 // Schema: status ENUM('draft','pending_approval','approved','rejected')
 // Routes (modules/design-services/contract.js):
-//   :283 approved → superseded  (when a new schedule version is approved,
-//                                 previous active one is marked superseded)
-//   :287 pending_approval → approved
-// Note: the table's ENUM does NOT include 'superseded'. The contract.js
-// UPDATE sets status to a superseded-equivalent. Verified below.
+//   promoteScheduleVersion() — demotes old current version via is_current=0
+//                              (status stays 'approved'); promotes new version
+//                              pending_approval → approved via SM.
+// "Superseded" is expressed as is_current=0 on an approved row, not as a
+// separate ENUM value. No raw UPDATE writes 'superseded' to the status column.
+// The approved→rejected edge covers the edge case of revoking an already-
+// approved version (handled in code, not a regular workflow step).
 const scheduleVersion = createStateMachine({
   name:  'schedule_version',
   table: 'schedule_versions',
@@ -292,6 +298,11 @@ const meeting = createStateMachine({
 //   :479 acknowledged → in_progress (countersigner approves the ack)
 //   :487 in_progress → pending   (rejects countersign — back to assignee)
 //   :507 in_progress | acknowledged → completed (assignee marks done)
+//
+// Recovery from overdue: overdue is NOT terminal. The cron that marks items
+// overdue fires while the item is still active; once the assignee acts on
+// an overdue item it must be able to move forward. Marking overdue as
+// terminal would trap those items permanently.
 const meetingAction = createStateMachine({
   name:  'meeting_action',
   table: 'meeting_actions',
@@ -299,8 +310,9 @@ const meetingAction = createStateMachine({
     pending:      ['acknowledged', 'overdue'],
     acknowledged: ['in_progress', 'completed', 'overdue'],
     in_progress:  ['completed', 'pending', 'overdue'],
+    overdue:      ['pending', 'acknowledged', 'in_progress'],  // assignee resumes work
   },
-  terminal: ['completed', 'overdue'],
+  terminal: ['completed'],
 });
 
 // ── SUBMITTAL ────────────────────────────────────────────────
@@ -341,16 +353,15 @@ const measurement = createStateMachine({
 // ── CLIENT CLAIM ─────────────────────────────────────────────
 // Schema: status ENUM('draft','pending_approval','approved','invoiced')
 // Routes (modules/finance/routes/claims.js):
-//   :161 dynamic — sign-offs that lead to status 'pmc_signed' / 'stream_signed' /
-//        'approved' (uses col= ? with col=status)
-//   :212 stream_signed → approved  (principal final approval)
-//   :288 approved → invoiced       (invoice number recorded)
+//   pmc-signoff + rs-signoff → both recorded as columns (pmc_signoff/rs_signoff).
+//   When BOTH columns are set, recordClaimSignoff() transitions draft → pending_approval.
+//   :216 pending_approval → approved  (principal final approval)
+//   :288 approved → invoiced          (invoice number recorded)
 //
-// NOTE: governance Sheet 02 documents: draft → pmc_signed → stream_signed →
-// approved → invoiced. The schema ENUM is only the 4-state condensed version
-// (the 'pmc_signed' / 'stream_signed' intermediary states are not in the
-// ENUM but ARE in the route logic and Sheet 02. This is a pre-existing
-// schema/route mismatch. Modelling the SM around the actual ENUM values.
+// Governance Sheet 02 labels the intermediate sign-off states as 'pmc_signed'
+// and 'stream_signed', but those are NOT status values — they are column
+// flags (pmc_signoff/rs_signoff). The status ENUM only has the four values
+// above. The SM correctly models the ENUM.
 const clientClaim = createStateMachine({
   name:  'client_claim',
   table: 'client_claims',
@@ -469,10 +480,9 @@ const roleNavDraft = createStateMachine({
 // Schema (install v5.21): status ENUM('open','closed') DEFAULT 'open'
 // Routes (modules/workflow/contract.js:108): upsertMomItem
 //
-// NOTE: contract.js JSDoc mentions 'in_progress' as a valid status, but the
-// schema ENUM only has 'open' and 'closed'. Pre-existing inconsistency —
-// leaving as-is in the state machine to match schema reality. If the doc is
-// canonical, the ENUM needs widening in a future migration.
+// The ENUM has exactly two values: 'open' and 'closed'. Any JSDoc or
+// comment elsewhere that mentions 'in_progress' as a valid status is stale
+// and wrong — do not add that value without a migration that widens the ENUM.
 const momItem = createStateMachine({
   name:  'mom_item',
   table: 'mom_items',

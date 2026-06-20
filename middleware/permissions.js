@@ -174,6 +174,16 @@ function getStatus() {
 // the cache via _setCacheForTests to avoid stealing route mock responses.
 if (typeof process.env.JEST_WORKER_ID === 'undefined') {
   _loadFromDB().catch(() => {});
+
+  // Periodic cache refresh — every 10 minutes. This ensures that a governance
+  // sheet uploaded via /api/governance/upload (which calls reloadPermissions())
+  // is also picked up by sibling processes, and that a direct DB edit (e.g.
+  // emergency rollback) takes effect within one interval without a restart.
+  // The interval is unref'd so it doesn't prevent clean process exit.
+  const PERMISSIONS_REFRESH_MS = 10 * 60 * 1000;
+  setInterval(() => {
+    _loadFromDB().catch(err => console.error('[permissions] periodic refresh failed:', err.message));
+  }, PERMISSIONS_REFRESH_MS).unref();
 }
 
 // Test helper — seed the in-memory cache directly so unit tests don't need
