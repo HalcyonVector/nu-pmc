@@ -221,4 +221,26 @@ router.get('/disputes/:project_id', requireAuth, asyncHandler(async (req, res) =
          )
        LEFT JOIN schedule_tasks st_a ON st_a.id = at.task_id
        -- Current human tag (non-AI, must have a task to count as confirmed)
-       LEFT JOIN photo_tags ht ON ht.photo_id =
+       LEFT JOIN photo_tags ht ON ht.photo_id = pp.id
+         AND ht.is_current = 1
+         AND ht.tag_source != 'ai'
+         AND ht.task_id IS NOT NULL
+       LEFT JOIN schedule_tasks st_h ON st_h.id = ht.task_id
+       WHERE pp.project_id = ?
+         AND pp.is_locked = 0
+         -- Only show if human has NOT yet confirmed the AI suggestion
+         AND (ht.task_id IS NULL OR ht.task_id != at.task_id)
+       ORDER BY pp.uploaded_at DESC
+       LIMIT 100`,
+      [req.params.project_id]
+    );
+    const Auth = require('../../auth/contract');
+    const users = await Auth.functions.getUsers(rows.map(r => r.human_tagger_id).filter(Boolean));
+    rows.forEach(r => {
+      r.human_tagger = users.get(r.human_tagger_id)?.full_name || null;
+      r.file_url = fileUrls.fileUrl(r.file_path);
+    });
+    res.json({ suggestions: rows });
+  }));
+
+module.exports = router;
