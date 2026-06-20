@@ -9446,6 +9446,25 @@ APP.renderProjectDetail = async function() {
     </div>
   </div>`;
 
+  // ── Site Manager Assignment card
+  // PMC Head + Principals can assign a site manager to the project
+  const canAssignSM = ['pmc_head','principal','design_principal'].includes(APP.user?.role);
+  if (canAssignSM) {
+    const teamData = await API.get(`/projects/${pid}/team`).catch(() => null);
+    const siteManagers = (teamData?.team || []).filter(m => ['site_manager','senior_site_manager'].includes(m.role));
+    html += `
+    <div class="sec-label">Site Manager</div>
+    <div class="card" style="margin-bottom:16px">
+      ${siteManagers.length ? siteManagers.map(sm => `
+        <div class="prog-row">
+          <div style="font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600">${sm.full_name}</div>
+          <span class="badge b-green" style="font-size:10px">${sm.role === 'senior_site_manager' ? 'Senior' : 'Site Manager'}</span>
+        </div>
+      `).join('') : '<div style="font-size:12px;color:var(--muted)">No site manager assigned</div>'}
+      <button class="btn-sm navy" style="margin-top:10px" onclick="APP.showAssignSiteManager(${pid})">+ Assign Site Manager</button>
+    </div>`;
+  }
+
   if (buttons.length) {
     html += `<div class="sec-label">Actions</div>`;
     html += `<div class="action-nav-group">`;
@@ -9603,6 +9622,34 @@ APP._removePmcAssignment = async function(pid, kind) {
     APP.renderProjectDetail();
   } else {
     UI.toast(res?.error || 'Removal failed');
+  }
+};
+
+// ── ASSIGN SITE MANAGER TO PROJECT ───────────────────────────────────────
+APP.showAssignSiteManager = async function(pid) {
+  const usersRes = await API.get('/users');
+  const allUsers = usersRes?.users || [];
+  const siteManagers = allUsers.filter(u => ['site_manager','senior_site_manager'].includes(u.role) && u.is_active);
+  if (!siteManagers.length) { UI.toast('No site managers found — create one first'); return; }
+  const options = siteManagers.map(u => `<option value="${u.id}">${u.full_name} (${u.role === 'senior_site_manager' ? 'Senior' : 'Site Mgr'})</option>`).join('');
+  UI.showModal('Assign Site Manager', `
+    <div class="field"><label>Site Manager</label>
+      <select id="sm-assign-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r)">${options}</select>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="APP.doAssignSiteManager(${pid})">Assign</button>
+  `);
+};
+
+APP.doAssignSiteManager = async function(pid) {
+  const userId = document.getElementById('sm-assign-user')?.value;
+  if (!userId) { UI.toast('Select a user'); return; }
+  const res = await API.post(`/projects/${pid}/assign-site-manager`, { user_id: parseInt(userId) });
+  if (res?.success) {
+    UI.closeModal();
+    UI.toast('Site manager assigned ✓');
+    APP.renderProjectDetail();
+  } else {
+    UI.toast(res?.error || 'Assignment failed');
   }
 };
 

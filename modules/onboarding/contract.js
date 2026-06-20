@@ -109,12 +109,12 @@ module.exports = {
       return rows;
     },
 
-    /** Active projects across the firm (status = 'active'). Used by dashboards + weekly health. */
+    /** Active + initialising projects across the firm. Used by dashboards + weekly health + onboarding. */
     async getActiveProjects() {
       const [rows] = await db.query(
         `SELECT id, code, name, client, location, status, r0_start_date, r0_end_date
          FROM projects
-         WHERE status = 'active'
+         WHERE status IN ('active', 'initialising')
          ORDER BY name`
       );
       return rows;

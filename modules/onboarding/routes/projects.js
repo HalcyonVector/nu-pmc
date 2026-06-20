@@ -591,6 +591,19 @@ router.post('/', requireAuth, requirePrincipal, validators.project, async (req, 
   }
 });
 
+// GET /api/projects/:id/team — get team members assigned to project
+router.get('/:id/team', requireAuth, asyncHandler(async (req, res) => {
+    const [team] = await db.query(
+      `SELECT u.id, u.full_name, u.role, pa.is_active
+       FROM project_assignments pa
+       JOIN users u ON pa.user_id = u.id
+       WHERE pa.project_id = ? AND pa.is_active = 1
+       ORDER BY u.role, u.full_name`,
+      [req.params.id]
+    );
+    res.json({ team });
+}));
+
 // POST /api/projects/:id/assign — assign any team member to project
 router.post('/:id/assign', requireAuth, requirePrincipal, async (req, res) => {
   try {
