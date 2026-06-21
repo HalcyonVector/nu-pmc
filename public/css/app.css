@@ -541,6 +541,7 @@ body {
 .pa-strip-inner {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -1253,7 +1254,7 @@ textarea { resize: none; }
           mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
 }
 .status-track::-webkit-scrollbar { display: none; }
-.st-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 56px; position: relative; }
+.st-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 44px; position: relative; }
 .st-step::before { content: ''; position: absolute; top: 10px; right: -50%; width: 100%; height: 2px; background: var(--border2); z-index: 0; }
 .st-step:last-child::before { display: none; }
 .st-step.done::before { background: var(--green); }
@@ -1276,7 +1277,7 @@ textarea { resize: none; }
 /* When a step is both done AND current (latest completed step), green tick wins */
 .st-step.done.current .st-dot { border-color: var(--green); background: var(--green); color: white; }
 .st-step.done.current .st-dot::after { display: none; }
-.st-label { font-size: var(--text-sm); color: var(--muted); margin-top: 5px; text-align: center; letter-spacing: .03em; line-height: 1.3; font-family: var(--mono); }
+.st-label { font-size: 10px; color: var(--muted); margin-top: 5px; text-align: center; letter-spacing: .02em; line-height: 1.3; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .st-step.done .st-label    { color: var(--green); }
 .st-step.current .st-label { color: var(--navy); }
 .st-step.done.current .st-label { color: var(--green); }
@@ -1317,7 +1318,9 @@ textarea { resize: none; }
 .qi-answer   { font-size: var(--text-sm); color: var(--text2); background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; margin-top: 10px; line-height: 1.5; }
 
 /* ── PHOTOS ── */
-.photo-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
+.photo-grid button { width: 100% !important; height: auto !important; aspect-ratio: 1; }
+.photo-grid button img { width: 100% !important; height: 100% !important; }
 .photo-thumb { width: 72px; height: 72px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--border); object-fit: cover; }
 
 /* ── MODAL ── */
@@ -2356,15 +2359,37 @@ html[data-theme="dark"] #change-password-screen { background: linear-gradient(16
 .ptr-indicator.refreshing { transform: translateX(-50%) translateY(12px); }
 
 /* ── DARK MODE GLOBAL CATCH-ALL — handles inline styles + missed elements ── */
+/* Covers div + span for all light hex backgrounds (#E*, #D*, #C* light pastels, #F*, #f*, #fff) */
 html[data-theme="dark"] .content div[style*="background:#fff"],
 html[data-theme="dark"] .content div[style*="background: #fff"],
 html[data-theme="dark"] .content div[style*="background:var(--white)"],
 html[data-theme="dark"] .content div[style*="background: var(--white)"],
 html[data-theme="dark"] .content div[style*="background:white"],
 html[data-theme="dark"] .content div[style*="background:#F"],
-html[data-theme="dark"] .content div[style*="background:#f"] {
+html[data-theme="dark"] .content div[style*="background:#f"],
+html[data-theme="dark"] .content div[style*="background:#E"],
+html[data-theme="dark"] .content div[style*="background:#D"] {
   background: #1A2332 !important;
   border-color: #2A3A4A !important;
+}
+/* Span catch-all — inline badge/tag elements with hardcoded light backgrounds */
+html[data-theme="dark"] #content-area span[style*="background:#F"],
+html[data-theme="dark"] #content-area span[style*="background:#f"],
+html[data-theme="dark"] #content-area span[style*="background:#E"],
+html[data-theme="dark"] #content-area span[style*="background:#e"],
+html[data-theme="dark"] #content-area span[style*="background:#D"],
+html[data-theme="dark"] #content-area span[style*="background:#d"],
+html[data-theme="dark"] #content-area span[style*="background:#C"],
+html[data-theme="dark"] #content-area span[style*="background:#c"],
+html[data-theme="dark"] #content-area span[style*="background:#fff"],
+html[data-theme="dark"] #content-area span[style*="background: #fff"],
+html[data-theme="dark"] .work-pinned span[style*="background:#F"],
+html[data-theme="dark"] .work-pinned span[style*="background:#f"],
+html[data-theme="dark"] .work-pinned span[style*="background:#E"],
+html[data-theme="dark"] .work-pinned span[style*="background:#e"] {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+  color: #E8ECF0 !important;
 }
 html[data-theme="dark"] .content div[style*="border:1px solid"],
 html[data-theme="dark"] .content div[style*="border: 1px solid"] {

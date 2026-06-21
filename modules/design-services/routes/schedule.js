@@ -5,7 +5,7 @@ const users = require('../../../services/users-lookup');
 const notif = require('../../../services/notifications');
 const { requireAuth, requirePMC, requireProjectScope } = require('../../../middleware/auth');
 const { upload } = require('../../../middleware/upload');
-const { readFile: readExcel } = require('../../../middleware/excel');
+const { readFile: readExcel, writeFile: writeExcel } = require('../../../middleware/excel');
 const { validators } = require('../../../middleware/validate');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const sequence = require('../../../services/sequence');
@@ -361,6 +361,25 @@ router.post('/:project_id/validate', requireAuth, requireProjectScope(), require
 
   }));
 
+// GET /api/schedule/:project_id/template — download blank schedule Excel template
+router.get('/:project_id/template', requireAuth, requireProjectScope(),
+  asyncHandler(async (req, res) => {
+    const os   = require('os');
+    const path = require('path');
+    const tmp  = path.join(os.tmpdir(), `schedule_template_${Date.now()}.xlsx`);
+
+    await writeExcel([
+      ['Trade', 'Task', 'Start Date', 'End Date', 'Milestone Type', 'Milestone Label'],
+      ['CIVIL', 'Foundation excavation', '2025-07-01', '2025-07-15', '', ''],
+      ['MEP',   'Electrical rough-in',   '2025-07-10', '2025-07-20', 'schedule', 'Electrical Milestone'],
+    ], tmp, 'Schedule');
+
+    res.download(tmp, 'schedule_template.xlsx', () => {
+      require('fs').unlink(tmp, () => {});
+    });
+  })
+);
+
 // POST /api/schedule/:project_id/upload — PMC uploads new schedule Excel
 router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePMC,
   upload.single('schedule'), asyncHandler(async (req, res) => {
@@ -372,6 +391,25 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
     // Parse Excel
     const rows = await readExcel(file.path);
 
+    // Normalize a cell value to 'YYYY-MM-DD' string.
+    // ExcelJS returns date-typed cells as JS Date objects; text cells come as strings.
+    const toISO = (v) => {
+      if (!v) return '';
+      if (v instanceof Date) {
+        // Use UTC parts to avoid timezone shifts (Excel dates have no timezone)
+        const y = v.getUTCFullYear();
+        const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(v.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      const s = String(v).trim();
+      // Accept DD/MM/YYYY or DD-MM-YYYY (common Indian format)
+      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+      // Already YYYY-MM-DD or similar ISO
+      return s;
+    };
+
     // Get R0 end date
     const Onboarding = require('../../onboarding/contract');
     const project = await Onboarding.functions.getProject(project_id);
@@ -379,7 +417,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
     // Calculate end date from tasks in Excel
     let maxEndDate = null;
     for (const row of rows) {
-      const endDate = row['End Date'] || row['end_date'] || row['EndDate'];
+      const endDate = toISO(row['End Date'] || row['end_date'] || row['EndDate']);
       if (endDate && (!maxEndDate || endDate > maxEndDate)) maxEndDate = endDate;
     }
 
@@ -400,6 +438,18 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
     // Create version record atomically — regen on ER_DUP_ENTRY (uq_schedule_version added in v3.1)
     const status = needsApproval ? 'pending_approval' : 'approved';
     let nextVer, versionId;
+
+    // Fail fast if the Excel had no parseable tasks (wrong column names / empty sheet)
+    const validTaskRows = rows.filter(r => {
+      const trade = String(r['Trade']||r['trade']||'').trim();
+      const task  = String(r['Task']||r['task_name']||r['Task Name']||'').trim();
+      const sd    = toISO(r['Start Date']||r['start_date']);
+      const ed    = toISO(r['End Date']||r['end_date']);
+      return trade && task && sd && ed;
+    });
+    if (validTaskRows.length === 0) {
+      return res.status(400).json({ error: 'No valid tasks found in the uploaded file. Expected columns: Trade, Task, Start Date, End Date' });
+    }
 
     // SC3: previously the version INSERT (in insertWithRetry), the tasks INSERT
     // loop, and the demote-old-versions UPDATE were three separate auto-commit
@@ -426,10 +476,10 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
       // Insert tasks within the same tx so a mid-loop failure rolls back the version too
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const trade    = row['Trade'] || row['trade'] || '';
-        const taskName = row['Task'] || row['task_name'] || row['Task Name'] || '';
-        const startDate = row['Start Date'] || row['start_date'] || '';
-        const endDate   = row['End Date'] || row['end_date'] || '';
+        const trade    = String(row['Trade'] || row['trade'] || '').trim();
+        const taskName = String(row['Task'] || row['task_name'] || row['Task Name'] || '').trim();
+        const startDate = toISO(row['Start Date'] || row['start_date']);
+        const endDate   = toISO(row['End Date']   || row['end_date']);
         if (!trade || !taskName || !startDate || !endDate) continue;
 
         const msTypeRaw = String(row['Milestone Type']||row['milestone_type']||row['Milestone']||'').toLowerCase().trim();
@@ -700,9 +750,12 @@ router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandl
     const canSchedule = ['site_manager','senior_site_manager','pmc_head','principal','design_principal','coordinator'].includes(me.role);
     if (!canSchedule) return res.status(403).json({ error: 'Not authorised to schedule tasks' });
 
-    const { task_name, description, assignee_id, priority, planned_date, trade } = req.body;
-    if (!task_name || !planned_date) {
-      return res.status(400).json({ error: 'Task name and planned date are required' });
+    const { task_name, description, assignee_id, priority, start_date, end_date, trade } = req.body;
+    if (!task_name || !start_date || !end_date) {
+      return res.status(400).json({ error: 'Task name, start date, and due date are required' });
+    }
+    if (end_date < start_date) {
+      return res.status(400).json({ error: 'Due date cannot be before start date' });
     }
 
     let [[version]] = await db.query(
@@ -715,7 +768,7 @@ router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandl
       const [r] = await db.query(
         `INSERT INTO schedule_versions (project_id, version_number, label, end_date, status, uploaded_by, is_current)
          VALUES (?, 1, 'v1', ?, 'approved', ?, 1)`,
-        [project_id, planned_date, me.id]
+        [project_id, end_date, me.id]
       );
       version = { id: r.insertId };
     }
@@ -730,7 +783,7 @@ router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandl
     const [r] = await db.query(
       `INSERT INTO schedule_tasks (project_id, schedule_version_id, trade, task_name, start_date, end_date, display_order)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [project_id, version.id, trade || 'General', task_name, planned_date, planned_date, nextOrder]
+      [project_id, version.id, trade || 'General', task_name, start_date, end_date, nextOrder]
     );
 
     audit.log({
@@ -738,7 +791,7 @@ router.post('/:project_id/tasks', requireAuth, requireProjectScope(), asyncHandl
       action: 'schedule_task.create',
       entityType: 'schedule_tasks',
       entityId: r.insertId,
-      details: { project_id: parseInt(project_id), task_name, planned_date },
+      details: { project_id: parseInt(project_id), task_name, start_date, end_date },
       req
     });
 
@@ -773,4 +826,35 @@ router.post('/:project_id/vendor-signoff', requireAuth, requireProjectScope(),
     if (!tasks.length) return res.status(404).json({ error: 'Tasks not found' });
 
     const taskLines = tasks.map(t => {
-      const start = new Date(t.start_date).toLocaleDateString
+      const start = new Date(t.start_date).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+      const end   = new Date(t.end_date).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+      return `\u2022 ${t.task_name}: ${start} \u2013 ${end}`;
+    }).join('\n');
+
+    try {
+      const signoffGate = require('../../../services/signoff-gate');
+      await signoffGate.triggerSignoff(
+        'vendor_schedule_commitment',
+        null,
+        parseInt(req.params.project_id, 10),
+        {
+          question: `Schedule commitment request:\n${taskLines}${message ? '\n\nNote: ' + message : ''}`,
+          triggeredBy: me.id,
+          vendorId: parseInt(vendor_id, 10),
+        }
+      );
+    } catch (e) {
+      console.warn('[vendor-signoff] signoff trigger failed:', e.message);
+    }
+
+    audit.log({
+      userId: me.id,
+      action: 'schedule.vendor_signoff_sent',
+      entityType: 'projects',
+      entityId: parseInt(req.params.project_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), vendor_id: parseInt(vendor_id, 10), task_count: tasks.length },
+      req
+    });
+
+    res.json({ success: true, task_count: tasks.length });
+  }));

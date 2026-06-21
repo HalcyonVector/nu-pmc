@@ -341,51 +341,72 @@ async function buildProjectSummary(me, projectId) {
       });
     }
 
-    // 2. Payments category — GRN pending + PR reviews + vendor engagements + claims
+    // 2. Payments category — count ONLY what is visible on the destination tab for each role:
+    //   site_manager / senior_site_manager → grn tab  → count pending GRNs only
+    //   pmc_head                           → payments tab → count pending_pmc PRs only
+    //   audit                              → payments tab → count pending PRs (pmc+principal stage)
+    //   principal / design_principal       → pending tab  → count all pending finance items
     const allowsPaymentsCat = ['principal','design_principal','pmc_head','senior_site_manager','site_manager','audit'].includes(role);
     if (allowsPaymentsCat) {
-      // GRNs — everyone who can see this cat sees GRNs
-      const [[grnRow]] = await db.query(
-        `SELECT COUNT(*) c FROM grns WHERE project_id=? AND status='pending'`,
-        [projectId]
-      );
-      let total = grnRow.c;
+      let total = 0;
+      let paymentsLabel = 'Payments';
 
-      // PRs — PMC/Principal only (not site managers)
-      if (['principal','design_principal','pmc_head','audit'].includes(role)) {
-        const prStatus = role === 'pmc_head'
-          ? ['pending_pmc']
-          : ['pending_pmc','pending_principal'];  // principals see both
+      if (['site_manager','senior_site_manager'].includes(role)) {
+        // Destination: grn tab — show pending GRNs only
+        const [[grnRow]] = await db.query(
+          `SELECT COUNT(*) c FROM grns WHERE project_id=? AND status='pending'`,
+          [projectId]
+        );
+        total = grnRow.c;
+        paymentsLabel = 'GRN Queue';
+
+      } else if (role === 'pmc_head') {
+        // Destination: payments tab — show only pending_pmc PRs (GRNs are on separate grn tab)
         const [[prRow]] = await db.query(
           `SELECT COUNT(*) c FROM payment_requests
-            WHERE project_id=? AND status IN (?)`,
-          [projectId, prStatus]
+            WHERE project_id=? AND status='pending_pmc'`,
+          [projectId]
         );
-        total += prRow.c;
+        total = prRow.c;
 
-        // Vendor engagements pending (principal sign-off)
-        if (['principal','design_principal','audit'].includes(role)) {
-          const [[veRow]] = await db.query(
-            `SELECT COUNT(*) c FROM vendor_engagements
-              WHERE project_id=? AND approval_status='pending'`,
-            [projectId]
-          );
-          total += veRow.c;
+      } else if (role === 'audit') {
+        // Destination: payments tab (read-only) — count PRs at both stages
+        const [[prRow]] = await db.query(
+          `SELECT COUNT(*) c FROM payment_requests
+            WHERE project_id=? AND status IN ('pending_pmc','pending_principal','pmc_approved')`,
+          [projectId]
+        );
+        total = prRow.c;
 
-          // Client claims pending principal
-          const [[ccRow]] = await db.query(
-            `SELECT COUNT(*) c FROM client_claims
-              WHERE project_id=? AND status='pending_approval'`,
-            [projectId]
-          );
-          total += ccRow.c;
-        }
+      } else {
+        // principal / design_principal — destination: pending tab (shows all finance items)
+        const [[grnRow]] = await db.query(
+          `SELECT COUNT(*) c FROM grns WHERE project_id=? AND status='pending'`,
+          [projectId]
+        );
+        const [[prRow]] = await db.query(
+          `SELECT COUNT(*) c FROM payment_requests
+            WHERE project_id=? AND status IN ('pending_pmc','pending_principal')`,
+          [projectId]
+        );
+        const [[veRow]] = await db.query(
+          `SELECT COUNT(*) c FROM vendor_engagements
+            WHERE project_id=? AND approval_status='pending'`,
+          [projectId]
+        );
+        const [[ccRow]] = await db.query(
+          `SELECT COUNT(*) c FROM client_claims
+            WHERE project_id=? AND status='pending_approval'`,
+          [projectId]
+        );
+        total = grnRow.c + prRow.c + veRow.c + ccRow.c;
       }
-      cats.push({ key:'payments', label:'Payments', count: total });
+
+      cats.push({ key:'payments', label: paymentsLabel, count: total });
     }
 
     // 3. Budget category — custom cost-head approvals + budget flag sign-offs
-    const allowsBudgetCat = ['principal','design_principal','pmc_head','design_head','services_head','audit'].includes(role);
+    const allowsBudgetCat = ['principal','design_principal','design_head','services_head','audit'].includes(role);  // pmc_head excluded: no budget tab in nav
     if (allowsBudgetCat) {
       const [[chRow]] = await db.query(
         `SELECT COUNT(*) c FROM budget_cost_heads

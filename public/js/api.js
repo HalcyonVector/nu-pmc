@@ -241,7 +241,8 @@ const API = {
   uploadDoc:   (pid, formData) => API.call('POST', `/photos/${pid}/documents/upload`, formData, true),
   uploadDrawing:(pid, formData)=> API.call('POST', `/drawings/${pid}/upload`, formData, true),
   uploadBOQ:   (pid, formData) => API.call('POST', `/materials/${pid}/boq/upload`, formData, true),
-  uploadSchedule:(pid, formData)=>API.call('POST', `/schedule/${pid}/upload`, formData, true),
+  uploadSchedule:   (pid, formData) => API.call('POST', `/schedule/${pid}/upload`, formData, true),
+  scheduleTemplateUrl: (pid)        => `/api/schedule/${pid}/template`,
 
   // Drawing register
   getRegister:      (pid, stream) => API.call('GET', `/register/${pid}${stream?`?stream=${stream}`:''}`),

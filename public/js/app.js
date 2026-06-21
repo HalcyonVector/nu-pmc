@@ -744,15 +744,15 @@ const APP = {
       if (t) {
         let statusBadge, buttonLabel, buttonAction;
         if (t.state === 'not_submitted') {
-          statusBadge = '<span style="background:#f5ecdb;color:#8a6320;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">Not submitted</span>';
+          statusBadge = '<span style="background:rgba(218,165,32,0.12);color:var(--amber);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid rgba(218,165,32,0.30)">Not submitted</span>';
           buttonLabel = 'Submit today\'s report';
           buttonAction = 'APP.showTodayReportForm()';
         } else if (t.state === 'pending_review') {
-          statusBadge = '<span style="background:#edeae2;color:#666;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">Awaiting PMC review</span>';
+          statusBadge = '<span style="background:rgba(128,128,128,0.10);color:var(--muted);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid rgba(128,128,128,0.22)">Awaiting PMC review</span>';
           buttonLabel = 'Edit / resubmit';
           buttonAction = 'APP.showTodayReportForm()';
         } else if (t.state === 'approved') {
-          statusBadge = '<span style="background:#dbebe0;color:#2a7d4f;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">Approved ✓</span>';
+          statusBadge = '<span style="background:rgba(12,166,120,0.12);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid rgba(12,166,120,0.30)">Approved ✓</span>';
           buttonLabel = '';
           buttonAction = '';
         } else if (t.state === 'flagged') {
@@ -970,7 +970,7 @@ const APP = {
     const t = APP._todayReport || {};
     const isFlagged = t.state === 'flagged';
     const flagBanner = isFlagged && t.flag_reason
-      ? `<div style="background:#f5d5cf;border:1px solid #d98377;color:#a84a3a;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px">
+      ? `<div style="background:rgba(200,112,96,0.12);border:1px solid rgba(200,112,96,0.35);color:#C87060;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px">
            <b>Flagged by PMC:</b> ${UI.escapeText(t.flag_reason)}
          </div>` : '';
     UI.openModal('Today\'s Report', `
@@ -979,7 +979,7 @@ const APP = {
         Notes about today — what was achieved, blockers, upcoming. Tasks, photos,
         labour, and issues you've already logged today are included automatically.
       </div>
-      <textarea id="today-report-notes" rows="7" style="width:100%;padding:10px;border:1.5px solid #d8d2c5;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"
+      <textarea id="today-report-notes" rows="7" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"
         placeholder="Example: Completed slab casting at grid A-C. 12 labour on site.
 Delay: cement delivery slipped by 2 hrs.
 Tomorrow: start formwork on next bay."
@@ -1384,10 +1384,11 @@ Tomorrow: start formwork on next bay."
         html += `<div class="pc-progress" style="padding:12px 16px; border-top:1px solid var(--border)">`;
         trades.forEach(([trade, pct]) => {
           const col = TRADE_COLORS[trade] || '#5a5a5a';
+          const pctDisplay = parseFloat(pct).toFixed(2).replace(/\.?0+$/, '') || '0';
           html += `<div class="prog-row">
             <div class="prog-label">${trade.split(' ')[0]}</div>
             <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
-            <div class="prog-pct">${pct}%</div>
+            <div class="prog-pct">${pctDisplay}%</div>
           </div>`;
         });
         html += `</div>`;
@@ -1618,10 +1619,21 @@ Tomorrow: start formwork on next bay."
           tlist.forEach(t => {
             const pct2 = APP.state.taskPct[t.id] ?? t.pct_complete ?? 0;
             const isDone2 = pct2 === 100;
+            // Due date chip — only show if task started before today (in-progress)
+            const todayForDue = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+            const isInProgress = t.start_date && t.start_date < todayForDue && t.end_date && t.end_date >= todayForDue;
+            const daysLeft = isInProgress ? Math.ceil((new Date(t.end_date + 'T00:00:00') - new Date(todayForDue + 'T00:00:00')) / 86400000) : null;
+            const dueSoon = daysLeft !== null && daysLeft <= 3;
+            const dueChip = isInProgress
+              ? `<span style="font-size:10px;font-family:var(--mono);color:${dueSoon?'var(--amber)':'var(--muted)'};background:${dueSoon?'rgba(218,165,32,0.10)':'rgba(128,128,128,0.08)'};border:1px solid ${dueSoon?'rgba(218,165,32,0.25)':'rgba(128,128,128,0.15)'};padding:1px 7px;border-radius:4px;white-space:nowrap">Due ${UI.fmtDate(t.end_date)}${daysLeft===0?' · today':daysLeft===1?' · tomorrow':daysLeft<=3?` · ${daysLeft}d left`:''}</span>`
+              : '';
             finalHtml += `<div class="task-item${isDone2?' task-done':pct2>0?' task-progress':''}">
               <div class="task-dot"></div>
               <div style="flex:1">
-                <div class="task-name">${UI.escapeText(t.task_name)}</div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                  <div class="task-name" style="flex:1;min-width:0">${UI.escapeText(t.task_name)}</div>
+                  ${dueChip}
+                </div>
                 <div class="pct-wrap">
                   <input type="range" class="pct-slider" min="0" max="100" step="5" value="${pct2}"
                     oninput="APP.liveUpdatePct(${t.id},${proj.id},'${date}',this)">
@@ -1841,9 +1853,15 @@ Tomorrow: start formwork on next bay."
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                   <div>
-                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Planned Date *</label>
-                    <input type="date" name="planned_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Start Date *</label>
+                    <input type="date" name="start_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
                   </div>
+                  <div>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Due Date *</label>
+                    <input type="date" name="end_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                   <div>
                     <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Trade</label>
                     <select name="trade" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
@@ -2018,9 +2036,15 @@ Tomorrow: start formwork on next bay."
               
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div>
-                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Planned Date *</label>
-                  <input type="date" name="planned_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Start Date *</label>
+                  <input type="date" name="start_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
                 </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Due Date *</label>
+                  <input type="date" name="end_date" required min="${todayStr}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;outline:none;">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div>
                   <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Trade</label>
                   <select name="trade" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;background:var(--white);outline:none;">
@@ -2085,7 +2109,7 @@ Tomorrow: start formwork on next bay."
           dayTasks.forEach(t => {
             const isOverdue = t.end_date < todayStr && t.pct_complete < 100;
             const isDone = t.pct_complete >= 100;
-            const borderColor = isOverdue ? '#ebccd1' : isDone ? '#d6e9c6' : 'var(--border)';
+            const borderColor = isOverdue ? 'rgba(200,112,96,0.35)' : isDone ? 'rgba(12,166,120,0.35)' : 'var(--border)';
             html += `
               <div style="background:var(--white);border:1px solid ${borderColor};border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);">
                 <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;">
@@ -2095,8 +2119,8 @@ Tomorrow: start formwork on next bay."
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;flex-wrap:wrap;gap:8px;">
                   <div style="display:flex;align-items:center;gap:4px;">
-                    <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#f5f5f5;padding:2px 6px;border-radius:4px;">${t.trade}</span>
-                    <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;background:#e8f4fd;color:#0275d8;padding:2px 6px;border-radius:4px;">${t.pct_complete}% Done</span>
+                    <span style="font-size:10px;font-family:var(--mono);color:var(--text);text-transform:uppercase;background:rgba(29,61,98,0.10);border:1px solid rgba(29,61,98,0.20);padding:2px 6px;border-radius:4px;">${t.trade}</span>
+                    <span style="font-size:10px;font-family:var(--mono);color:var(--navy);text-transform:uppercase;background:rgba(12,100,180,0.12);border:1px solid rgba(12,100,180,0.25);padding:2px 6px;border-radius:4px;">${t.pct_complete}% Done</span>
                   </div>
                 </div>
                 ${!isDone ? `<div class="pct-wrap" style="margin-top:6px;">
@@ -2124,12 +2148,19 @@ Tomorrow: start formwork on next bay."
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
+    const start_date = formData.get('start_date');
+    const end_date   = formData.get('end_date');
+    if (end_date && start_date && end_date < start_date) {
+      UI.toast('Due date cannot be before start date', 'error');
+      return;
+    }
     const data = {
       task_name: formData.get('task_name'),
       description: formData.get('description'),
       assignee_id: formData.get('assignee_id') || null,
       priority: formData.get('priority') || 'medium',
-      planned_date: formData.get('planned_date'),
+      start_date,
+      end_date,
       trade: formData.get('trade') || 'General'
     };
     
@@ -2210,7 +2241,14 @@ Tomorrow: start formwork on next bay."
     html += `<div style="margin-top:16px">
       <div class="field-row"><label class="field-label" for="sched-file">Upload Revised Schedule</label></div>
       <input type="file" id="sched-file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadSchedule(${pid},this)">
-      <button class="btn-sm gold" onclick="document.getElementById('sched-file').click()">Upload New Schedule Version</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-sm gold" onclick="document.getElementById('sched-file').click()">Upload New Schedule Version</button>
+        <a href="${API.scheduleTemplateUrl(pid)}" download="schedule_template.xlsx"
+           style="font-size:12px;color:var(--navy);text-decoration:underline;display:flex;align-items:center;gap:4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Template
+        </a>
+      </div>
     </div>`;
 
     el.innerHTML = html;
@@ -2260,7 +2298,7 @@ Tomorrow: start formwork on next bay."
     html += APP._projectSelectHtml('APP.renderDrawings()');
 
     if (canUpload) {
-      html += `<div style="margin-bottom:16px;background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px">
+      html += `<div style="margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
 
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Drawing Type</div>
         <div style="display:flex;gap:6px;margin-bottom:16px" id="dwg-type-chips">
@@ -2282,7 +2320,7 @@ Tomorrow: start formwork on next bay."
         </div>
         <input type="hidden" id="dwg-type" value="main">
 
-        <div id="dwg-type-info" style="font-size:12px;color:#666;background:#faf8f3;padding:10px 12px;border-radius:8px;margin-bottom:14px;line-height:1.5">
+        <div id="dwg-type-info" style="font-size:12px;color:#666;background:var(--bg);padding:10px 12px;border-radius:8px;margin-bottom:14px;line-height:1.5">
           <strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. PMC Head or Services Head pre-registers every main drawing at project start.
         </div>
 
@@ -2575,7 +2613,7 @@ Tomorrow: start formwork on next bay."
          <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px">
            Valid drawings on register (${res.hint?.stream || ''})
          </div>
-         <div style="max-height:180px;overflow-y:auto;background:#faf8f3;border-radius:8px;padding:12px;
+         <div style="max-height:180px;overflow-y:auto;background:var(--bg);border-radius:8px;padding:12px;
                      font-family:monospace;font-size:13px;color:#1a2e44;line-height:1.8">
            ${validList.join(', ')}
          </div>` : ''}
@@ -2661,23 +2699,23 @@ Tomorrow: start formwork on next bay."
     let html = `
       <div class="drawings-page">
       ${APP._projectSelectHtml('APP.renderRegister()')}
-      <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px;margin-bottom:16px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Drawing Register</div>
         <div style="font-size:13px;color:#666;line-height:1.5">Master list of every main drawing expected on this project. Uploaded at project initiation by PMC Head (design) and Services Head (services). Only drawings on the register can be uploaded as <strong>main</strong>.</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px">
-          <div style="text-align:center;padding:10px;background:#faf8f3;border-radius:8px">
+          <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
             <div style="font-size:22px;font-weight:700;color:#1a2e44;line-height:1">${sum.total||0}</div>
             <div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Total</div>
           </div>
-          <div style="text-align:center;padding:10px;background:#faf8f3;border-radius:8px">
+          <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
             <div style="font-size:22px;font-weight:700;color:#666;line-height:1">${sum.pending||0}</div>
             <div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Pending</div>
           </div>
-          <div style="text-align:center;padding:10px;background:#faf8f3;border-radius:8px">
+          <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
             <div style="font-size:22px;font-weight:700;color:#d4761f;line-height:1">${sum.in_progress||0}</div>
             <div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">In Prog</div>
           </div>
-          <div style="text-align:center;padding:10px;background:#faf8f3;border-radius:8px">
+          <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
             <div style="font-size:22px;font-weight:700;color:#2a7d4f;line-height:1">${sum.issued||0}</div>
             <div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Issued</div>
           </div>
@@ -2686,10 +2724,10 @@ Tomorrow: start formwork on next bay."
 
     if (canUpload) {
       html += `
-      <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px;margin-bottom:16px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Upload / Amend Register</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <a href="/api/register/${pid}/template" style="flex:1;padding:10px;text-align:center;background:#faf8f3;color:#1a2e44;border:1.5px solid #e8e4dc;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;min-width:140px">
+          <a href="/api/register/${pid}/template" style="flex:1;padding:10px;text-align:center;background:var(--bg);color:#1a2e44;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;min-width:140px">
             Download Template
           </a>
           <button class="btn-sm gold" style="flex:1;padding:10px;min-width:140px" onclick="APP.openRegisterUpload(${pid},'design')">Upload Design</button>
@@ -2701,14 +2739,14 @@ Tomorrow: start formwork on next bay."
 
     const renderSection = (title, list, stream) => {
       if (!list.length) return `
-        <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:24px;margin-bottom:16px;text-align:center">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;text-align:center">
           <div style="font-size:14px;color:#999">No ${title.toLowerCase()} drawings registered yet</div>
         </div>`;
 
       const unsigned = list.some(r => !r.signed_off_by);
       return `
-        <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:0;margin-bottom:16px;overflow:hidden">
-          <div style="padding:14px 16px;background:#faf8f3;border-bottom:1px solid #e8e4dc;display:flex;justify-content:space-between;align-items:center">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:0;margin-bottom:16px;overflow:hidden">
+          <div style="padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:14px;font-weight:700;color:#1a2e44">${title} — ${list.length} drawings</div>
               ${unsigned && canSignOff ? `<div style="font-size:11px;color:#8a6320;margin-top:2px">${list.filter(r=>!r.signed_off_by).length} awaiting your sign-off</div>` : ''}
@@ -2729,7 +2767,7 @@ Tomorrow: start formwork on next bay."
                   <div style="font-size:11px;color:#888;margin-top:3px">${r.category}${r.expected_revision?' · Expected '+r.expected_revision:''}</div>
                 </div>
                 ${r.status === 'pending' && canUpload ? `
-                  <button onclick="APP.deleteRegisterEntry(${pid},${r.id})" style="background:#fff;border:1.5px solid #d8d2c5;border-radius:8px;padding:6px 10px;font-size:12px;color:#a84a3a;cursor:pointer">Remove</button>
+                  <button onclick="APP.deleteRegisterEntry(${pid},${r.id})" style="background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:#a84a3a;cursor:pointer">Remove</button>
                 ` : ''}
               </div>
             `).join('')}
@@ -2752,7 +2790,7 @@ Tomorrow: start formwork on next bay."
         <br><br>
         Download the template from the Register screen if needed.
       </div>
-      <input type="file" id="reg-file" accept=".xlsx,.xls" style="width:100%;padding:10px;border:1.5px solid #d8d2c5;border-radius:8px;background:#fff">
+      <input type="file" id="reg-file" accept=".xlsx,.xls" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:#fff">
       <button class="btn-primary" style="width:100%;margin-top:14px" onclick="APP.doUploadRegister(${pid},'${stream}')">Upload Register</button>
     `);
   },
@@ -2852,7 +2890,7 @@ Tomorrow: start formwork on next bay."
 
     let html = `
       <div class="sec-label">Delegations</div>
-      <div style="background:#fff;border:1px solid #E2E6EC;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
         <div style="font-size:13px;color:#3D5068;line-height:1.5;margin-bottom:12px">
           Delegate your role to a teammate when you're on leave or unavailable. The delegate acts with your authority during the window you set — every action is logged and auditable.
         </div>
@@ -2871,7 +2909,7 @@ Tomorrow: start formwork on next bay."
             ${d.reason ? `<div style="font-size:12px;color:#3D5068;margin-top:6px">${d.reason}</div>` : ''}
           </div>
           <button onclick="APP.revokeDelegation(${d.id})"
-            style="background:#fff;border:1px solid #CDD3DC;border-radius:6px;padding:6px 12px;font-size:12px;color:#C0392B;cursor:pointer">Revoke</button>
+            style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;color:#C0392B;cursor:pointer">Revoke</button>
         </div>`).join('')
         : `<div style="color:#93A3B4;font-size:13px;margin-bottom:16px">No active delegations from you.</div>`}
 
@@ -3289,7 +3327,7 @@ Tomorrow: start formwork on next bay."
                 <div style="font-weight:700;font-size:13px;color:var(--navy)">Nav for <span style="text-transform:capitalize">${d.role.replace(/_/g,' ')}</span></div>
                 <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px">Proposed by ${UI.escapeText(d.proposed_by)} · ${UI.fmtDate(d.proposed_at)}</div>
               </div>
-              <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;background:#EEF2FF;color:var(--navy);font-family:var(--mono);flex-shrink:0">${summary}</span>
+              <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(29,61,98,0.10);color:var(--navy);font-family:var(--mono);flex-shrink:0;border:1px solid rgba(29,61,98,0.20)">${summary}</span>
             </div>
             ${d.note ? `<div style="font-size:12px;color:var(--text);font-style:italic;padding:7px 10px;background:var(--bg);border-radius:6px;border-left:2px solid var(--border);margin-bottom:6px">${UI.escapeText(d.note)}</div>`:''}
             ${added.length ? `<div style="font-size:11px;color:var(--green);font-family:var(--mono);margin-top:4px">+ ${added.join(', ')}</div>`:''}
@@ -3523,13 +3561,13 @@ Tomorrow: start formwork on next bay."
           </div>
 
           ${['pmc','design','services'].map(sec => `
-            <details style="margin-top:12px;background:#F8FAFC;border:1px solid #E2E6EC;border-radius:8px;padding:12px">
+            <details style="margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px">
               <summary style="cursor:pointer;font-weight:600;color:#1A2332;font-size:13px">
                 ${sec.toUpperCase()} Section ${rep[`sig_${sec}_by`] ? '· Signed' : ''}
               </summary>
               <div style="margin-top:10px">
                 ${canEdit(sec) && canSign[sec] ? `
-                  <textarea id="ws-${rep.id}-${sec}" rows="6" style="width:100%;padding:10px;border:1px solid #CDD3DC;border-radius:6px;font-family:inherit;font-size:13px">${rep[`${sec}_section`] || ''}</textarea>
+                  <textarea id="ws-${rep.id}-${sec}" rows="6" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px">${rep[`${sec}_section`] || ''}</textarea>
                   <div style="display:flex;gap:8px;margin-top:8px">
                     <button class="btn-secondary" onclick="APP.saveSignoffSection(${rep.id},'${sec}')">Save</button>
                     <button class="btn-primary" onclick="APP.signSignoffSection(${rep.id},'${sec}')">Sign ${sec}</button>
@@ -3542,7 +3580,7 @@ Tomorrow: start formwork on next bay."
           `).join('')}
 
           ${allSigned && isPrincipal && rep.status === 'pending_approval' ? `
-            <div style="margin-top:16px;padding:12px;background:#F5ECDB;border-radius:8px">
+            <div style="margin-top:16px;padding:12px;background:rgba(218,165,32,0.10);border:1px solid rgba(218,165,32,0.25);border-radius:8px">
               <div style="font-size:13px;color:#8a6415;margin-bottom:10px">All 3 sections signed. Ready for your approval. PDF will be generated on approval.</div>
               <button class="btn-primary" onclick="APP.principalApproveWeekly(${rep.id})">Approve & Generate PDF</button>
             </div>
@@ -3858,7 +3896,7 @@ Tomorrow: start formwork on next bay."
     const boqTotalItems = (currentDesign?.item_count || 0) + (currentServices?.item_count || 0);
     html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:14px;padding:16px">
-        <div style="width:44px;height:44px;border-radius:10px;background:#EEF2FF;color:#4263EB;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <div style="width:44px;height:44px;border-radius:10px;background:rgba(29,61,98,0.10);color:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
         </div>
         <div style="flex:1;min-width:0">
@@ -3965,7 +4003,7 @@ Tomorrow: start formwork on next bay."
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             ${isOverdue ? '<span class="badge b-red">OVERDUE</span>' : ''}
-            <span style="font-size:12px;font-weight:700;color:var(--navy);background:#EEF2FF;padding:4px 10px;border-radius:6px;font-family:var(--mono);white-space:nowrap">${r.quantity_needed} ${UI.escapeText(r.unit)}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--navy);background:rgba(12,50,180,0.08);padding:4px 10px;border-radius:6px;font-family:var(--mono);white-space:nowrap">${r.quantity_needed} ${UI.escapeText(r.unit)}</span>
           </div>
         </div>
         <div style="font-size:12px;color:${isOverdue?'var(--red)':'var(--muted)'};margin-bottom:4px">
@@ -3974,7 +4012,7 @@ Tomorrow: start formwork on next bay."
         <div class="status-track">
           ${MAT_STATUSES.map((s,i)=>`<div class="st-step${i<step+1?' done':''}${i===step?' current':''}">
             <div class="st-dot">${i<step+1?'✓':''}</div>
-            <div class="st-label">${s.split(' ')[0]}</div>
+            <div class="st-label">${{'Requested':'Req','Ordered':'Ord','Dispatched':'Disp','Received':'Rcvd','Checked & Validated':'Done'}[s]||s.split(' ')[0]}</div>
           </div>`).join('')}
         </div>
       </div>
@@ -4461,15 +4499,20 @@ Tomorrow: start formwork on next bay."
     if (isDefect) {
       const li = photo.linked_issue;
       const col = sevColor[li.severity] || '#C87060';
+      const sevLabel = li.severity ? li.severity.charAt(0).toUpperCase() + li.severity.slice(1) : 'Defect';
       footerHtml = `
-        <div style="background:#fef5f0;border:1px solid ${col};border-left:4px solid ${col};padding:10px;border-radius:var(--r);margin-bottom:10px">
-          <div style="font-size:11px;font-weight:bold;color:${col}">⚠ ${li.severity?li.severity.toUpperCase():'DEFECT'} · ${li.issue_number||''}</div>
-          <div style="font-size:12px;color:#444;margin-top:3px">${li.trade||''} · ${li.status||''}</div>
+        <div style="background:rgba(200,112,96,0.08);border:1px solid rgba(200,112,96,0.30);border-left:3px solid ${col};padding:10px 12px;border-radius:var(--r);margin-bottom:10px;display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:${col}">${sevLabel} · ${li.issue_number||'Defect'}</div>
+            ${(li.trade||li.status) ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${[li.trade,li.status].filter(Boolean).join(' · ')}</div>` : ''}
+          </div>
         </div>`;
     } else if (isProgress) {
       footerHtml = `
-        <div style="background:rgba(12,100,180,0.12);border:1px solid rgba(12,100,180,0.35);border-left:4px solid var(--navy);padding:10px;border-radius:var(--r);margin-bottom:10px">
-          <div style="font-size:11px;font-weight:bold;color:var(--navy)">📷 PROGRESS PHOTO</div>
+        <div style="background:rgba(12,100,180,0.08);border:1px solid rgba(12,100,180,0.25);border-left:3px solid var(--navy);padding:10px 12px;border-radius:var(--r);margin-bottom:10px;display:flex;align-items:center;gap:10px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">Progress Photo</div>
         </div>`;
     } else {
       footerHtml = `
@@ -4492,11 +4535,15 @@ Tomorrow: start formwork on next bay."
       const currentCaption  = currentTag?.caption   || '';
 
       tagHtml = `
-        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Schedule Task Tag</div>
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            <span style="font-size:11px;font-weight:600;color:var(--muted)">Task Tag</span>
+            ${currentTaskName ? `<span style="font-size:10px;font-family:var(--mono);color:var(--green);background:rgba(12,166,120,0.10);border:1px solid rgba(12,166,120,0.25);padding:1px 7px;border-radius:4px">tagged</span>` : ''}
+          </div>
           ${currentTaskName
-            ? `<div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:8px">Currently: ${UI.escapeText(currentTaskName)}</div>`
-            : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">No task tagged yet</div>`}
+            ? `<div style="font-size:12px;color:var(--text);font-weight:500;margin-bottom:10px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r)">${UI.escapeText(currentTaskName)}</div>`
+            : `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Not tagged to a task yet</div>`}
           ${tasks.length ? `
           <select id="photo-task-select" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;margin-bottom:8px;background:var(--bg);color:var(--text)">
             <option value="">— Select task —</option>
@@ -4505,7 +4552,7 @@ Tomorrow: start formwork on next bay."
           <input id="photo-caption-input" type="text" placeholder="Caption (optional)" value="${UI.escapeAttr(currentCaption)}"
             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;margin-bottom:8px;background:var(--bg);color:var(--text);box-sizing:border-box">
           <button class="btn-sm approve" onclick="APP.savePhotoTag(${photoId})">Save Tag</button>
-          ` : `<div style="font-size:12px;color:var(--muted)">No active tasks today to tag against.</div>`}
+          ` : `<div style="font-size:12px;color:var(--muted);font-style:italic">No active tasks in the current window to tag against.</div>`}
         </div>`;
     }
 
@@ -5237,7 +5284,7 @@ Tomorrow: start formwork on next bay."
           ${canSetStatus ? `
             <select onchange="APP.updateVendorStatus(${e.id}, ${pid}, this.value)"
                     style="font-size:11px;padding:3px 6px;border:1px solid ${MOB_COLOUR[e.mobilisation_status]||'#888'};
-                           color:${MOB_COLOUR[e.mobilisation_status]||'#888'};font-weight:600;border-radius:4px;background:#fff">
+                           color:${MOB_COLOUR[e.mobilisation_status]||'#888'};font-weight:600;border-radius:4px;background:var(--card)">
               ${MOB_ORDER.map(s => `<option value="${s}" ${s===e.mobilisation_status?'selected':''}>${MOB_LABEL[s]}</option>`).join('')}
             </select>
           ` : `
@@ -5767,7 +5814,7 @@ APP.loadDrawingQueries = async function(projectId) {
           <div style="font-size:12px;color:#888">Dwg ${q.drawing_number} Rev ${q.revision||0} · ${daysOpen}d open</div>
           <div style="font-size:14px;margin:4px 0">${q.question}</div>
           ${q.status==='closed' ? `<div style="font-size:13px;color:#4A8A5A;margin-top:4px">✓ ${q.resolution||''}</div>` : ''}
-          ${q.ai_suggestion ? `<div style="font-size:12px;color:#657B90;background:#F0F3F7;padding:6px;border-radius:4px;margin-top:4px">AI: ${q.ai_suggestion} ${!q.validated_by?'<span style="color:#C87060">(pending validation)</span>':''}</div>` : ''}
+          ${q.ai_suggestion ? `<div style="font-size:12px;color:var(--muted);background:var(--bg);padding:6px;border-radius:4px;margin-top:4px;border:1px solid var(--border)">AI: ${q.ai_suggestion} ${!q.validated_by?'<span style="color:#C87060">(pending validation)</span>':''}</div>` : ''}
         </div>
         <div style="text-align:center;padding-left:8px">
           <div style="width:14px;height:14px;border-radius:50%;background:${color};margin:0 auto 4px"></div>
@@ -5832,7 +5879,7 @@ APP._loadProfileLegacy = async function() {
     );
     // If a Principal previously overrode this user's deputy, show the audit line.
     const overrideLine = user.deputy_overridden_by_name
-      ? `<div style="padding:8px 10px;font-size:11px;color:#A06030;background:#FFF6E8;border-radius:4px;margin-bottom:8px">
+      ? `<div style="padding:8px 10px;font-size:11px;color:var(--amber);background:rgba(218,165,32,0.10);border-radius:4px;margin-bottom:8px;border:1px solid rgba(218,165,32,0.25)">
            Set by Principal: ${user.deputy_overridden_by_name} · ${UI.fmtDate(user.deputy_overridden_at)}
          </div>` : '';
     deputyHtml = `<div class="card" style="margin-top:8px">
@@ -6163,8 +6210,8 @@ APP.loadDLPPunchList = async function(projectId) {
       required.forEach(r => {
         const sigRow = received.find(rec => rec.signed_for_role === r);
         html += sigRow
-          ? `<span style="background:#E8F5E8;color:#4A8A5A;padding:2px 6px;border-radius:3px">✓ ${SIGNOFF_LABEL[r]||r}</span>`
-          : `<span style="background:#F5F5F5;color:#888;padding:2px 6px;border-radius:3px">○ ${SIGNOFF_LABEL[r]||r}</span>`;
+          ? `<span style="background:rgba(12,166,120,0.12);color:var(--green);padding:2px 6px;border-radius:3px;border:1px solid rgba(12,166,120,0.30)">✓ ${SIGNOFF_LABEL[r]||r}</span>`
+          : `<span style="background:rgba(128,128,128,0.08);color:var(--muted);padding:2px 6px;border-radius:3px;border:1px solid rgba(128,128,128,0.18)">○ ${SIGNOFF_LABEL[r]||r}</span>`;
       });
       html += `</div>`;
       if (showButton) {
@@ -6498,7 +6545,7 @@ APP.loadProjectClosure = async function(projectId) {
   }
 
   if (res.complete) {
-    html += `<div style="background:#E8F5E8;border:1px solid #4A8A5A;border-radius:8px;padding:16px;text-align:center;margin-top:8px">
+    html += `<div style="background:rgba(12,166,120,0.12);border:1px solid rgba(12,166,120,0.35);border-radius:8px;padding:16px;text-align:center;margin-top:8px">
       <div style="font-size:18px;color:#4A8A5A;font-weight:bold">✓ Project Closed</div>
       <div style="font-size:13px;color:#666;margin-top:4px">All sign-offs received. Project is now read-only.</div>
     </div>`;
@@ -6532,8 +6579,8 @@ APP.loadHandoverChecklist = async function(projectId) {
     <div class="card" style="text-align:center;padding:12px;margin-bottom:8px">
       <div style="font-size:24px;font-weight:bold;color:#1D3D62">${res.completion_pct}%</div>
       <div style="font-size:12px;color:#666">${res.submitted} of ${res.total} documents submitted</div>
-      <div style="background:#eee;height:8px;border-radius:4px;margin-top:8px;overflow:hidden">
-        <div style="background:#4A8A5A;height:100%;width:${res.completion_pct}%;border-radius:4px"></div>
+      <div style="background:var(--border);height:8px;border-radius:4px;margin-top:8px;overflow:hidden">
+        <div style="background:var(--green);height:100%;width:${res.completion_pct}%;border-radius:4px"></div>
       </div>
     </div>`;
 
@@ -6757,7 +6804,7 @@ APP.checkSimilarQueries = async function(question, projectId, trade) {
     const container = document.getElementById('similar-queries-container');
     if (container) {
       container.innerHTML = `<div style="font-size:12px;font-weight:bold;color:#C8A55A;margin-bottom:6px">Similar past queries:</div>` +
-        res.similar.map(s => `<div style="background:#F0F3F7;padding:8px;border-radius:4px;margin-bottom:4px;font-size:12px">
+        res.similar.map(s => `<div style="background:var(--bg);padding:8px;border-radius:4px;margin-bottom:4px;font-size:12px;border:1px solid var(--border)">
           <div style="color:#1D3D62;font-weight:bold">${s.question}</div>
           <div style="color:#4A8A5A;margin-top:2px">✓ ${s.resolution}</div>
           <div style="color:#888;font-size:11px">${s.project_name} · ${s.similarity} similarity</div>
@@ -7848,7 +7895,7 @@ APP.renderPayments = async function() {
     if (canApprove) {
       html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;border-left:3px solid var(--navy)">
         <div style="padding:14px 16px;display:flex;align-items:center;gap:14px">
-          <div style="width:40px;height:40px;border-radius:10px;background:#EEF2FF;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(29,61,98,0.10);display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4263EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           </div>
           <div style="flex:1;min-width:0">
@@ -7871,7 +7918,7 @@ APP.renderPayments = async function() {
               <div style="font-weight:700;font-size:14px;color:var(--navy)">${UI.escapeText(p.vendor_name||'—')}</div>
               <div style="font-size:12px;color:var(--text);margin-top:3px;line-height:1.4">${UI.escapeText((p.scope||'').substring(0,60))}</div>
               <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
-                ${typeLabel ? `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;background:#EEF2FF;color:var(--navy);padding:2px 8px;border-radius:20px">${typeLabel}</span>` : ''}
+                ${typeLabel ? `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;background:rgba(29,61,98,0.10);color:var(--navy);padding:2px 8px;border-radius:20px;border:1px solid rgba(29,61,98,0.20)">${typeLabel}</span>` : ''}
                 <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${UI.fmtDate(p.created_at)}</span>
               </div>
             </div>
@@ -8208,7 +8255,7 @@ APP.renderUsers = async function() {
   let html = `
   <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:14px;padding:16px">
-      <div style="width:44px;height:44px;border-radius:10px;background:#E8F5E9;color:#2E7D32;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <div style="width:44px;height:44px;border-radius:10px;background:rgba(12,166,120,0.12);color:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
       </div>
       <div style="flex:1;min-width:0">
@@ -8272,7 +8319,7 @@ APP.renderUsers = async function() {
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">${APP._roleLabel(u.role)} · ${u.email||u.phone||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;width:160px;justify-content:flex-end">
-          <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;width:72px;border-radius:4px;background:#D3F9D8;color:#2F9E44;font-size:11px;font-weight:700;letter-spacing:0.5px;box-sizing:border-box">ACTIVE</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;height:28px;width:72px;border-radius:4px;background:rgba(12,166,120,0.15);color:var(--green);font-size:11px;font-weight:700;letter-spacing:0.5px;box-sizing:border-box;border:1px solid rgba(12,166,120,0.35)">ACTIVE</span>
           ${canReset
             ? `<button onclick="APP.resetUserPassword(${u.id},'${UI.escapeText(u.full_name)}')" style="height:28px;width:72px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-weight:600;cursor:pointer;box-sizing:border-box">Reset PW</button>`
             : `<div style="height:28px;width:72px"></div>`}
@@ -9945,7 +9992,7 @@ APP.renderProjectDetail = async function() {
       </div>`;
     }
     return `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;${b}">
-      <div style="width:40px;height:40px;border-radius:50%;background:#F8F9FA;border:1.5px dashed #DEE2E6;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <div style="width:40px;height:40px;border-radius:50%;background:var(--bg);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ADB5BD" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       </div>
       <div style="flex:1;min-width:0">
@@ -10026,7 +10073,7 @@ APP.renderProjectDetail = async function() {
   if (['principal','design_principal'].includes(APP.user?.role)) {
     html += `<button class="card ps-btn" style="padding:14px 16px;margin-top:16px;cursor:pointer;text-align:left;width:100%;display:block" onclick="APP.openSlaSettings(${pid})">
       <div style="display:flex;align-items:center;gap:14px">
-        <div style="width:40px;height:40px;border-radius:50%;background:#E3EAFD;color:#3B5BDB;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⏱</div>
+        <div style="width:40px;height:40px;border-radius:50%;background:rgba(29,61,98,0.12);color:var(--navy);font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">⏱</div>
         <div style="flex:1;min-width:0;text-align:left">
           <div style="font-weight:600;font-size:14px;color:var(--navy)">SLA Settings</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px">Per-project thresholds for when items escalate to the Pending tab</div>
@@ -10059,9 +10106,10 @@ APP._psApprovalsJump = function(catKey) {
   // Principal/DP don't have meetings/approvals tabs — they use 'pending'.
   const role = APP.user?.role;
   const isPrincipal = ['principal','design_principal'].includes(role);
+  const isSiteRole = ['site_manager','senior_site_manager'].includes(role);
   const CAT_TAB = {
     drawings: isPrincipal ? 'pending' : 'drawings',
-    payments: isPrincipal ? 'pending' : 'payments',
+    payments: isPrincipal ? 'pending' : isSiteRole ? 'grn' : 'payments',
     budget:   'budget',
     moms:     isPrincipal ? 'pending' : 'meetings',
     other:    'pending',
@@ -10231,7 +10279,7 @@ APP._refreshSlaModal = async function() {
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <div style="font-weight:600;font-size:13px;color:var(--navy);flex:1">${UI.escapeText(it.label)}</div>
           ${it.overridden
-            ? '<span style="background:#f5ecdb;color:#8a6320;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">CUSTOM</span>'
+            ? '<span style="background:rgba(218,165,32,0.12);color:var(--amber);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid rgba(218,165,32,0.30)">CUSTOM</span>'
             : '<span style="color:var(--muted);font-size:10px">default</span>'}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -11540,7 +11588,7 @@ APP.uploadVendorExcel = async function(input) {
     report.filter(r => r.status !== 'green').forEach(r => {
       const col = r.status === 'red' ? '#C87060' : '#C8A040';
       const notes = (r.notes || []).map(n => UI.escapeText(n)).join(' · ');
-      summary += `<div style="padding:8px;border-left:3px solid ${col};background:#fafafa;margin-bottom:4px;font-size:12px">
+      summary += `<div style="padding:8px;border-left:3px solid ${col};background:var(--bg);margin-bottom:4px;font-size:12px">
         <div style="font-weight:600">${UI.escapeText(r.name)}</div>
         ${notes ? `<div style="color:${col};margin-top:2px">${notes}</div>` : ''}
       </div>`;
@@ -11580,7 +11628,7 @@ APP.renderFinanceClearance = async function() {
         const f = typeof v.ai_flags === 'string' ? JSON.parse(v.ai_flags) : v.ai_flags;
         overall = f.overall || 'green';
         if (f.notes?.length) {
-          flagsHtml = `<div style="margin-top:6px;padding:8px;background:#fafafa;border-radius:6px;font-size:11px">
+          flagsHtml = `<div style="margin-top:6px;padding:8px;background:var(--bg);border-radius:6px;font-size:11px">
             <div style="font-weight:600;margin-bottom:4px">AI notes:</div>
             ${f.notes.map(n => `<div>• ${UI.escapeText(n)}</div>`).join('')}
           </div>`;
