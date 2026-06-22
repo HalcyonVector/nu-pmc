@@ -911,7 +911,7 @@ router.get('/:project_id/engagements', requireAuth, requireProjectScope(),
 // POST /api/vendors/:project_id/engagements — engage a master vendor on a project
 // M03 workflow: PMC + heads initiate (lands as approval_status='pending'),
 // principals approve/reject. Payment requests blocked until approved.
-router.post('/:project_id/engagements', requireAuth,
+router.post('/:project_id/engagements', requireAuth, requireProjectScope(),
   requireRole('principal','design_principal','pmc_head','design_head','services_head'),
   validators.vendorEngagement, async (req, res) => {
   try {

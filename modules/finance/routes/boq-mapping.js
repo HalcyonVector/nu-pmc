@@ -8,7 +8,7 @@ const audit = require('../../../services/audit');
 const router       = express.Router();
 
 // GET /api/boq-mapping/:project_id — get all mappings + unmapped items
-router.get('/:project_id', requireAuth, requirePMC, asyncHandler(async (req, res) => {
+router.get('/:project_id', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
     const pid = req.params.project_id;
 
     // All client BOQ items (non-section)

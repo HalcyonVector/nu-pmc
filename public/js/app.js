@@ -2511,7 +2511,8 @@ Tomorrow: start formwork on next bay."
       ? (d.stream === 'design' ? 'Team Lead' : 'Services Head')
       : d.version_status === 'pending_l2' ? 'Design Head' : '';
 
-    const hasFooter = d.view_url || isIssued || myTurn || (isSite && isIssued) ||
+    const canFlag = !isIssued && isPending && ['principal','design_principal','pmc_head','design_head','services_head'].includes(role);
+    const hasFooter = d.view_url || isIssued || myTurn || (isSite && isIssued) || canFlag ||
       (!isIssued && ['principal','design_principal','design_head','services_head'].includes(role));
     return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px${myTurn?';border-color:var(--steel)':''}">
       <div style="padding:14px 16px">
@@ -2536,6 +2537,7 @@ Tomorrow: start formwork on next bay."
         ${myTurn ? `<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${role === 'team_lead' ? 'Mark Reviewed' : 'Approve & Issue'}</button>
           <button class="btn-sm reject" onclick="APP.rejectDrawing(${d.version_id})">Reject</button>` : ''}
         ${isSite && isIssued ? `<button class="btn-sm query" onclick="APP.raiseQueryForDrawing(${d.version_id},'${UI.escapeAttr(d.drawing_number)} ${UI.escapeAttr(d.revision)}',${pid})">Raise Query</button>` : ''}
+        ${canFlag && !myTurn ? `<button class="btn-sm" style="color:var(--amber)" onclick="APP.flagDrawingVersion(${d.version_id})">⚑ Flag</button>` : ''}
         ${!isIssued && ['principal','design_principal','design_head','services_head'].includes(role) ? `<button class="btn-sm" style="color:var(--red)" onclick="APP.deleteDrawing(${d.version_id})">Delete</button>` : ''}
       </div>` : ''}
     </div>`;
@@ -2700,6 +2702,15 @@ Tomorrow: start formwork on next bay."
     const res = await API.rejectDrawing(versionId, note);
     if (res?.success) { UI.toast('Rejected — sent back'); APP.renderDrawings(); }
     else UI.toast(res?.error || 'Failed');
+  },
+
+  async flagDrawingVersion(versionId) {
+    const comment = await UI.prompt('Flag comment (what issue did you find?):');
+    if (comment === null) return;
+    if (!comment?.trim()) { UI.toast('Comment required to flag'); return; }
+    const res = await API.flagDrawingVersion(versionId, { comment: comment.trim() });
+    if (res?.success) { UI.toast('Drawing flagged — uploader notified'); APP.renderDrawings(); }
+    else UI.toast(res?.error || 'Failed to flag');
   },
 
   async deleteDrawing(versionId) {
@@ -7547,7 +7558,10 @@ APP.renderMOMs = async function() {
   </div>
   ${canCreate ? `<button class="btn-primary sec-action-mobile" onclick="APP.showMOMForm()">+ New MOM</button>` : ''}`;
   if (!moms.length) { html += UI.empty('','No MOMs yet'); }
-  else moms.slice(0,15).forEach(m => {
+  else {
+    APP._momCache = {};
+    moms.slice(0,15).forEach(m => { APP._momCache[m.id] = m; });
+    moms.slice(0,15).forEach(m => {
     const statusBadge = m.status === 'approved' ? 'b-green' : m.status === 'issued' ? 'b-navy' : 'b-amber';
     const pending = (m.action_items||[]).filter(a => !a.completed).length;
     html += `<button class="mom-item" style="min-height:44px" onclick="APP.viewMOM(${m.id})">
@@ -7563,17 +7577,36 @@ APP.renderMOMs = async function() {
         </div>
       </div>
     </div>`;
-  });
+  }); }  // close forEach + else
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
 APP.viewMOM = async function(id) {
+  const mom = APP._momCache?.[id];
   const data = await API.get(`/meetings/${id}/action-items`);
   if (!data) return;
   const actions = data.action_items || [];
-  UI.openModal('Action Items', `
-    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em">${actions.length} items</div>
+  const role = APP.user?.role;
+  const uid = APP.user?.id;
+  const isPMC = role === 'pmc_head';
+  const isPrincipal = role === 'principal' || role === 'design_principal';
+  const statusLabel = mom?.status || 'draft';
+  const statusBadge = statusLabel === 'approved' ? 'b-green' : statusLabel === 'issued' ? 'b-navy' : 'b-amber';
+  const momActions = (isPMC || isPrincipal) ? `
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      ${isPMC && statusLabel === 'draft' ? `<button class="btn-primary" onclick="APP.approveMOM(${id})">✓ Approve MOM</button>` : ''}
+      ${isPMC && statusLabel === 'approved' ? `<button class="btn-primary" onclick="APP.issueToClient(${id}, '${mom?.meeting_number||''}')">📤 Issue to Client</button>` : ''}
+      ${isPMC && statusLabel === 'issued' ? `<button class="btn-sm" onclick="APP.reissueMOM(${id})">↺ Reissue</button>` : ''}
+      ${isPrincipal && (statusLabel === 'issued' || statusLabel === 'approved') ? `<button class="btn-sm" onclick="APP.unlockMOM(${id})">🔓 Unlock</button>` : ''}
+    </div>` : '';
+  UI.openModal(mom ? `${mom.meeting_number||'MOM'} — ${mom.title||''}` : 'MOM Details', `
+    ${mom ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span class="badge ${statusBadge}">${statusLabel}</span>
+      <span style="font-size:12px;color:var(--muted)">${UI.fmtDate(mom.meeting_date)}</span>
+    </div>` : ''}
+    ${momActions}
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em">${actions.length} action item${actions.length !== 1 ? 's' : ''}</div>
     ${actions.map(a => {
       const isDone = a.status === 'completed';
       const isOverdue = !isDone && a.due_date && new Date(a.due_date) < new Date();
@@ -7583,7 +7616,10 @@ APP.viewMOM = async function(id) {
       <div class="ar-who" style="font-weight:600;font-size:12px;min-width:60px">${(a.assigned_to_name || a.assignee_name ||'—').split(' ')[0]}</div>
       <div class="ar-text" style="flex:1;font-size:13px${isDone?';text-decoration:line-through':''}">${UI.escapeText(text)}</div>
       <div class="ar-due ${isOverdue?'overdue':''}" style="font-size:11px;font-family:var(--mono);margin-right:8px">${UI.fmtDate(a.due_date)}</div>
-      ${!isDone ? `<button class="btn-sm approve" onclick="APP.doneAction(${a.id}, ${id})">Done</button>` : `<span style="font-size:14px;color:var(--green)">✓ Done</span>`}
+      ${isDone ? `<span style="font-size:14px;color:var(--green)">✓ Done</span>` :
+        a.assigned_to === uid && a.status === 'pending' ? `<button class="btn-sm" onclick="APP.acknowledgeAction(${a.id}, ${id})">Ack</button>` :
+        a.countersign_by === uid && a.status === 'acknowledged' ? `<div style="display:flex;gap:4px"><button class="btn-sm approve" onclick="APP.countersignAction(${a.id}, ${id}, true)">✓</button><button class="btn-sm reject" onclick="APP.countersignAction(${a.id}, ${id}, false)">✗</button></div>` :
+        `<button class="btn-sm approve" onclick="APP.doneAction(${a.id}, ${id})">Done</button>`}
     </div>`;
     }).join('')}
     ${!actions.length ? UI.empty('','No action items') : ''}
@@ -7598,6 +7634,33 @@ APP.doneAction = async function(id, momId) {
   } else {
     UI.toast(res?.error || 'Failed to mark done');
   }
+};
+
+APP.acknowledgeAction = async function(id, momId) {
+  const res = await API.patch(`/meetings/action-items/${id}/acknowledge`, {});
+  if (res?.success) { UI.toast('Action acknowledged ✓'); if (momId) await APP.viewMOM(momId); }
+  else UI.toast(res?.error || 'Failed to acknowledge');
+};
+
+APP.countersignAction = async function(id, momId, agree) {
+  let reason = '';
+  if (!agree) {
+    reason = await UI.prompt('Reason for disagreement:', '');
+    if (reason === null) return;
+  }
+  const res = await API.patch(`/meetings/action-items/${id}/countersign`, { agree, reason: reason || undefined });
+  if (res?.success) {
+    UI.toast(agree ? 'Countersigned ✓' : 'Disagreement recorded — MOM may need reissue');
+    if (momId) await APP.viewMOM(momId);
+  } else UI.toast(res?.error || 'Failed to countersign');
+};
+
+APP.unlockMOM = async function(id) {
+  const reason = await UI.prompt('Reason for unlocking this MOM (required):', '');
+  if (!reason || !reason.trim()) { UI.toast('Reason required to unlock'); return; }
+  const res = await API.post(`/meetings/${id}/unlock`, { reason: reason.trim() });
+  if (res?.success) { UI.toast('MOM unlocked — 1-day edit window open'); UI.closeModal(); APP.renderMOMs(); }
+  else UI.toast(res?.error || 'Failed to unlock MOM');
 };
 APP.showMOMForm = function() {
   UI.openModal('New MOM', `
@@ -7621,6 +7684,34 @@ APP.submitMOM = async function() {
   const res = await API.post(`/meetings/${pid}`, body);
   if (res?.success) { APP.closeModal(); UI.toast('MOM created ✓'); APP.renderMOMs(); }
   else { UI.toast(res?.error || 'Failed to create MOM'); }
+};
+
+APP.approveMOM = async function(id) {
+  const ok = await UI.confirm('Approve this MOM internally? You can then issue it to the client.');
+  if (!ok) return;
+  const res = await API.post(`/meetings/${id}/approve`, {});
+  if (res?.success) { UI.toast('MOM approved ✓'); UI.closeModal(); APP.renderMOMs(); }
+  else UI.toast(res?.error || 'Approval failed');
+};
+
+APP.issueToClient = async function(id, meetingNumber) {
+  const entered = await UI.prompt(
+    `To confirm sending MOM to client, type the MOM number exactly:\n(${meetingNumber})`,
+    meetingNumber
+  );
+  if (!entered) return;
+  if (entered.trim() !== meetingNumber) { UI.toast('MOM number does not match — send cancelled'); return; }
+  const res = await API.post(`/meetings/${id}/issue-to-client`, { confirmation: 'SEND', meeting_number: meetingNumber });
+  if (res?.success) { UI.toast('MOM issued to client ✓'); UI.closeModal(); APP.renderMOMs(); }
+  else UI.toast(res?.error || 'Failed to issue MOM');
+};
+
+APP.reissueMOM = async function(id) {
+  const ok = await UI.confirm('Reissue this MOM to client?');
+  if (!ok) return;
+  const res = await API.post(`/meetings/${id}/reissue`, {});
+  if (res?.success) { UI.toast('MOM reissued ✓'); UI.closeModal(); APP.renderMOMs(); }
+  else UI.toast(res?.error || 'Failed to reissue MOM');
 };
 
 // ── LABOUR REGISTER — site manager enters, PMC validates
@@ -7997,8 +8088,103 @@ APP.renderPayments = async function() {
     html += UI.empty('','No payments pending approval');
   }
 
+  // ── Urgent Payments section ──────────────────────────────────────
+  const URGENT_ROLES = ['site_manager','senior_site_manager','pmc_head','principal','design_principal','finance_admin'];
+  if (URGENT_ROLES.includes(APP.user.role)) {
+    const uData = await API.get(`/urgent-payments/${pid}`);
+    const urgents = uData?.payments || [];
+    html += `<div class="sec-hdr-row" style="margin-top:18px">
+      <div class="sec-label" style="margin:0;flex:1">Urgent / Ad-hoc Payments (${urgents.length})</div>
+      <button class="btn-sm navy" onclick="APP.showUrgentPaymentForm(${pid})">+ Raise Urgent</button>
+    </div>`;
+    if (!urgents.length) {
+      html += `<div style="font-size:12px;color:var(--muted);padding:10px 0">No urgent payments raised yet.</div>`;
+    } else {
+      urgents.slice(0, 10).forEach(u => {
+        const badge = u.status === 'approved' ? 'b-green' : u.status === 'rejected' ? 'b-red' : 'b-amber';
+        html += `<div class="card" style="padding:12px 14px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px;color:var(--navy)">${UI.escapeText(u.description||'Urgent payment')}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${u.is_adhoc ? '(Adhoc — '+UI.escapeText(u.adhoc_name||'no vendor') + ')' : 'Engagement-based'} · ${UI.fmtDate(u.created_at)}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--navy)">₹${parseFloat(u.amount||0).toLocaleString('en-IN')}</div>
+              <span class="badge ${badge}">${u.status}</span>
+            </div>
+          </div>
+        </div>`;
+      });
+    }
+  }
+
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
+
+APP.showUrgentPaymentForm = function(pid) {
+  UI.openModal('Raise Urgent Payment', `
+    <div class="field-row"><label class="field-label">Amount (₹) *</label>
+      <input type="number" id="up-amount" placeholder="e.g. 5000" min="1"></div>
+    <div class="field-row"><label class="field-label">Description *</label>
+      <input type="text" id="up-desc" placeholder="What is this payment for?"></div>
+    <div class="field-row"><label class="field-label">Invoice Photo *</label>
+      <input type="file" id="up-invoice" accept="image/*,.pdf"></div>
+    <div class="field-row"><label class="field-label">Vendor type</label>
+      <select id="up-type" onchange="document.getElementById('up-adhoc-fields').style.display=this.value==='adhoc'?'block':'none'">
+        <option value="adhoc">Adhoc / Shop (no vendor master)</option>
+        <option value="engagement">Registered vendor engagement</option>
+      </select></div>
+    <div id="up-adhoc-fields">
+      <div class="field-row"><label class="field-label">Shop owner name *</label>
+        <input type="text" id="up-adhoc-name" placeholder="Name of shop/person"></div>
+      <div class="field-row"><label class="field-label">Shop owner phone *</label>
+        <input type="text" id="up-adhoc-phone" placeholder="10-digit mobile"></div>
+      <div class="field-row"><label class="field-label">UPI ID or Bank A/C + IFSC *</label>
+        <input type="text" id="up-upi" placeholder="UPI ID (e.g. name@upi) or leave blank for bank details"></div>
+      <div class="field-row" style="display:flex;gap:8px">
+        <div style="flex:1"><label class="field-label">Bank Account</label>
+          <input type="text" id="up-bank-acc" placeholder="Account number"></div>
+        <div style="flex:1"><label class="field-label">IFSC</label>
+          <input type="text" id="up-ifsc" placeholder="IFSC code"></div>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="APP.submitUrgentPayment(${pid})">Submit Urgent Payment</button>
+  `);
+};
+
+APP.submitUrgentPayment = async function(pid) {
+  const amount  = document.getElementById('up-amount')?.value;
+  const desc    = document.getElementById('up-desc')?.value?.trim();
+  const invoice = document.getElementById('up-invoice')?.files?.[0];
+  const isAdhoc = document.getElementById('up-type')?.value === 'adhoc';
+  const adhocName  = document.getElementById('up-adhoc-name')?.value?.trim();
+  const adhocPhone = document.getElementById('up-adhoc-phone')?.value?.trim();
+  const upi     = document.getElementById('up-upi')?.value?.trim();
+  const bankAcc = document.getElementById('up-bank-acc')?.value?.trim();
+  const ifsc    = document.getElementById('up-ifsc')?.value?.trim();
+
+  if (!amount || !desc) { UI.toast('Amount and description required'); return; }
+  if (!invoice) { UI.toast('Invoice photo required'); return; }
+  if (isAdhoc && (!adhocName || !adhocPhone)) { UI.toast('Shop owner name and phone required'); return; }
+  if (isAdhoc && !upi && (!bankAcc || !ifsc)) { UI.toast('UPI ID or bank account + IFSC required'); return; }
+
+  const fd = new FormData();
+  fd.append('amount', amount);
+  fd.append('description', desc);
+  fd.append('is_adhoc', isAdhoc ? '1' : '0');
+  fd.append('invoice', invoice);
+  if (isAdhoc) {
+    fd.append('adhoc_name', adhocName);
+    fd.append('adhoc_phone', adhocPhone);
+    if (upi) fd.append('adhoc_upi_id', upi);
+    if (bankAcc) fd.append('adhoc_bank_account', bankAcc);
+    if (ifsc) fd.append('adhoc_bank_ifsc', ifsc);
+  }
+  const res = await API.call('POST', `/urgent-payments/${pid}`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Urgent payment raised ✓'); APP.renderPayments(); }
+  else UI.toast(res?.error || 'Failed to raise urgent payment');
+};
+
 APP.batchApprovePayments = async function(pid) {
   // Role-aware endpoint selection:
   //   PMC Head → /payment-requests/:pid/batch-approve (pending_pmc → pmc_approved)
@@ -8056,10 +8242,12 @@ APP.renderPaymentsFin = async function() {
     const steps = [
       { n:'1', title:'Run pre-upload check', meta:'Validates account numbers and checks for duplicates',
         action:`<button class="btn-sm" style="margin-top:10px;width:100%;justify-content:center" onclick="APP.runPreUploadCheck('${pid}')">Run Validation Check</button>` },
-      { n:'2', title:'Download ICICI Excel', meta:'19-column PAB bulk payment format — ready to upload to ICICI portal',
-        action:`<button class="btn-sm navy" style="margin-top:10px" onclick="APP.downloadICICIExcel('${pid}')">Download Excel</button>` },
-      { n:'3', title:'Upload to ICICI portal', meta:'Login to ICICI Corporate → Bulk Payments → Upload file',
-        action:`<div style="font-size:11px;color:var(--muted);margin-top:8px">UTRs will be pushed back automatically. Each vendor will receive WhatsApp confirmation.</div>` },
+      { n:'2', title:'Generate ICICI Batch', meta:'Locks in payments, creates batch cycle record, and generates Excel',
+        action:`<button class="btn-sm navy" style="margin-top:10px" onclick="APP.generateICICIBatch('${pid}')">Generate Batch</button>` },
+      { n:'3', title:'Download & upload to ICICI', meta:'Finance Admin downloads Excel and uploads to ICICI Corporate Bulk Payments',
+        action:`<button class="btn-sm" style="margin-top:10px" onclick="APP.downloadICICIExcel('${pid}')">Download Excel (Finance)</button>` },
+      { n:'4', title:'Confirm payments (after bank processes)', meta:'Upload ICICI confirmation Excel to mark payments paid and notify vendors',
+        action:`<button class="btn-sm approve" style="margin-top:10px" onclick="APP.showICICIConfirmForm('${pid}')">Upload Confirmation</button>` },
     ];
     steps.forEach(s => {
       html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px">
@@ -8147,6 +8335,91 @@ APP.downloadICICIExcel = async function(pid) {
   } catch (e) {
     UI.toast('Download failed — check your connection');
   }
+};
+
+APP.generateICICIBatch = async function(pid) {
+  const data = await API.get(`/payments/${pid}/weekly-batch`);
+  if (!data?.pending?.length) { UI.toast('No approved payments to batch'); return; }
+  const ids = data.pending.map(p => p.id);
+  const total = data.pending.reduce((s, p) => s + parseFloat(p.amount_requested || 0), 0);
+  const ok = await UI.confirm(`Generate ICICI batch?\n\n${ids.length} payment(s) — ₹${Money.formatRupee(total)}\n\nThis will lock payments in as processed and create a cycle record.`);
+  if (!ok) return;
+  const res = await API.post(`/payments/${pid}/icici/generate`, {
+    payment_ids: ids, confirmation: 'GENERATE', expected_total: total
+  });
+  if (res?.success) {
+    UI.toast(`Batch generated ✓ — Cycle #${res.cycle_id} for ₹${Money.formatRupee(res.total)}`);
+    APP._lastICICICycleId = res.cycle_id;
+  } else {
+    UI.toast(res?.error || 'Batch generation failed');
+  }
+};
+
+APP.showICICIConfirmForm = function(pid) {
+  UI.openModal('Upload ICICI Confirmation', `
+    <div class="field-row">
+      <label class="field-label">Cycle ID</label>
+      <input type="number" id="icici-cycle-id" placeholder="e.g. 42" value="${APP._lastICICICycleId || ''}">
+    </div>
+    <div class="field-row">
+      <label class="field-label">ICICI Confirmation Excel</label>
+      <input type="file" id="icici-confirm-file" accept=".xlsx,.xls">
+    </div>
+    <div id="icici-preview-area"></div>
+    <button class="btn-primary" onclick="APP.previewICICIConfirm('${pid}')">Preview</button>
+  `);
+};
+
+APP.previewICICIConfirm = async function(pid) {
+  const cycleId = document.getElementById('icici-cycle-id')?.value;
+  const fileInput = document.getElementById('icici-confirm-file');
+  if (!cycleId || !fileInput?.files?.length) { UI.toast('Cycle ID and file required'); return; }
+  const fd = new FormData();
+  fd.append('confirmation', fileInput.files[0]);
+  fd.append('cycle_id', cycleId);
+  const res = await API.call('POST', `/payments/${pid}/icici/confirm/preview`, fd, true);
+  if (!res?.preview) { UI.toast(res?.error || 'Preview failed'); return; }
+  APP._iciciPreviewToken = res.file_token;
+  APP._iciciPreviewCycleId = res.cycle_id;
+  const rows = res.preview;
+  let html = `<div style="font-size:12px;color:var(--amber);margin:10px 0">${res.warning}</div>`;
+  html += `<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+    <thead><tr style="background:var(--surface-2)">
+      <th style="padding:6px 8px;text-align:left">Vendor</th>
+      <th style="padding:6px 8px;text-align:right">Amount</th>
+      <th style="padding:6px 8px;text-align:left">UTR</th>
+      <th style="padding:6px 8px;text-align:left">Status</th>
+    </tr></thead><tbody>`;
+  rows.forEach(r => {
+    const ok = r.will_mark_paid;
+    html += `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px">${UI.escapeText(r.vendor_name || '—')}</td>
+      <td style="padding:6px 8px;text-align:right;font-family:var(--mono)">${Money.formatRupee(r.amount)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:10px">${r.utr || '—'}</td>
+      <td style="padding:6px 8px;color:${ok ? 'var(--green)' : 'var(--red)'}">${ok ? '✓ Will mark paid' : '✗ ' + (r.status || 'Failed')}</td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>`;
+  html += `<button class="btn-primary" style="margin-top:12px;width:100%" onclick="APP.confirmICICIPayments('${pid}', ${res.summary.will_mark_paid})">Confirm ${res.summary.will_mark_paid} Payments Paid</button>`;
+  document.getElementById('icici-preview-area').innerHTML = html;
+};
+
+APP.confirmICICIPayments = async function(pid, expectedCount) {
+  if (!APP._iciciPreviewToken) { UI.toast('Run preview first'); return; }
+  const ok = await UI.confirm(`Mark ${expectedCount} payment(s) as paid and send WhatsApp to vendors?`);
+  if (!ok) return;
+  const res = await API.post(`/payments/${pid}/icici/confirm`, {
+    confirmation: 'CONFIRM_PAID',
+    file_token: APP._iciciPreviewToken,
+    cycle_id: APP._iciciPreviewCycleId,
+    expected_success_count: expectedCount,
+  });
+  if (res?.success) {
+    UI.toast(`${res.confirmed_count || expectedCount} payments confirmed ✓ — vendors notified`);
+    APP._iciciPreviewToken = null;
+    UI.closeModal();
+    APP.renderPayments();
+  } else UI.toast(res?.error || 'Confirmation failed');
 };
 
 // ── PI — proforma invoices
