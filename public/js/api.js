@@ -430,9 +430,9 @@ API.getScheduleQuick    = (pid)     => API.call('GET',  `/schedule-quick/${pid}`
 API.submitScheduleQuick = (pid, d)  => API.call('POST', `/schedule-quick/${pid}`, d);
 
 // ── COMMS
-API.getComms  = (pid)         => API.call('GET',  `/comms/${pid}`);
-API.postComm  = (pid, d)      => API.call('POST', `/comms/${pid}`, d);
-API.ackComm   = (commId)      => API.call('POST', `/comms/${commId}/ack`, {});
+API.getComms  = (pid)              => API.call('GET',   `/comms/${pid}`);
+API.postComm  = (pid, d)           => API.call('POST',  `/comms/${pid}`, d);
+API.ackComm   = (pid, commId)      => API.call('PATCH', `/comms/${pid}/${commId}/ack`, {});
 
 // ── DIRECT PAYMENTS
 API.getDirectPayments    = (pid)     => API.call('GET',  `/finance/${pid}/direct-payments`);
@@ -440,9 +440,9 @@ API.createDirectPayment  = (pid, d)  => API.call('POST', `/finance/${pid}/direct
 API.getAdvanceRecovery   = (engId)   => API.call('GET',  `/finance/advance-recovery/${engId}`);
 
 // ── VENDOR BANK CHANGE
-API.getPendingBankChanges = ()         => API.call('GET',   '/vendor-bank-change/pending');
-API.proposeBankChange     = (vid, d)   => API.call('POST',  `/vendor-bank-change/${vid}`, d);
-API.approveBankChange     = (id)       => API.call('PATCH', `/vendor-bank-change/${id}/approve`, {});
+API.getPendingBankChanges = ()         => API.call('GET',  '/vendors/master/bank-changes/pending');
+API.proposeBankChange     = (vid, d)   => API.call('POST', `/vendors/master/${vid}/bank-change/propose`, d);
+API.approveBankChange     = (id)       => API.call('POST', `/vendors/master/bank-change/${id}/approve`, {});
 API.rejectBankChange      = (id, d)    => API.call('PATCH', `/vendor-bank-change/${id}/reject`, d);
          => API.call('GET',  '/vendors/master/bank-changes/pending');
 

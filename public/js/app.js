@@ -7163,7 +7163,7 @@ APP.rejectGRN = async function(id) {
 };
 
 APP.showFlagGRNNonconformance = async function(grnId) {
-  const preview = await API.get(`/grn/${grnId}/nonconformance-preview`);
+  const preview = await API.get(`/grn/${grnId}/flag-nonconformance/preview`);
   const info = preview?.grn ? `<div class="card-meta" style="margin-bottom:8px">${preview.grn.grn_number} · ${preview.grn.material_name||''} · ${preview.grn.vendor_name||''}</div>` : '';
   UI.showModal('Flag Non-Conformance', `
     ${info}
@@ -12803,7 +12803,7 @@ APP.claimRsSign = async function(pid, claimId) {
 };
 
 APP.claimPmcSign = async function(pid, claimId) {
-  const res = await API.post(`/claims/${pid}/${claimId}/pmc-approve`, {});
+  const res = await API.post(`/claims/${pid}/${claimId}/pmc-signoff`, {});
   if (res?.success) { UI.toast('PMC Approved ✓'); APP.renderClaims(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -12818,7 +12818,7 @@ APP.showSetInvoice = function(pid, claimId) {
 APP._submitInvoiceNumber = async function(pid, claimId) {
   const invoice_number = document.getElementById('cl-inv')?.value?.trim();
   if (!invoice_number) { UI.toast('Invoice number required'); return; }
-  const res = await API.post(`/claims/${pid}/${claimId}/set-invoice`, { invoice_number });
+  const res = await API.patch(`/claims/${pid}/${claimId}/invoice-number`, { invoice_number });
   if (res?.success) { UI.closeModal(); UI.toast('Invoice set ✓'); APP.renderClaims(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -12829,10 +12829,13 @@ APP.renderForms = async function() {
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
-  const data = await API.get(`/forms/${pid}`);
-  if (!data) return;
-  const templates = data.templates || [];
-  const submissions = data.submissions || [];
+  const [tplData, subData] = await Promise.all([
+    API.get('/forms/templates'),
+    API.get(`/forms/${pid}/submissions`),
+  ]);
+  if (!tplData && !subData) return;
+  const templates   = tplData?.templates || [];
+  const submissions = subData?.submissions || [];
 
   const role = APP.user.role;
   const canManageTemplates = ['pmc_head','principal','design_principal'].includes(role);
@@ -12903,13 +12906,13 @@ APP._submitFormTemplate = async function(pid) {
   const fieldText = document.getElementById('ft-fields')?.value || '';
   const fields   = fieldText.split('\n').map(f => f.trim()).filter(Boolean).map(label => ({ label, type: 'text' }));
   if (!title) { UI.toast('Title required'); return; }
-  const res = await API.post(`/forms/${pid}/templates`, { title, category, fields });
+  const res = await API.post(`/forms/templates`, { title, category, fields, project_id: pid });
   if (res?.success) { UI.closeModal(); UI.toast('Template created ✓'); APP.renderForms(); }
   else UI.toast(res?.error || 'Failed');
 };
 
 APP.approveFormTemplate = async function(pid, templateId) {
-  const res = await API.post(`/forms/${pid}/templates/${templateId}/approve`, {});
+  const res = await API.patch(`/forms/templates/${templateId}/approve`, {});
   if (res?.success) { UI.toast('Template approved ✓'); APP.renderForms(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -13094,7 +13097,7 @@ APP.renderComms = async function() {
         </div>
         ${needsAck ? '<span class="badge b-amber">Needs Ack</span>' : '<span class="badge b-green">✓</span>'}
       </div>
-      ${canAck && needsAck ? `<button class="btn-sm approve" style="width:100%;margin-top:8px" onclick="APP.ackComm(${m.id})">Acknowledge</button>` : ''}
+      ${canAck && needsAck ? `<button class="btn-sm approve" style="width:100%;margin-top:8px" onclick="APP.ackComm(${pid},${m.id})">Acknowledge</button>` : ''}
     </div>`;
   });
 
@@ -13133,8 +13136,8 @@ APP._submitComm = async function(pid) {
   else UI.toast(res?.error || 'Failed');
 };
 
-APP.ackComm = async function(commId) {
-  const res = await API.post(`/comms/${commId}/ack`, {});
+APP.ackComm = async function(pid, commId) {
+  const res = await API.patch(`/comms/${pid}/${commId}/ack`, {});
   if (res?.success) { UI.toast('Acknowledged ✓'); APP.renderComms(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -13217,13 +13220,13 @@ APP._submitBankChange = async function(vendorId) {
   const account_holder = document.getElementById('bc-holder')?.value?.trim();
   const reason       = document.getElementById('bc-reason')?.value?.trim();
   if (!bank_name || !account_no || !ifsc_code || !account_holder) { UI.toast('All bank fields required'); return; }
-  const res = await API.post(`/vendor-bank-change/${vendorId}`, { bank_name, account_no, ifsc_code, account_holder, reason });
+  const res = await API.post(`/vendors/master/${vendorId}/bank-change/propose`, { bank_name, account_no, ifsc_code, account_holder, reason });
   if (res?.success) { UI.closeModal(); UI.toast('Bank change submitted for approval ✓'); }
   else UI.toast(res?.error || 'Failed');
 };
 
 APP.renderPendingBankChanges = async function() {
-  const data = await API.get('/vendor-bank-change/pending');
+  const data = await API.get('/vendors/master/bank-changes/pending');
   if (!data?.changes?.length) return;
   const el = document.getElementById('bank-change-section');
   if (!el) return;
@@ -13243,7 +13246,7 @@ APP.renderPendingBankChanges = async function() {
 };
 
 APP._approveBankChange = async function(changeId) {
-  const res = await API.patch(`/vendor-bank-change/${changeId}/approve`, {});
+  const res = await API.post(`/vendors/master/bank-change/${changeId}/approve`, {});
   if (res?.success) { UI.toast('Bank change approved ✓'); APP.renderPendingBankChanges(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -13251,7 +13254,7 @@ APP._approveBankChange = async function(changeId) {
 APP._rejectBankChange = async function(changeId) {
   const reason = prompt('Rejection reason:');
   if (!reason) return;
-  const res = await API.patch(`/vendor-bank-change/${changeId}/reject`, { reason });
+  const res = await API.post(`/vendors/master/bank-change/${changeId}/reject`, { reason });
   if (res?.success) { UI.toast('Bank change rejected'); APP.renderPendingBankChanges(); }
   else UI.toast(res?.error || 'Failed');
 };
