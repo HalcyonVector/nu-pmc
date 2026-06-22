@@ -396,3 +396,53 @@ API.raiseIssue   = (pid, d)  => API.call('POST',  `/issues/${pid}`, d);
 API.confirmIssue = (id)      => API.call('PATCH', `/issues/${id}/confirm`);
 API.dismissIssue = (id)      => API.call('PATCH', `/issues/${id}/dismiss`);
 
+
+// ── MEASUREMENTS
+API.getMeasurements         = (pid)          => API.call('GET',  `/measurements/${pid}`);
+API.getMeasurementItems     = (pid, id)      => API.call('GET',  `/measurements/${pid}/${id}/items`);
+API.createMeasurement       = (pid, d)       => API.call('POST', `/measurements/${pid}`, d);
+API.addMeasurementItems     = (pid, id, d)   => API.call('POST', `/measurements/${pid}/${id}/items`, d);
+API.measurementRsSignoff    = (pid, id, d)   => API.call('POST', `/measurements/${pid}/${id}/rs-signoff`, d);
+API.measurementClientAccept = (pid, id, fd)  => API.call('POST', `/measurements/${pid}/${id}/client-acceptance`, fd, true);
+API.measurementCertificate  = (pid, id)      => API.call('GET',  `/measurements/${pid}/${id}/certificate`);
+
+// ── CLAIMS
+API.getClaims       = (pid)          => API.call('GET',  `/claims/${pid}`);
+API.getClaimItems   = (pid, id)      => API.call('GET',  `/claims/${pid}/${id}/items`);
+API.createClaim     = (pid, d)       => API.call('POST', `/claims/${pid}`, d);
+API.addClaimItems   = (pid, id, d)   => API.call('POST', `/claims/${pid}/${id}/items`, d);
+API.claimRsSignoff  = (pid, id, d)   => API.call('POST', `/claims/${pid}/${id}/rs-signoff`, d);
+API.claimPmcApprove = (pid, id)      => API.call('POST', `/claims/${pid}/${id}/pmc-approve`, {});
+API.setClaimInvoice = (pid, id, d)   => API.call('POST', `/claims/${pid}/${id}/set-invoice`, d);
+
+// ── FORMS / INSPECTIONS
+API.getForms            = (pid)       => API.call('GET',  `/forms/${pid}`);
+API.createFormTemplate  = (pid, d)    => API.call('POST', `/forms/${pid}/templates`, d);
+API.approveFormTemplate = (pid, id)   => API.call('POST', `/forms/${pid}/templates/${id}/approve`, {});
+API.submitForm          = (pid, d)    => API.call('POST', `/forms/${pid}/submit`, d);
+
+// ── LABOUR QUICK
+API.getLabourQuick    = (pid)     => API.call('GET',  `/labour-quick/${pid}`);
+API.submitLabourQuick = (pid, d)  => API.call('POST', `/labour-quick/${pid}`, d);
+
+// ── SCHEDULE QUICK
+API.getScheduleQuick    = (pid)     => API.call('GET',  `/schedule-quick/${pid}`);
+API.submitScheduleQuick = (pid, d)  => API.call('POST', `/schedule-quick/${pid}`, d);
+
+// ── COMMS
+API.getComms  = (pid)         => API.call('GET',  `/comms/${pid}`);
+API.postComm  = (pid, d)      => API.call('POST', `/comms/${pid}`, d);
+API.ackComm   = (commId)      => API.call('POST', `/comms/${commId}/ack`, {});
+
+// ── DIRECT PAYMENTS
+API.getDirectPayments    = (pid)     => API.call('GET',  `/finance/${pid}/direct-payments`);
+API.createDirectPayment  = (pid, d)  => API.call('POST', `/finance/${pid}/direct-payments`, d);
+API.getAdvanceRecovery   = (engId)   => API.call('GET',  `/finance/advance-recovery/${engId}`);
+
+// ── VENDOR BANK CHANGE
+API.getPendingBankChanges = ()         => API.call('GET',   '/vendor-bank-change/pending');
+API.proposeBankChange     = (vid, d)   => API.call('POST',  `/vendor-bank-change/${vid}`, d);
+API.approveBankChange     = (id)       => API.call('PATCH', `/vendor-bank-change/${id}/approve`, {});
+API.rejectBankChange      = (id, d)    => API.call('PATCH', `/vendor-bank-change/${id}/reject`, d);
+         => API.call('GET',  '/vendors/master/bank-changes/pending');
+

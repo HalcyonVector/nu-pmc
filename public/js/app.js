@@ -59,6 +59,10 @@ const TAB_LABELS = {
   errors_log:'Error Log',
   library:'Knowledge Library',
   ai_settings:'AI Features',
+  // New module tabs
+  claims:'Claims',            forms:'Inspections',       labour_quick:'Labour (Quick)',
+  schedule_quick:'Schedule Quick', comms:'Comms',        direct_payments:'Direct Pay',
+  measurements:'Measurements',
 };
 
 const APP = {
@@ -1140,6 +1144,14 @@ Tomorrow: start formwork on next bay."
       library:           () => APP.renderKnowledgeLibrary(),
       profile:           () => APP.loadProfile(),
       notifications:     () => APP.renderNotifications(),
+      // New module tabs
+      claims:            () => APP.renderClaims(),
+      forms:             () => APP.renderForms(),
+      labour_quick:      () => APP.renderLabourQuick(),
+      schedule_quick:    () => APP.renderScheduleQuick(),
+      comms:             () => APP.renderComms(),
+      direct_payments:   () => APP.renderDirectPayments(),
+      measurements:      () => APP.renderMeasurements(),
     };
     (map[id] || (() => el.innerHTML = UI.empty('','Coming soon')))();
   },
@@ -2245,12 +2257,22 @@ Tomorrow: start formwork on next bay."
     const byTrade = APP.groupByTrade(tasks);
 
     let html = APP._projectSelectHtml('APP.renderScheduleView()');
+    const isPMCHead = APP.user?.role === 'pmc_head';
     if (ver) {
       html += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
         <span class="badge b-blue">Schedule ${ver.label}</span>
         ${ver.drift_days > 0 ? `<span class="badge b-${ver.drift_days>3?'red':'amber'}">+${ver.drift_days} days drift</span>` : '<span class="badge b-green">On R0 track</span>'}
         ${ver.status==='pending_approval'?'<span class="badge b-red">Pending approval</span>':''}
       </div>`;
+      const needsAck = ver.drift_days > 0 && !ver.drift_acknowledged;
+      if (needsAck && isPMCHead) {
+        html += `<div class="card" style="background:#FFF8E1;border-left:3px solid var(--amber);margin-bottom:12px">
+          <div style="font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Schedule drift requires acknowledgement</div>
+          <div class="card-meta" style="margin-bottom:8px">+${ver.drift_days} days drift — please document mitigation steps</div>
+          <textarea id="drift-mit-note" rows="2" placeholder="Mitigation steps / explanation…" style="width:100%;margin-bottom:8px"></textarea>
+          <button class="btn-sm approve" onclick="APP.acknowledgeDrift(${pid}, ${ver.id}, ${ver.row_version||0})" style="width:100%">Acknowledge Drift</button>
+        </div>`;
+      }
     }
 
     html += `<div class="sec-label">Today — Validate Site Updates</div>`;
@@ -2312,6 +2334,13 @@ Tomorrow: start formwork on next bay."
     await API.validateTask(pid, { task_update_id: updateId, status, rejection_note: note });
     UI.toast(status === 'validated' ? 'Validated ✓' : 'Rejected — sent back to site manager');
     APP.renderScheduleView();
+  },
+
+  async acknowledgeDrift(pid, versionId, rowVersion) {
+    const mitigation_note = document.getElementById('drift-mit-note')?.value?.trim();
+    const res = await API.patch(`/schedule/${pid}/drift-acknowledge`, { version_id: versionId, mitigation_note, row_version: rowVersion });
+    if (res?.success) { UI.toast('Drift acknowledged ✓'); APP.renderScheduleView(); }
+    else UI.toast(res?.error || 'Failed');
   },
 
   async uploadSchedule(pid, input) {
@@ -2502,7 +2531,8 @@ Tomorrow: start formwork on next bay."
       : d.version_status === 'pending_l2' ? 'Design Head' : '';
 
     const canFlag = !isIssued && isPending && ['principal','design_principal','pmc_head','design_head','services_head'].includes(role);
-    const hasFooter = d.view_url || isIssued || myTurn || (isSite && isIssued) || canFlag ||
+    const drawingViewUrl = d.view_url || (d.version_id ? `/api/drawings/view/${d.version_id}` : null);
+    const hasFooter = drawingViewUrl || isIssued || myTurn || (isSite && isIssued) || canFlag ||
       (!isIssued && ['principal','design_principal','design_head','services_head'].includes(role));
     return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px${myTurn?';border-color:var(--steel)':''}">
       <div style="padding:14px 16px">
@@ -2521,7 +2551,7 @@ Tomorrow: start formwork on next bay."
         </div>` : ''}
       </div>
       ${hasFooter ? `<div style="border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--bg)">
-        ${d.view_url ? `<a class="btn-sm" href="${d.view_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none">
+        ${drawingViewUrl ? `<a class="btn-sm" href="${drawingViewUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>View PDF</a>` : ''}
         ${isIssued ? '<span class="btn-sm approve" style="cursor:default;pointer-events:none;text-transform:uppercase;letter-spacing:.05em">Issued</span>' : ''}
         ${myTurn ? `<button class="btn-sm approve" onclick="APP.approveDrawing(${d.version_id})">${role === 'team_lead' ? 'Mark Reviewed' : 'Approve & Issue'}</button>
@@ -5105,6 +5135,8 @@ Tomorrow: start formwork on next bay."
           <div class="btn-row" style="margin-top:8px">
             <button class="btn-sm approve" onclick="APP.approveWeeklyReport(${r.id})">Approve</button>
             <button class="btn-sm" onclick="APP.viewWeeklyReport(${r.id})">View</button>
+            ${r.ai_drag_detected && !r.drag_acknowledged ? `<button class="btn-sm" onclick="APP.ackReportAnomaly(${r.id})" style="color:var(--amber)">Ack Drag</button>` : ''}
+            ${r.status === 'flagged' && canApprove ? `<button class="btn-sm" onclick="APP.unflagReport(${r.id})" style="color:var(--green)">Unflag</button>` : ''}
           </div>
         </div>`;
       });
@@ -5224,6 +5256,20 @@ Tomorrow: start formwork on next bay."
   async approveWeeklyReport(id) {
     const res = await API.approveReport(id);
     if (res?.success) { UI.toast('Report approved ✓'); APP.renderWeeklyReports(); }
+  },
+
+  async unflagReport(id) {
+    const reason = prompt('Reason for unflagging (required):');
+    if (!reason || !reason.trim()) return;
+    const res = await API.patch(`/reports/${id}/unflag`, { reason: reason.trim() });
+    if (res?.success) { UI.toast('Report unflagged ✓'); APP.renderWeeklyReports(); }
+    else UI.toast(res?.error || 'Failed');
+  },
+
+  async ackReportAnomaly(id) {
+    const res = await API.post(`/reports/${id}/ack-anomaly`, {});
+    if (res?.success) { UI.toast('Anomaly acknowledged'); APP.renderWeeklyReports(); }
+    else UI.toast(res?.error || 'Failed');
   },
 
   async generateReportPDF(id) {
@@ -7033,6 +7079,7 @@ APP.renderGRN = async function() {
   const role = APP.user.role;
   const canRaise = ['site_manager','senior_site_manager','pmc_head'].includes(role);
   const canApprove = ['senior_site_manager','pmc_head','principal','design_principal'].includes(role);
+  const canFlagGRN = ['pmc_head','principal','design_principal'].includes(role);
 
   let html = APP._projectSelectHtml('APP.renderGRN()');
 
@@ -7097,6 +7144,8 @@ APP.renderGRN = async function() {
           <span class="badge ${badge}" style="float:right;margin-top:4px">${g.status}</span>
         </div>
       </div>
+      ${canFlagGRN && g.status === 'approved' && !g.nonconformance_flagged ? `<button class="btn-sm" style="width:100%;margin-top:8px;color:var(--red)" onclick="APP.showFlagGRNNonconformance(${g.id})">⚠ Flag Non-Conformance</button>` : ''}
+      ${g.nonconformance_flagged ? '<div class="card-meta" style="margin-top:6px;color:var(--red)">⚠ Non-conformance flagged</div>' : ''}
     </div>`;
   });
 
@@ -7112,6 +7161,25 @@ APP.rejectGRN = async function(id) {
   const res = await API.patch(`/grn/${id}/reject`, {});
   if (res?.success) { UI.toast('GRN rejected'); APP.renderGRN(); }
 };
+
+APP.showFlagGRNNonconformance = async function(grnId) {
+  const preview = await API.get(`/grn/${grnId}/nonconformance-preview`);
+  const info = preview?.grn ? `<div class="card-meta" style="margin-bottom:8px">${preview.grn.grn_number} · ${preview.grn.material_name||''} · ${preview.grn.vendor_name||''}</div>` : '';
+  UI.showModal('Flag Non-Conformance', `
+    ${info}
+    <div class="field"><label>Description of Non-Conformance</label><textarea id="gnc-desc" rows="3" placeholder="Describe the quality/quantity issue…"></textarea></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px;background:var(--red)" onclick="APP.flagGRNNonconformance(${grnId})">Flag Non-Conformance</button>
+  `);
+};
+
+APP.flagGRNNonconformance = async function(grnId) {
+  const description = document.getElementById('gnc-desc')?.value?.trim();
+  if (!description) { UI.toast('Description required'); return; }
+  const res = await API.patch(`/grn/${grnId}/flag-nonconformance`, { description });
+  if (res?.success) { UI.closeModal(); UI.toast('GRN flagged ✓'); APP.renderGRN(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
 APP.showGRNForm = async function() {
   const pid = APP.state.selectedProject || APP.user?.projects?.[0]?.id;
   if (!pid) { UI.toast('No project selected'); return; }
@@ -8328,7 +8396,7 @@ APP.downloadICICIExcel = async function(pid) {
 };
 
 APP.generateICICIBatch = async function(pid) {
-  const data = await API.get(`/payments/${pid}/weekly-batch`);
+  const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
   if (!data?.pending?.length) { UI.toast('No approved payments to batch'); return; }
   const ids = data.pending.map(p => p.id);
   const total = data.pending.reduce((s, p) => s + parseFloat(p.amount_requested || 0), 0);
@@ -8421,11 +8489,15 @@ APP.renderPI = async function() {
   if (!data) return;
   const pis = data.invoices || [];
   const canRaise = ['pmc_head','principal','design_principal','finance_admin'].includes(APP.user.role);
+  const isFinance = ['finance_admin','pmc_head','principal','design_principal'].includes(APP.user.role);
 
   let html = APP._projectSelectHtml('APP.renderPI()') + `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="sec-label" style="margin:0">Proforma Invoices</div>
-      ${canRaise ? `<button class="btn-primary" onclick="APP.showRaisePI(${pid})">+ Raise PI</button>` : ''}
+      <div style="display:flex;gap:6px">
+        ${isFinance ? `<button class="btn-sm" onclick="APP.downloadAllTally(${pid})">📥 All Tally</button>` : ''}
+        ${canRaise ? `<button class="btn-primary" onclick="APP.showRaisePI(${pid})">+ Raise PI</button>` : ''}
+      </div>
     </div>`;
   if (!pis.length) { html += UI.empty('','No invoices raised yet'); }
   else pis.forEach(pi => {
@@ -8442,10 +8514,25 @@ APP.renderPI = async function() {
           <span class="badge ${badge}" style="margin-top:4px">${pi.status||'draft'}</span>
         </div>
       </div>
+      ${isFinance ? `<div style="display:flex;gap:6px;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+        <a href="/api/pi-generator/${pi.id}/pdf" target="_blank" class="btn-sm" style="flex:1;text-align:center;text-decoration:none">📄 PDF</a>
+        <a href="/api/pi-generator/${pi.id}/tally?type=sales" download class="btn-sm" style="flex:1;text-align:center;text-decoration:none">📥 Sales</a>
+        <a href="/api/pi-generator/${pi.id}/tally?type=receipt" download class="btn-sm" style="flex:1;text-align:center;text-decoration:none">📥 Receipt</a>
+      </div>` : ''}
     </div>`;
   });
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+// ── Download all tally XMLs for paid PIs in a project
+APP.downloadAllTally = async function(pid) {
+  const data = await API.get(`/pi-generator/all/${pid}/tally`);
+  if (!data?.tally_urls?.length) { UI.toast('No paid invoices found'); return; }
+  data.tally_urls.forEach((url, i) => {
+    setTimeout(() => { const a = document.createElement('a'); a.href = '/api' + url; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); }, i * 600);
+  });
+  UI.toast(`Downloading ${data.count} Tally XML(s)…`);
 };
 
 // ── Raise PI against a fee-schedule milestone
@@ -8586,7 +8673,7 @@ APP._submitPettyCashAdmin = async function(pid) {
   fd.append('amount', amount);
   fd.append('category', category);
   if (billFile) fd.append('bill', billFile);
-  const res = await API.upload(`/finance/${pid}/petty-cash`, fd);
+  const res = await API.call('POST', `/finance/${pid}/petty-cash`, fd, true);
   if (res?.success) { UI.closeModal(); APP.renderPettyCash(); UI.toast('Transaction saved ✓'); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -9960,6 +10047,7 @@ APP.renderNCR = async function() {
 
   const role = APP.user.role;
   const canRaise = ['pmc_head','principal','design_principal','site_manager','senior_site_manager'].includes(role);
+  const canResolve = ['pmc_head','site_manager','senior_site_manager'].includes(role);
 
   let html = APP._projectSelectHtml('APP.renderNCR()');
   if (canRaise) {
@@ -9982,6 +10070,7 @@ APP.renderNCR = async function() {
           <span class="badge b-red">Open</span>
         </div>
         ${!n.vendor_acknowledged ? '<div class="card-meta" style="margin-top:6px;color:var(--amber)">⏳ Awaiting vendor acknowledgement</div>' : ''}
+        ${canResolve ? `<button class="btn-sm approve" style="width:100%;margin-top:8px" onclick="APP.showResolveNCR(${n.id})">✓ Mark Resolved</button>` : ''}
       </div>`;
     });
   }
@@ -9999,6 +10088,23 @@ APP.renderNCR = async function() {
 
   if (!ncrs.length) html = UI.empty('','No NCRs raised');
   el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showResolveNCR = function(ncrId) {
+  UI.showModal('Resolve NCR', `
+    <div class="field"><label>Resolution Note</label><textarea id="ncr-res-note" rows="3" placeholder="Describe what was rectified…"></textarea></div>
+    <div class="field"><label>Rectification Date</label><input type="date" id="ncr-rect-date" value="${UI.todayIST()}"></div>
+    <button class="btn-primary approve" onclick="APP.resolveNCR(${ncrId})" style="width:100%;margin-top:8px">Mark Resolved</button>
+  `);
+};
+
+APP.resolveNCR = async function(ncrId) {
+  const resolution_note    = document.getElementById('ncr-res-note')?.value?.trim();
+  const rectification_date = document.getElementById('ncr-rect-date')?.value;
+  if (!resolution_note) { UI.toast('Resolution note required'); return; }
+  const res = await API.patch(`/issues/ncr/${ncrId}/resolve`, { resolution_note, rectification_date });
+  if (res?.success) { UI.closeModal(); UI.toast('NCR resolved ✓'); APP.renderNCR(); }
+  else UI.toast(res?.error || 'Failed');
 };
 
 APP.showNCRForm = function() {
@@ -12472,3 +12578,716 @@ APP._initSSE = function() {
     };
   } catch (_e) {}
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW MODULE RENDER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── MEASUREMENTS
+APP.renderMeasurements = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/measurements/${pid}`);
+  if (!data) return;
+  const items = data.measurements || [];
+
+  const role = APP.user.role;
+  const canCreate = ['pmc_head','site_manager','senior_site_manager','quantity_surveyor'].includes(role);
+  const isStreamHead = ['structural_head','mep_head','services_head','design_head'].includes(role);
+  const isPMC = ['pmc_head','principal','design_principal'].includes(role);
+
+  const STATUS_BADGE = { draft:'b-amber', rs_signed:'b-blue', client_accepted:'b-green' };
+
+  let html = APP._projectSelectHtml('APP.renderMeasurements()');
+  if (canCreate) {
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showNewMeasurement(${pid})">+ New Measurement Sheet</button>`;
+  }
+
+  if (!items.length) { html += UI.empty('','No measurement sheets yet'); }
+  else items.forEach(m => {
+    const badge = STATUS_BADGE[m.status] || 'b-silver';
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="card-title">RA Bill #${m.ra_bill_number||'—'} · ${m.discipline||'General'}</div>
+          <div class="card-meta">${UI.fmtDate(m.measurement_date)} · ${m.recorded_by_name||'—'}</div>
+          ${m.checked_by_name ? `<div class="card-meta">Checked by: ${m.checked_by_name}</div>` : ''}
+        </div>
+        <span class="badge ${badge}">${(m.status||'draft').replace('_',' ')}</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="APP.showMeasurementItems(${pid},${m.id})">View Items</button>
+        ${isStreamHead && m.status === 'draft' ? `<button class="btn-sm approve" onclick="APP.measurementRsSignoff(${pid},${m.id})">RS Signoff</button>` : ''}
+        ${isPMC && m.status === 'rs_signed' ? `<button class="btn-sm gold" onclick="APP.showMeasurementClientAccept(${pid},${m.id})">Client Accept</button>` : ''}
+        ${m.status === 'client_accepted' ? `<button class="btn-sm" onclick="APP.downloadMeasurementCert(${pid},${m.id})">📄 Certificate</button>` : ''}
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showNewMeasurement = function(pid) {
+  UI.showModal('New Measurement Sheet', `
+    <div class="field"><label>RA Bill Number</label><input id="ms-ra" placeholder="e.g. RA-7"></div>
+    <div class="field"><label>Discipline</label>
+      <select id="ms-disc">
+        <option value="Civil">Civil</option>
+        <option value="Structural">Structural</option>
+        <option value="MEP">MEP</option>
+        <option value="Finishing">Finishing</option>
+        <option value="External">External Works</option>
+        <option value="General">General</option>
+      </select>
+    </div>
+    <div class="field"><label>Measurement Date</label><input type="date" id="ms-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Notes</label><textarea id="ms-notes" rows="2" placeholder="Optional notes…"></textarea></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitNewMeasurement(${pid})">Create</button>
+  `);
+};
+
+APP._submitNewMeasurement = async function(pid) {
+  const ra_bill_number   = document.getElementById('ms-ra')?.value?.trim();
+  const discipline       = document.getElementById('ms-disc')?.value;
+  const measurement_date = document.getElementById('ms-date')?.value;
+  const notes            = document.getElementById('ms-notes')?.value?.trim();
+  if (!ra_bill_number || !measurement_date) { UI.toast('RA Bill # and date required'); return; }
+  const res = await API.post(`/measurements/${pid}`, { ra_bill_number, discipline, measurement_date, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Measurement created ✓'); APP.renderMeasurements(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.showMeasurementItems = async function(pid, mid) {
+  const data = await API.get(`/measurements/${pid}/${mid}/items`);
+  if (!data) return;
+  const items = data.items || [];
+  let content = items.length ? items.map(i =>
+    `<div class="card" style="margin-bottom:6px">
+      <div style="font-weight:600">${i.item_name||'—'}</div>
+      <div class="card-meta">${i.trade||''} · ${i.measured_qty||0} ${i.unit||''} (BOQ: ${i.boq_qty||'—'})</div>
+      ${i.quality_note ? `<div class="card-meta" style="color:var(--amber)">Note: ${i.quality_note}</div>` : ''}
+    </div>`
+  ).join('') : '<div class="card-meta">No line items yet</div>';
+  UI.showModal('Measurement Items', content);
+};
+
+APP.measurementRsSignoff = async function(pid, mid) {
+  const notes = prompt('RS Signoff notes (optional):') || '';
+  const res = await API.post(`/measurements/${pid}/${mid}/rs-signoff`, { notes });
+  if (res?.success) { UI.toast('RS Signoff recorded ✓'); APP.renderMeasurements(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.showMeasurementClientAccept = function(pid, mid) {
+  UI.showModal('Client Acceptance', `
+    <div class="field"><label>Client Rep Name</label><input id="mca-name" placeholder="Client representative"></div>
+    <div class="field"><label>Designation</label><input id="mca-desig" placeholder="e.g. Project Manager"></div>
+    <div class="field"><label>Acceptance Date</label><input type="date" id="mca-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Deduction Notes</label><textarea id="mca-ded" rows="2" placeholder="Any deductions/remarks…"></textarea></div>
+    <div class="field"><label>Signed Certificate (PDF/Image)</label><input type="file" id="mca-cert" accept="image/*,.pdf" style="font-size:13px"></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitMeasurementClientAccept(${pid},${mid})">Record Acceptance</button>
+  `);
+};
+
+APP._submitMeasurementClientAccept = async function(pid, mid) {
+  const client_rep_name        = document.getElementById('mca-name')?.value?.trim();
+  const client_rep_designation = document.getElementById('mca-desig')?.value?.trim();
+  const acceptance_date        = document.getElementById('mca-date')?.value;
+  const deductions_notes       = document.getElementById('mca-ded')?.value?.trim();
+  const certFile               = document.getElementById('mca-cert')?.files?.[0];
+  if (!client_rep_name || !acceptance_date) { UI.toast('Rep name and date required'); return; }
+  const fd = new FormData();
+  fd.append('client_rep_name', client_rep_name);
+  fd.append('client_rep_designation', client_rep_designation || '');
+  fd.append('acceptance_date', acceptance_date);
+  fd.append('deductions_notes', deductions_notes || '');
+  if (certFile) fd.append('signed_certificate', certFile);
+  const res = await API.call('POST', `/measurements/${pid}/${mid}/client-acceptance`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Client acceptance recorded ✓'); APP.renderMeasurements(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.downloadMeasurementCert = async function(pid, mid) {
+  const data = await API.get(`/measurements/${pid}/${mid}/certificate`);
+  if (data?.file_path) { window.open('/api' + data.file_path, '_blank'); }
+  else UI.toast(data?.error || 'Certificate not available');
+};
+
+// ── CLAIMS
+APP.renderClaims = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/claims/${pid}`);
+  if (!data) return;
+  const claims = data.claims || [];
+
+  const role = APP.user.role;
+  const canCreate = ['pmc_head','principal','design_principal','finance_admin'].includes(role);
+  const isRS = ['structural_head','mep_head','services_head','design_head','senior_site_manager'].includes(role);
+  const isPMC = ['pmc_head','principal','design_principal'].includes(role);
+  const isFinance = ['finance_admin'].includes(role);
+
+  const STATUS_BADGE = { draft:'b-amber', rs_signed:'b-blue', pmc_approved:'b-green', invoiced:'b-navy' };
+
+  let html = APP._projectSelectHtml('APP.renderClaims()');
+  if (canCreate) {
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showNewClaim(${pid})">+ New Claim</button>`;
+  }
+
+  if (!claims.length) { html += UI.empty('','No claims raised yet'); }
+  else claims.forEach(c => {
+    const badge = STATUS_BADGE[c.status] || 'b-silver';
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="card-title">Claim #${c.claim_number||c.id} · RA ${c.ra_bill_number||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(c.created_at)} · ${Money.formatRupee(c.total_claimed||0)}</div>
+          ${c.invoice_number ? `<div class="card-meta">Invoice: ${c.invoice_number}</div>` : ''}
+        </div>
+        <span class="badge ${badge}">${(c.status||'draft').replace('_',' ')}</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="APP.showClaimItems(${pid},${c.id})">View Items</button>
+        ${isRS && c.status === 'draft' ? `<button class="btn-sm approve" onclick="APP.claimRsSign(${pid},${c.id})">RS Signoff</button>` : ''}
+        ${isPMC && c.status === 'rs_signed' ? `<button class="btn-sm approve" onclick="APP.claimPmcSign(${pid},${c.id})">PMC Approve</button>` : ''}
+        ${isFinance && c.status === 'pmc_approved' ? `<button class="btn-sm gold" onclick="APP.showSetInvoice(${pid},${c.id})">Set Invoice #</button>` : ''}
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showNewClaim = function(pid) {
+  UI.showModal('New Claim', `
+    <div class="field"><label>RA Bill Number</label><input id="cl-ra" placeholder="e.g. RA-7"></div>
+    <div class="field"><label>Period From</label><input type="date" id="cl-from" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Period To</label><input type="date" id="cl-to" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Notes</label><textarea id="cl-notes" rows="2"></textarea></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitNewClaim(${pid})">Create Claim</button>
+  `);
+};
+
+APP._submitNewClaim = async function(pid) {
+  const ra_bill_number = document.getElementById('cl-ra')?.value?.trim();
+  const period_from    = document.getElementById('cl-from')?.value;
+  const period_to      = document.getElementById('cl-to')?.value;
+  const notes          = document.getElementById('cl-notes')?.value?.trim();
+  if (!ra_bill_number) { UI.toast('RA Bill # required'); return; }
+  const res = await API.post(`/claims/${pid}`, { ra_bill_number, period_from, period_to, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Claim created ✓'); APP.renderClaims(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.showClaimItems = async function(pid, claimId) {
+  const data = await API.get(`/claims/${pid}/${claimId}/items`);
+  const items = data?.items || [];
+  let content = items.length ? items.map(i =>
+    `<div class="card" style="margin-bottom:6px">
+      <div style="font-weight:600">${i.item_name||'—'}</div>
+      <div class="card-meta">${i.trade||''} · Measured: ${i.measured_qty||0} ${i.unit||''}</div>
+      <div class="card-meta">Rate: ${Money.formatRupee(i.rate||0)} · Amount: ${Money.formatRupee(i.amount||0)}</div>
+    </div>`
+  ).join('') : '<div class="card-meta">No items — add from measurement sheets</div>';
+  UI.showModal('Claim Items', content);
+};
+
+APP.claimRsSign = async function(pid, claimId) {
+  const res = await API.post(`/claims/${pid}/${claimId}/rs-signoff`, {});
+  if (res?.success) { UI.toast('RS Signoff recorded ✓'); APP.renderClaims(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.claimPmcSign = async function(pid, claimId) {
+  const res = await API.post(`/claims/${pid}/${claimId}/pmc-approve`, {});
+  if (res?.success) { UI.toast('PMC Approved ✓'); APP.renderClaims(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.showSetInvoice = function(pid, claimId) {
+  UI.showModal('Set Invoice Number', `
+    <div class="field"><label>Invoice Number</label><input id="cl-inv" placeholder="e.g. INV-2024-007"></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitInvoiceNumber(${pid},${claimId})">Save</button>
+  `);
+};
+
+APP._submitInvoiceNumber = async function(pid, claimId) {
+  const invoice_number = document.getElementById('cl-inv')?.value?.trim();
+  if (!invoice_number) { UI.toast('Invoice number required'); return; }
+  const res = await API.post(`/claims/${pid}/${claimId}/set-invoice`, { invoice_number });
+  if (res?.success) { UI.closeModal(); UI.toast('Invoice set ✓'); APP.renderClaims(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── FORMS / INSPECTIONS
+APP.renderForms = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/forms/${pid}`);
+  if (!data) return;
+  const templates = data.templates || [];
+  const submissions = data.submissions || [];
+
+  const role = APP.user.role;
+  const canManageTemplates = ['pmc_head','principal','design_principal'].includes(role);
+  const canSubmit = ['site_manager','senior_site_manager','pmc_head','principal','design_principal'].includes(role);
+
+  let html = APP._projectSelectHtml('APP.renderForms()');
+
+  if (templates.length) {
+    html += `<div class="sec-label">Inspection Templates</div>`;
+    templates.forEach(t => {
+      html += `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="card-title">${t.title||'—'}</div>
+            <div class="card-meta">${t.category||'General'} · ${t.field_count||0} fields</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${t.status === 'draft' && canManageTemplates ? `<button class="btn-sm approve" onclick="APP.approveFormTemplate(${pid},${t.id})">Approve</button>` : ''}
+            ${t.status === 'active' && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.title)}')">Fill Form</button>` : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
+  html += `<div class="sec-hdr-row" style="margin-top:16px">
+    <div class="sec-label" style="margin:0;flex:1">Recent Submissions (${submissions.length})</div>
+    ${canManageTemplates ? `<button class="btn-sm" onclick="APP.showNewFormTemplate(${pid})">+ Template</button>` : ''}
+  </div>`;
+
+  if (!submissions.length) { html += UI.empty('','No forms submitted yet'); }
+  else submissions.slice(0,10).forEach(s => {
+    const badge = s.status === 'approved' ? 'b-green' : s.status === 'pending_review' ? 'b-amber' : 'b-silver';
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between">
+        <div>
+          <div class="card-title">${s.template_title||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(s.submitted_at)} · ${s.submitted_by_name||'—'}</div>
+        </div>
+        <span class="badge ${badge}">${s.status||'submitted'}</span>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showNewFormTemplate = function(pid) {
+  UI.showModal('New Form Template', `
+    <div class="field"><label>Title</label><input id="ft-title" placeholder="e.g. Concrete Pour Checklist"></div>
+    <div class="field"><label>Category</label>
+      <select id="ft-cat">
+        <option value="Quality">Quality</option>
+        <option value="Safety">Safety</option>
+        <option value="Progress">Progress</option>
+        <option value="Handover">Handover</option>
+        <option value="General">General</option>
+      </select>
+    </div>
+    <div class="field"><label>Fields (one per line)</label><textarea id="ft-fields" rows="4" placeholder="Pour location&#10;Slump value&#10;Temperature&#10;Supervisor sign-off"></textarea></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitFormTemplate(${pid})">Create Template</button>
+  `);
+};
+
+APP._submitFormTemplate = async function(pid) {
+  const title    = document.getElementById('ft-title')?.value?.trim();
+  const category = document.getElementById('ft-cat')?.value;
+  const fieldText = document.getElementById('ft-fields')?.value || '';
+  const fields   = fieldText.split('\n').map(f => f.trim()).filter(Boolean).map(label => ({ label, type: 'text' }));
+  if (!title) { UI.toast('Title required'); return; }
+  const res = await API.post(`/forms/${pid}/templates`, { title, category, fields });
+  if (res?.success) { UI.closeModal(); UI.toast('Template created ✓'); APP.renderForms(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.approveFormTemplate = async function(pid, templateId) {
+  const res = await API.post(`/forms/${pid}/templates/${templateId}/approve`, {});
+  if (res?.success) { UI.toast('Template approved ✓'); APP.renderForms(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.showSubmitForm = function(pid, templateId, templateTitle) {
+  UI.showModal(`Submit: ${templateTitle}`, `
+    <div class="card-meta" style="margin-bottom:10px">Fill each field and submit — PMC will review</div>
+    <div class="field"><label>Responses (JSON or free text)</label><textarea id="sf-responses" rows="5" placeholder='{"Pour location":"Block A","Slump value":"120mm"}'></textarea></div>
+    <div class="field"><label>Notes</label><input id="sf-notes" placeholder="Optional notes"></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitFilledForm(${pid},${templateId})">Submit Form</button>
+  `);
+};
+
+APP._submitFilledForm = async function(pid, templateId) {
+  const responsesRaw = document.getElementById('sf-responses')?.value?.trim();
+  const notes = document.getElementById('sf-notes')?.value?.trim();
+  let responses;
+  try { responses = JSON.parse(responsesRaw); } catch(e) { responses = { response: responsesRaw }; }
+  const res = await API.post(`/forms/${pid}/submit`, { template_id: templateId, responses, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Form submitted ✓'); APP.renderForms(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── LABOUR QUICK
+APP.renderLabourQuick = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/labour-quick/${pid}`);
+  if (!data) return;
+  const entries = data.entries || [];
+
+  const role = APP.user.role;
+  const canAdd = ['site_manager','senior_site_manager','pmc_head','principal','design_principal'].includes(role);
+
+  let html = APP._projectSelectHtml('APP.renderLabourQuick()');
+  if (canAdd) {
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showAddLabourQuick(${pid})">+ Record Labour Count</button>`;
+  }
+
+  if (!entries.length) { html += UI.empty('','No labour records yet'); }
+  else entries.slice(0,15).forEach(e => {
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="card-title">${e.trade||'Labour'} · ${e.worker_count||0} workers</div>
+          <div class="card-meta">${UI.fmtDate(e.work_date)} · ${e.contractor_name||'—'}</div>
+          ${e.notes ? `<div class="card-meta">${e.notes}</div>` : ''}
+        </div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--navy)">${e.worker_count||0}</div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showAddLabourQuick = function(pid) {
+  UI.showModal('Record Labour Count', `
+    <div class="field"><label>Date</label><input type="date" id="lq-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Trade / Category</label>
+      <select id="lq-trade">
+        <option value="Mason">Mason</option>
+        <option value="Carpenter">Carpenter</option>
+        <option value="Steel Fixer">Steel Fixer</option>
+        <option value="Electrician">Electrician</option>
+        <option value="Plumber">Plumber</option>
+        <option value="Painter">Painter</option>
+        <option value="Helper">Helper</option>
+        <option value="Supervisor">Supervisor</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Number of Workers</label><input type="number" id="lq-count" min="1" placeholder="0"></div>
+    <div class="field"><label>Contractor Name</label><input id="lq-contractor" placeholder="Subcontractor or agency"></div>
+    <div class="field"><label>Notes</label><input id="lq-notes" placeholder="Optional"></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitLabourQuick(${pid})">Save</button>
+  `);
+};
+
+APP._submitLabourQuick = async function(pid) {
+  const work_date      = document.getElementById('lq-date')?.value;
+  const trade          = document.getElementById('lq-trade')?.value;
+  const worker_count   = document.getElementById('lq-count')?.value;
+  const contractor_name= document.getElementById('lq-contractor')?.value?.trim();
+  const notes          = document.getElementById('lq-notes')?.value?.trim();
+  if (!work_date || !worker_count) { UI.toast('Date and count required'); return; }
+  const res = await API.post(`/labour-quick/${pid}`, { work_date, trade, worker_count: parseInt(worker_count), contractor_name, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Labour recorded ✓'); APP.renderLabourQuick(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── SCHEDULE QUICK
+APP.renderScheduleQuick = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/schedule-quick/${pid}`);
+  if (!data) return;
+  const tasks = data.tasks || [];
+
+  const role = APP.user.role;
+  const canAdd = ['site_manager','senior_site_manager','pmc_head'].includes(role);
+
+  let html = APP._projectSelectHtml('APP.renderScheduleQuick()');
+  if (canAdd) {
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showAddScheduleQuick(${pid})">+ Quick Activity Update</button>`;
+  }
+
+  if (!tasks.length) { html += UI.empty('','No quick updates yet'); }
+  else tasks.slice(0,20).forEach(t => {
+    const pct = t.progress_pct || 0;
+    const color = pct >= 100 ? 'var(--green)' : pct > 0 ? 'var(--navy)' : 'var(--muted)';
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="flex:1">
+          <div class="card-title">${t.activity||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(t.update_date)} · ${t.recorded_by_name||'—'}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:${color}">${pct}%</div>
+      </div>
+      <div style="height:4px;background:var(--border);border-radius:2px;margin-top:8px">
+        <div style="height:100%;width:${Math.min(pct,100)}%;background:${color};border-radius:2px;transition:width .3s"></div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showAddScheduleQuick = function(pid) {
+  UI.showModal('Quick Activity Update', `
+    <div class="field"><label>Activity Description</label><input id="sq-activity" placeholder="e.g. Column casting Block B floor 3"></div>
+    <div class="field"><label>Progress %</label><input type="number" id="sq-pct" min="0" max="100" placeholder="0-100"></div>
+    <div class="field"><label>Date</label><input type="date" id="sq-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Notes</label><input id="sq-notes" placeholder="Optional remarks"></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitScheduleQuick(${pid})">Save</button>
+  `);
+};
+
+APP._submitScheduleQuick = async function(pid) {
+  const activity     = document.getElementById('sq-activity')?.value?.trim();
+  const progress_pct = document.getElementById('sq-pct')?.value;
+  const update_date  = document.getElementById('sq-date')?.value;
+  const notes        = document.getElementById('sq-notes')?.value?.trim();
+  if (!activity || !update_date) { UI.toast('Activity and date required'); return; }
+  const res = await API.post(`/schedule-quick/${pid}`, { activity, progress_pct: parseInt(progress_pct||0), update_date, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Update saved ✓'); APP.renderScheduleQuick(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── COMMS
+APP.renderComms = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/comms/${pid}`);
+  if (!data) return;
+  const msgs = data.messages || [];
+
+  const role = APP.user.role;
+  const canPost = ['pmc_head','principal','design_principal','site_manager','senior_site_manager','finance_admin'].includes(role);
+  const canAck  = ['pmc_head','principal','design_principal'].includes(role);
+
+  let html = APP._projectSelectHtml('APP.renderComms()');
+  if (canPost) {
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showPostComm(${pid})">+ Post Communication</button>`;
+  }
+
+  if (!msgs.length) { html += UI.empty('','No communications posted yet'); }
+  else msgs.slice(0,20).forEach(m => {
+    const needsAck = m.requires_ack && !m.acked_at;
+    html += `<div class="card" style="${needsAck ? 'border-left:3px solid var(--amber)' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1">
+          <div class="card-title">${m.subject||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(m.created_at)} · ${m.from_name||'—'} → ${m.to_party||'All'}</div>
+          ${m.body ? `<div class="card-meta" style="margin-top:4px">${m.body.substring(0,120)}</div>` : ''}
+        </div>
+        ${needsAck ? '<span class="badge b-amber">Needs Ack</span>' : '<span class="badge b-green">✓</span>'}
+      </div>
+      ${canAck && needsAck ? `<button class="btn-sm approve" style="width:100%;margin-top:8px" onclick="APP.ackComm(${m.id})">Acknowledge</button>` : ''}
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showPostComm = function(pid) {
+  UI.showModal('Post Communication', `
+    <div class="field"><label>Subject</label><input id="cm-subj" placeholder="e.g. Delay notice re: steel delivery"></div>
+    <div class="field"><label>To (Party)</label>
+      <select id="cm-to">
+        <option value="Client">Client</option>
+        <option value="Contractor">Contractor</option>
+        <option value="Vendor">Vendor</option>
+        <option value="Internal">Internal PMC</option>
+        <option value="All">All Stakeholders</option>
+      </select>
+    </div>
+    <div class="field"><label>Message</label><textarea id="cm-body" rows="4" placeholder="Communication body…"></textarea></div>
+    <div class="field" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="cm-ack" style="width:auto">
+      <label for="cm-ack" style="margin:0">Requires acknowledgement</label>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitComm(${pid})">Post</button>
+  `);
+};
+
+APP._submitComm = async function(pid) {
+  const subject      = document.getElementById('cm-subj')?.value?.trim();
+  const to_party     = document.getElementById('cm-to')?.value;
+  const body         = document.getElementById('cm-body')?.value?.trim();
+  const requires_ack = document.getElementById('cm-ack')?.checked || false;
+  if (!subject) { UI.toast('Subject required'); return; }
+  const res = await API.post(`/comms/${pid}`, { subject, to_party, body, requires_ack });
+  if (res?.success) { UI.closeModal(); UI.toast('Communication posted ✓'); APP.renderComms(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.ackComm = async function(commId) {
+  const res = await API.post(`/comms/${commId}/ack`, {});
+  if (res?.success) { UI.toast('Acknowledged ✓'); APP.renderComms(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── DIRECT PAYMENTS
+APP.renderDirectPayments = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  const data = await API.get(`/finance/${pid}/direct-payments`);
+  if (!data) return;
+  const payments = data.payments || [];
+
+  const role = APP.user.role;
+  const canAdd = ['principal','design_principal'].includes(role);
+
+  let html = APP._projectSelectHtml('APP.renderDirectPayments()');
+  if (canAdd) {
+    html += `<button class="btn-primary" style="width:100%;margin-bottom:16px" onclick="APP.showAddDirectPayment(${pid})">+ Record Direct Payment</button>`;
+  }
+
+  if (!payments.length) { html += UI.empty('','No direct payments recorded'); }
+  else payments.slice(0,20).forEach(p => {
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="card-title">${p.payee||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(p.payment_date)} · ${p.purpose||'—'}</div>
+          ${p.utr ? `<div class="card-meta" style="font-family:var(--mono)">UTR: ${p.utr}</div>` : ''}
+        </div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--red)">-${Money.formatRupee(p.amount||0)}</div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showAddDirectPayment = function(pid) {
+  UI.showModal('Record Direct Payment', `
+    <div class="field"><label>Payee Name</label><input id="dp-payee" placeholder="Name of person/entity paid"></div>
+    <div class="field"><label>Amount (₹)</label><input type="number" id="dp-amount" min="0"></div>
+    <div class="field"><label>Payment Date</label><input type="date" id="dp-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Purpose</label><input id="dp-purpose" placeholder="e.g. Site visit expenses"></div>
+    <div class="field"><label>UTR / Reference</label><input id="dp-utr" placeholder="Optional"></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitDirectPayment(${pid})">Save</button>
+  `);
+};
+
+APP._submitDirectPayment = async function(pid) {
+  const payee        = document.getElementById('dp-payee')?.value?.trim();
+  const amount       = document.getElementById('dp-amount')?.value;
+  const payment_date = document.getElementById('dp-date')?.value;
+  const purpose      = document.getElementById('dp-purpose')?.value?.trim();
+  const utr          = document.getElementById('dp-utr')?.value?.trim();
+  if (!payee || !amount || !payment_date) { UI.toast('Payee, amount and date required'); return; }
+  const res = await API.post(`/finance/${pid}/direct-payments`, { payee, amount: parseFloat(amount), payment_date, purpose, utr });
+  if (res?.success) { UI.closeModal(); UI.toast('Payment recorded ✓'); APP.renderDirectPayments(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── VENDOR BANK CHANGE (surfaced from vendor management)
+APP.showProposeBankChange = function(vendorId, vendorName) {
+  UI.showModal(`Bank Change — ${vendorName||'Vendor'}`, `
+    <div class="card-meta" style="margin-bottom:10px;color:var(--amber)">⚠ Bank change requires PMC Head + Principal approval</div>
+    <div class="field"><label>Bank Name</label><input id="bc-bank" placeholder="e.g. HDFC Bank"></div>
+    <div class="field"><label>Account Number</label><input id="bc-acc" placeholder="Account number"></div>
+    <div class="field"><label>IFSC Code</label><input id="bc-ifsc" placeholder="e.g. HDFC0001234" maxlength="11"></div>
+    <div class="field"><label>Account Holder Name</label><input id="bc-holder" placeholder="As per bank records"></div>
+    <div class="field"><label>Reason for Change</label><textarea id="bc-reason" rows="2" placeholder="Why is the bank account changing?"></textarea></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitBankChange(${vendorId})">Submit for Approval</button>
+  `);
+};
+
+APP._submitBankChange = async function(vendorId) {
+  const bank_name    = document.getElementById('bc-bank')?.value?.trim();
+  const account_no   = document.getElementById('bc-acc')?.value?.trim();
+  const ifsc_code    = document.getElementById('bc-ifsc')?.value?.trim().toUpperCase();
+  const account_holder = document.getElementById('bc-holder')?.value?.trim();
+  const reason       = document.getElementById('bc-reason')?.value?.trim();
+  if (!bank_name || !account_no || !ifsc_code || !account_holder) { UI.toast('All bank fields required'); return; }
+  const res = await API.post(`/vendor-bank-change/${vendorId}`, { bank_name, account_no, ifsc_code, account_holder, reason });
+  if (res?.success) { UI.closeModal(); UI.toast('Bank change submitted for approval ✓'); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.renderPendingBankChanges = async function() {
+  const data = await API.get('/vendor-bank-change/pending');
+  if (!data?.changes?.length) return;
+  const el = document.getElementById('bank-change-section');
+  if (!el) return;
+  let html = '<div class="sec-label">Pending Bank Changes</div>';
+  data.changes.forEach(c => {
+    html += `<div class="card" style="border-left:3px solid var(--amber)">
+      <div class="card-title">${c.vendor_name||'—'}</div>
+      <div class="card-meta">New: ${c.bank_name} · ${c.account_no} · ${c.ifsc_code}</div>
+      <div class="card-meta">${c.reason||'No reason given'}</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn-sm approve" onclick="APP._approveBankChange(${c.id})">Approve</button>
+        <button class="btn-sm reject" onclick="APP._rejectBankChange(${c.id})">Reject</button>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+};
+
+APP._approveBankChange = async function(changeId) {
+  const res = await API.patch(`/vendor-bank-change/${changeId}/approve`, {});
+  if (res?.success) { UI.toast('Bank change approved ✓'); APP.renderPendingBankChanges(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP._rejectBankChange = async function(changeId) {
+  const reason = prompt('Rejection reason:');
+  if (!reason) return;
+  const res = await API.patch(`/vendor-bank-change/${changeId}/reject`, { reason });
+  if (res?.success) { UI.toast('Bank change rejected'); APP.renderPendingBankChanges(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+// ── VENDOR PO / SETTLEMENT BUTTONS (called from vendor engagement cards)
+APP.showApprovePO = async function(engagementId, vendorName) {
+  const res = await API.post(`/engagements/${engagementId}/approve-po`, {});
+  if (res?.success) UI.toast(`PO approved for ${vendorName||'vendor'} ✓`);
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.showFlagPO = function(engagementId) {
+  const reason = prompt('Flag reason:');
+  if (!reason) return;
+  API.post(`/engagements/${engagementId}/flag-po`, { reason }).then(res => {
+    if (res?.success) UI.toast('PO flagged');
+    else UI.toast(res?.error || 'Failed');
+  });
+};
+
+APP.showRecordSettlement = function(engagementId, vendorName) {
+  UI.showModal(`Final Settlement — ${vendorName||'Vendor'}`, `
+    <div class="field"><label>Final Settlement Amount (₹)</label><input type="number" id="set-amount" min="0"></div>
+    <div class="field"><label>Settlement Date</label><input type="date" id="set-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Notes</label><textarea id="set-notes" rows="2"></textarea></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitSettlement(${engagementId})">Record Settlement</button>
+  `);
+};
+
+APP._submitSettlement = async function(engagementId) {
+  const amount          = document.getElementById('set-amount')?.value;
+  const settlement_date = document.getElementById('set-date')?.value;
+  const notes           = document.getElementById('set-notes')?.value?.trim();
+  if (!amount || !settlement_date) { UI.toast('Amount and date required'); return; }
+  const res = await API.post(`/engagements/${engagementId}/settlement`, { amount: parseFloat(amount), settlement_date, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Settlement recorded ✓'); }
+  else UI.toast(res?.error || 'Failed');
+};
+
