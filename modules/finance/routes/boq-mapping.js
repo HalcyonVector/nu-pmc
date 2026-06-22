@@ -15,7 +15,7 @@ router.get('/:project_id', requireAuth, requirePMC, asyncHandler(async (req, res
     const [boqItems] = await db.query(
       `SELECT bi.id, bi.trade, bi.item_name, bi.item_code, bi.unit, bi.quantity,
               bi.parent_id, par.item_name AS parent_name,
-              (SELECT COUNT(*) FROM vendor_boq_mapping vbm WHERE vbm.boq_item_id=bi.id) AS mapping_count
+              (SELECT COUNT(*) FROM vendor_boq_mapping vbm WHERE vbm.boq_item_id=bi.id AND vbm.deleted_at IS NULL) AS mapping_count
        FROM boq_items bi
        JOIN boq_versions bv ON bi.boq_version_id=bv.id
        LEFT JOIN boq_items par ON bi.parent_id=par.id
@@ -49,7 +49,7 @@ router.get('/:project_id', requireAuth, requirePMC, asyncHandler(async (req, res
       `SELECT vbm.*, bi.item_name, bi.trade
        FROM vendor_boq_mapping vbm
        JOIN boq_items bi ON vbm.boq_item_id=bi.id
-       WHERE vbm.project_id=?`,
+       WHERE vbm.project_id=? AND vbm.deleted_at IS NULL`,
       [pid]
     );
     // Hydrate vendor_name + scope via engagement bulk helper
@@ -196,8 +196,10 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requirePMC, asyn
 
 // DELETE /api/boq-mapping/:project_id/:mapping_id
 router.delete('/:project_id/:mapping_id', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
-    await db.query('DELETE FROM vendor_boq_mapping WHERE id=? AND project_id=?',
-      [req.params.mapping_id, req.params.project_id]);
+    await db.query(
+      'UPDATE vendor_boq_mapping SET deleted_at = NOW(), deleted_by = ? WHERE id=? AND project_id=?',
+      [req.session.user.id, req.params.mapping_id, req.params.project_id]
+    );
     audit.log({ userId: req.session.user.id, action: 'boq_mapping.delete',
       entityType: 'vendor_boq_mapping', entityId: parseInt(req.params.mapping_id),
       details: { project_id: parseInt(req.params.project_id) }, req });

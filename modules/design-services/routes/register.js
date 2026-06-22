@@ -34,6 +34,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
     let where = 'WHERE project_id = ?';
     if (stream) { where += ' AND stream = ?'; params.push(stream); }
 
+    where += ' AND deleted_at IS NULL';
     const [rows] = await db.query(
       `SELECT * FROM drawing_register ${where}
        ORDER BY category, drawing_number`,
@@ -249,7 +250,10 @@ router.delete('/:project_id/:entry_id', requireAuth, requireProjectScope(), requ
       return res.status(400).json({ error: 'Cannot delete — drawings already uploaded against this entry' });
     }
 
-    await db.query('DELETE FROM drawing_register WHERE id = ?', [req.params.entry_id]);
+    await db.query(
+      'UPDATE drawing_register SET deleted_at = NOW(), deleted_by = ? WHERE id = ?',
+      [me.id, req.params.entry_id]
+    );
     audit.log({ userId: me.id, action: 'drawing_register.delete',
       entityType: 'drawing_register', entityId: parseInt(req.params.entry_id),
       details: { project_id: parseInt(req.params.project_id), drawing_number: entry.drawing_number, stream: entry.stream }, req });
