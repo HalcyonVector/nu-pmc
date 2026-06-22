@@ -30,11 +30,12 @@ const sequence = require('../../../services/sequence');
 const {
   STREAM_HEADS_OR_PRINCIPAL: STREAM_HEADS,
   CLIENT_RATE_ROLES,
+  HEADS_WITH_FINANCE,
 } = require('../../../services/roles');
 const router  = express.Router();
 
-// GET /api/client-boq/:project_id — get client BOQ (rates visible to CLIENT_RATE_ROLES)
-router.get('/:project_id', requireAuth, requireRole(...CLIENT_RATE_ROLES), asyncHandler(async (req, res) => {
+// GET /api/client-boq/:project_id — get client BOQ (rates visible to heads + finance_admin)
+router.get('/:project_id', requireAuth, requireRole(...HEADS_WITH_FINANCE), asyncHandler(async (req, res) => {
     const [versions] = await db.query(
       `SELECT * FROM client_boq_versions WHERE project_id = ? AND is_current = 1`,
       [req.params.project_id]

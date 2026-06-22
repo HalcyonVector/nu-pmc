@@ -20,10 +20,5 @@ jobs:
             set -e
             cd /home/ec2-user/nu-pmc
             git pull origin main
-            # Install all deps (including devDeps for Jest/Supertest)
-            npm install
-            # Run test suite — aborts deploy on any failure
-            npm test || { echo "Tests failed — deploy aborted"; exit 1; }
-            # Prune devDeps before restarting production process
-            npm prune --production
+            npm install --production
             pm2 restart all

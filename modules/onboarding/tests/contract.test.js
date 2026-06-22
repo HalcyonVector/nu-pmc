@@ -141,10 +141,10 @@ describe('M2 Onboarding — getVendorEngagement + getApprovedEngagements + getAc
     expect(db.query.mock.calls[0][0]).toMatch(/approval_status = 'approved'/);
   });
 
-  test('getActiveProjects filters status=active', async () => {
+  test('getActiveProjects filters status=active (includes initialising)', async () => {
     db.query.mockResolvedValueOnce([[]]);
     await Onboarding.functions.getActiveProjects();
-    expect(db.query.mock.calls[0][0]).toMatch(/status = 'active'/);
+    expect(db.query.mock.calls[0][0]).toMatch(/status IN \('active', 'initialising'\)/);
   });
 });
 

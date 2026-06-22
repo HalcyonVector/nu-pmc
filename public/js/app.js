@@ -7100,7 +7100,7 @@ APP.renderGRN = async function() {
     </div>`;
   });
 
-  if (!grns.length) html = UI.empty('','No GRNs yet');
+  if (!grns.length) html += UI.empty('','No GRNs yet');
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
@@ -8536,6 +8536,7 @@ APP.renderPettyCash = async function() {
       <span class="stat-lbl">Transactions</span>
     </div>
   </div>
+  <button class="btn-primary" style="width:100%;margin-bottom:12px" onclick="APP.showAddPettyCashAdmin(${pid})">+ Add Spend</button>
   <div class="sec-label">Recent Transactions</div>`;
   entries.slice(0,10).forEach(e => {
     html += `<div class="card">
@@ -8550,6 +8551,44 @@ APP.renderPettyCash = async function() {
   });
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP.showAddPettyCashAdmin = function(pid) {
+  UI.showModal('Add Petty Cash Spend', `
+    <div class="field"><label>Date</label><input type="date" id="pct-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Description</label><input id="pct-desc" placeholder="e.g. Nails and screws from hardware shop"></div>
+    <div class="field"><label>Amount (₹)</label><input id="pct-amount" type="number" min="0"></div>
+    <div class="field"><label>Category</label>
+      <select id="pct-cat">
+        <option value="material">Material</option>
+        <option value="labour">Labour</option>
+        <option value="site_expense">Site Expense</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Bill / Receipt <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="file" id="pct-bill" accept="image/*,.pdf" style="font-size:13px">
+    </div>
+    <button class="btn-primary" onclick="APP._submitPettyCashAdmin(${pid})" style="width:100%;margin-top:8px">Save</button>
+  `);
+};
+
+APP._submitPettyCashAdmin = async function(pid) {
+  const txn_date    = document.getElementById('pct-date')?.value;
+  const description = document.getElementById('pct-desc')?.value;
+  const amount      = document.getElementById('pct-amount')?.value;
+  const category    = document.getElementById('pct-cat')?.value;
+  const billFile    = document.getElementById('pct-bill')?.files?.[0];
+  if (!txn_date || !description || !amount) { UI.toast('Fill all fields'); return; }
+  const fd = new FormData();
+  fd.append('txn_date', txn_date);
+  fd.append('description', description);
+  fd.append('amount', amount);
+  fd.append('category', category);
+  if (billFile) fd.append('bill', billFile);
+  const res = await API.upload(`/finance/${pid}/petty-cash`, fd);
+  if (res?.success) { UI.closeModal(); APP.renderPettyCash(); UI.toast('Transaction saved ✓'); }
+  else UI.toast(res?.error || 'Failed');
 };
 
 // ── USERS — Principal user management
@@ -12265,7 +12304,7 @@ APP.renderClientBOQ = async function() {
           <div style="font-weight:600;color:var(--text)">₹${rate}</div>
           <div style="color:var(--muted);font-size:11px;margin-top:2px">${amount !== '—' ? '₹' + amount : ''}</div>
         </div>` : ''}
-        ${canEditRate && !item.is_section ? `<button class="btn-sm" style="padding:6px 12px;font-size:13px" onclick="APP.showEditClientBOQItem(${pid},$✎ Edit</button>` : ''}
+        ${canEditRate && !item.is_section ? `<button class="btn-sm" style="padding:6px 12px;font-size:13px" onclick="APP.showEditClientBOQItem(${pid},${item.id})">✎ Edit</button>` : ''}
       </div>
     </div>`;
   };
