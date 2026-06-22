@@ -525,6 +525,20 @@ module.exports = {
   tagAndValidatePhoto:    safeAI(tagAndValidatePhoto),
   // M01 audit (v3.1) — vendor row validation for clearance workflow
   validateVendor:         safeAI(validateVendor),
+  // Batch API — schedule-health-checker uses this for bulk narrative generation
+  batch: async (requests) => {
+    try {
+      const provider = providers[_provider()];
+      if (!provider?.batch) {
+        console.warn('[AI] batch not supported by provider:', _provider());
+        return null;
+      }
+      return await provider.batch(requests);
+    } catch (err) {
+      console.error('[AI] batch failed:', err.message);
+      return null;
+    }
+  },
 };
 
 // =====================================================================
