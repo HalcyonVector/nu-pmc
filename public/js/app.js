@@ -1688,6 +1688,17 @@ Tomorrow: start formwork on next bay."
       }
     }
 
+    // Past notes history — site roles only
+    if (['site_manager','senior_site_manager'].includes(APP.user?.role)) {
+      finalHtml += `<div style="margin-top:20px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+          <span>Past Notes</span>
+          <button onclick="APP.togglePastNotes(${pid})" style="background:none;border:none;color:var(--navy);font-size:11px;cursor:pointer;text-decoration:underline" id="past-notes-toggle">Show</button>
+        </div>
+        <div id="past-notes-panel" style="display:none"></div>
+      </div>`;
+    }
+
     el.innerHTML = finalHtml;
   },
 
@@ -1809,7 +1820,14 @@ Tomorrow: start formwork on next bay."
         html += `<div style="padding:10px 12px;background:var(--white);border:1px solid var(--border);border-top:none">
           <div class="task-name">${t.task_name}</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px">${UI.fmtDate(t.start_date)} → ${UI.fmtDate(t.end_date)}</div>
-          <textarea style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:11px;padding:6px 10px;margin-top:7px;outline:none;resize:none" rows="2" placeholder="Planning note — material, vendor, access…"></textarea>
+          <textarea
+            data-task-id="${t.id}"
+            data-pid="${pid}"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:11px;padding:6px 10px;margin-top:7px;outline:none;resize:none"
+            rows="2"
+            placeholder="Planning note — material, vendor, access…"
+            onblur="APP.savePlanningNote(this)"
+          >${UI.escapeText(t.planning_note || '')}</textarea>
         </div>`;
       });
       html += `</div>`;
@@ -2178,6 +2196,51 @@ Tomorrow: start formwork on next bay."
       console.error(err);
       UI.toast(err.message || 'Error creating task', 'error');
     }
+  },
+
+  async togglePastNotes(pid) {
+    const panel  = document.getElementById('past-notes-panel');
+    const toggle = document.getElementById('past-notes-toggle');
+    if (!panel || !toggle) return;
+    if (panel.style.display !== 'none') {
+      panel.style.display = 'none';
+      toggle.textContent = 'Show';
+      return;
+    }
+    toggle.textContent = 'Loading…';
+    try {
+      const data = await API.getDailyReportsHistory(pid);
+      const reports = (Array.isArray(data) ? data : data?.reports || [])
+        .filter(r => r.overall_notes && r.overall_notes.trim());
+      if (!reports.length) {
+        panel.innerHTML = `<div style="color:var(--muted);font-size:12px;font-style:italic;padding:8px 0">No notes found yet.</div>`;
+      } else {
+        panel.innerHTML = reports.slice(0, 14).map(r => `
+          <div style="border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;background:var(--white)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:4px;display:flex;gap:8px;align-items:center">
+              <span>${UI.fmtDate(r.report_date)}</span>
+              <span class="badge ${r.status==='approved'?'b-green':r.status==='flagged'?'b-red':'b-amber'}" style="font-size:9px">${r.status.replace('_',' ')}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text);white-space:pre-wrap">${UI.escapeText(r.overall_notes)}</div>
+          </div>`).join('');
+      }
+      panel.style.display = 'block';
+      toggle.textContent = 'Hide';
+    } catch(e) {
+      panel.innerHTML = `<div style="color:var(--amber);font-size:12px">Could not load past notes.</div>`;
+      panel.style.display = 'block';
+      toggle.textContent = 'Hide';
+    }
+  },
+
+  async savePlanningNote(textarea) {
+    const taskId = textarea.dataset.taskId;
+    const pid    = textarea.dataset.pid;
+    const note   = (textarea.value || '').trim();
+    if (!taskId || !pid) return;
+    try {
+      await API.saveTaskPlanningNote(pid, taskId, note);
+    } catch(e) { /* silent — non-critical */ }
   },
 
   // ── SCHEDULE VIEW (PMC / Admin)
@@ -11972,7 +12035,7 @@ APP.showEditClientBOQItem = async function(pid, itemId) {
   const data = await API.call('GET', `/client-boq/${pid}`);
   const item = (data?.items || []).find(i => i.id === itemId);
   if (!item) { UI.toast('Item not found'); return; }
-  const hsnBtn = APP.state.aiToggles?.autofill_boq_hsn
+  const hsnBtn = APP.state.aiToggles?.boq_hsn_autofill
     ? `<button class="btn-sm" type="button" onclick="APP.suggestHSN('${UI.escapeAttr(item.item_name||item.description||'')}','${UI.escapeAttr(item.trade||'')}','cb-hsn')" style="margin-top:4px;font-size:11px">Suggest HSN</button>`
     : '';
   UI.openModal(`Edit: ${item.item_name}`, `

@@ -243,6 +243,8 @@ const API = {
   uploadBOQ:   (pid, formData) => API.call('POST', `/materials/${pid}/boq/upload`, formData, true),
   uploadSchedule:   (pid, formData) => API.call('POST', `/schedule/${pid}/upload`, formData, true),
   scheduleTemplateUrl: (pid)        => `/api/schedule/${pid}/template`,
+  saveTaskPlanningNote: (pid, taskId, note) => API.call('PATCH', `/schedule/${pid}/tasks/${taskId}/planning-note`, { planning_note: note }),
+  getDailyReportsHistory: (pid)     => API.call('GET', `/daily-reports/${pid}`),
 
   // Drawing register
   getRegister:      (pid, stream) => API.call('GET', `/register/${pid}${stream?`?stream=${stream}`:''}`),

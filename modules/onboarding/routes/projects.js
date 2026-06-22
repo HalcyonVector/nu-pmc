@@ -432,12 +432,18 @@ async function buildProjectSummary(me, projectId) {
       cats.push({ key:'moms', label:'MOMs', count: mRow.c });
     }
 
-    // 5. Other — schedule change approvals, weekly report approvals, misc.
-    //    Currently returns 0 (placeholder until these workflows are extended
-    //    to route through the Approvals strip).
+    // 5. Other — schedule versions pending approval + weekly reports pending sign-off
     const allowsOtherCat = ['pmc_head','audit'].includes(role);
     if (allowsOtherCat) {
-      cats.push({ key:'other', label:'Other', count: 0 });
+      const [[svRow]] = await db.query(
+        `SELECT COUNT(*) c FROM schedule_versions WHERE project_id=? AND status='pending_approval'`,
+        [projectId]
+      );
+      const [[wrRow]] = await db.query(
+        `SELECT COUNT(*) c FROM weekly_reports WHERE project_id=? AND status NOT IN ('approved','sent')`,
+        [projectId]
+      );
+      cats.push({ key:'other', label:'Other', count: svRow.c + wrRow.c });
     }
 
     return cats;

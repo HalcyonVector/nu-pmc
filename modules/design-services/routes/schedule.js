@@ -697,7 +697,7 @@ router.get('/:project_id/lookahead/workspace', requireAuth, requireProjectScope(
       `SELECT st.id, st.task_name, st.trade,
               DATE_FORMAT(st.start_date, '%Y-%m-%d') AS start_date,
               DATE_FORMAT(st.end_date, '%Y-%m-%d') AS end_date,
-              st.display_order,
+              st.display_order, st.planning_note,
               COALESCE(tu.pct_complete, 0) AS pct_complete
        FROM schedule_tasks st
        LEFT JOIN (
@@ -741,6 +741,28 @@ router.get('/:project_id/lookahead/workspace', requireAuth, requireProjectScope(
       assignees,
       metrics: { upcoming, dueThisWeek, overdue, completedThisWeek }
     });
+}));
+
+// PATCH /api/schedule/:project_id/tasks/:task_id/planning-note — save planning note for a task
+router.patch('/:project_id/tasks/:task_id/planning-note', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+  const { project_id, task_id } = req.params;
+  const me = req.session.user;
+  const canSchedule = ['site_manager','senior_site_manager','pmc_head','principal','design_principal','coordinator'].includes(me.role);
+  if (!canSchedule) return res.status(403).json({ error: 'Not authorised' });
+
+  const note = String(req.body.planning_note || '').slice(0, 1000);
+
+  const [[task]] = await db.query(
+    'SELECT id FROM schedule_tasks WHERE id = ? AND project_id = ?',
+    [task_id, project_id]
+  );
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  await db.query(
+    'UPDATE schedule_tasks SET planning_note = ? WHERE id = ?',
+    [note || null, task_id]
+  );
+  res.json({ ok: true });
 }));
 
 // POST /api/schedule/:project_id/tasks — create planning task

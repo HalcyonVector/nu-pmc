@@ -56,7 +56,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
               dv.l2_approved_by, dv.l2_approved_at, dv.change_notice_id
        FROM drawings d
        JOIN drawing_versions dv ON dv.drawing_id = d.id AND dv.is_current = 1
-       WHERE d.project_id = ? ${whereExtra}
+       WHERE d.project_id = ? AND d.deleted_at IS NULL AND dv.deleted_at IS NULL ${whereExtra}
        ORDER BY d.category, d.drawing_number`,
       params
     );
@@ -85,7 +85,7 @@ router.get('/:project_id/:drawing_id/history', requireAuth, requireProjectScope(
       `SELECT dv.*, dv.revision, dv.revision_number, dv.notes, dv.status,
               dv.created_at AS uploaded_at
        FROM drawing_versions dv
-       WHERE dv.drawing_id = ? ${whereStatus}
+       WHERE dv.drawing_id = ? AND dv.deleted_at IS NULL ${whereStatus}
        ORDER BY dv.revision_number DESC`,
       [req.params.drawing_id]
     );
@@ -780,14 +780,24 @@ router.delete('/version/:id', requireAuth, asyncHandler(async (req, res) => {
       return res.status(403).json({ error: 'Not authorised to delete this drawing' });
     }
 
-    await db.query('DELETE FROM drawing_versions WHERE id = ?', [req.params.id]);
+    // Soft-delete: mark as deleted rather than removing the row permanently.
+    // This preserves audit trail and allows recovery. Queries exclude deleted rows
+    // via `WHERE deleted_at IS NULL`.
+    await db.query(
+      'UPDATE drawing_versions SET deleted_at = NOW(), deleted_by = ? WHERE id = ?',
+      [me.id, req.params.id]
+    );
 
-    // If no versions remain for this drawing, delete the drawing record too
+    // Soft-delete the parent drawing record if all its non-deleted versions are gone
     const [[remaining]] = await db.query(
-      'SELECT COUNT(*) AS c FROM drawing_versions WHERE drawing_id = ?', [dv.drawing_id]
+      'SELECT COUNT(*) AS c FROM drawing_versions WHERE drawing_id = ? AND deleted_at IS NULL',
+      [dv.drawing_id]
     );
     if (remaining.c === 0) {
-      await db.query('DELETE FROM drawings WHERE id = ?', [dv.drawing_id]);
+      await db.query(
+        'UPDATE drawings SET deleted_at = NOW(), deleted_by = ? WHERE id = ?',
+        [me.id, dv.drawing_id]
+      );
     }
 
     audit.log({ userId: me.id, action: 'drawing.delete',

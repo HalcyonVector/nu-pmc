@@ -28,10 +28,55 @@ module.exports = {
      * other consumers (dashboard, mobile push-badge service) can reuse.
      */
     async getNeedsYouCount(userId, role) {
-      // Delegated to the existing route's helper once it's refactored into
-      // a service. For now, minimal placeholder returning 0 safely if the
-      // underlying SQL isn't ready.
-      return { userId, role, count: 0 };
+      // Mirror the same logic as GET /api/needs-you/me but as a count-only summary.
+      // Used by dashboard badges and push-notification services.
+      try {
+        const { PROJECT_SCOPED_ROLES } = require('../../middleware/auth');
+        let projectIds = null;
+        if (PROJECT_SCOPED_ROLES.includes(role)) {
+          const [rows] = await db.query(
+            `SELECT pa.project_id FROM project_assignments pa
+             JOIN projects p ON pa.project_id = p.id
+             WHERE pa.user_id = ? AND pa.is_active = 1 AND p.status != 'completed'`,
+            [userId]
+          );
+          projectIds = rows.map(r => r.project_id);
+          if (projectIds.length === 0) return { userId, role, count: 0 };
+        }
+
+        const scope = projectIds ? ' AND project_id IN (?)' : '';
+        const params = projectIds ? [projectIds] : [];
+
+        let count = 0;
+        if (role === 'pmc_head') {
+          const [[r]] = await db.query(`SELECT
+            (SELECT COUNT(*) FROM daily_reports    WHERE status='pending_review'${scope}) +
+            (SELECT COUNT(*) FROM meetings         WHERE status='draft'${scope}) +
+            (SELECT COUNT(*) FROM payment_requests WHERE status='pending_pmc'${scope}) +
+            (SELECT COUNT(*) FROM grns             WHERE status='pending'${scope}) AS total`,
+            [...params, ...params, ...params, ...params]);
+          count = parseInt(r.total || 0);
+        } else if (['principal','design_principal'].includes(role)) {
+          const [[r]] = await db.query(`SELECT
+            (SELECT COUNT(*) FROM payment_requests WHERE status='pmc_approved'${scope}) +
+            (SELECT COUNT(*) FROM schedule_versions WHERE status='pending_approval'${scope}) AS total`,
+            [...params, ...params]);
+          count = parseInt(r.total || 0);
+        } else if (['site_manager','senior_site_manager'].includes(role)) {
+          const [[r]] = await db.query(`SELECT
+            (SELECT COUNT(*) FROM grns WHERE status='pending'${scope}) AS total`,
+            [...params]);
+          count = parseInt(r.total || 0);
+        } else if (role === 'audit') {
+          const [[r]] = await db.query(`SELECT
+            (SELECT COUNT(*) FROM payment_requests WHERE status IN ('pending_pmc','pending_principal','pmc_approved')${scope}) AS total`,
+            [...params]);
+          count = parseInt(r.total || 0);
+        }
+        return { userId, role, count };
+      } catch (e) {
+        return { userId, role, count: 0 };
+      }
     },
 
     /**
