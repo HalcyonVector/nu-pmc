@@ -13289,8 +13289,8 @@ APP._submitSettlement = async function(engagementId) {
   const settlement_date = document.getElementById('set-date')?.value;
   const notes           = document.getElementById('set-notes')?.value?.trim();
   if (!amount || !settlement_date) { UI.toast('Amount and date required'); return; }
-  const res = await API.post(`/engagements/${engagementId}/settlement`, { amount: parseFloat(amount), settlement_date, notes });
+  const res = await API.post(`/engagements/${engagementId}/settlement`, 
+    { amount: parseFloat(amount), settlement_date, notes });
   if (res?.success) { UI.closeModal(); UI.toast('Settlement recorded ✓'); }
   else UI.toast(res?.error || 'Failed');
 };
-

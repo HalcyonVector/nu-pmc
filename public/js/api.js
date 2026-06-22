@@ -443,6 +443,5 @@ API.getAdvanceRecovery   = (engId)   => API.call('GET',  `/finance/advance-recov
 API.getPendingBankChanges = ()         => API.call('GET',  '/vendors/master/bank-changes/pending');
 API.proposeBankChange     = (vid, d)   => API.call('POST', `/vendors/master/${vid}/bank-change/propose`, d);
 API.approveBankChange     = (id)       => API.call('POST', `/vendors/master/bank-change/${id}/approve`, {});
-API.rejectBankChange      = (id, d)    => API.call('PATCH', `/vendor-bank-change/${id}/reject`, d);
-         => API.call('GET',  '/vendors/master/bank-changes/pending');
+API.rejectBankChange      = (id, d)    => API.call('POST',  `/vendors/master/bank-change/${id}/reject`, d);
 

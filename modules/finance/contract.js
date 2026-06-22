@@ -122,6 +122,7 @@ module.exports = {
     urgentPayments:   require('./routes/urgent-payments'),
     boqMapping:       require('./routes/boq-mapping'),
     vendorDocuments:  require('./routes/vendor-documents'),
+    externalComms:    require('./routes/external-comms'),
   },
 
   // ── TABLES OWNED BY THIS MODULE ─────────────────────────────────────────

@@ -417,6 +417,7 @@ app.use('/api/budget', financeContract.routes.budget);
 app.use('/api/boq-mapping', financeContract.routes.boqMapping);
 app.use('/api/gst-statement', financeContract.routes.gstStatement);
 app.use('/api/urgent-payments', financeContract.routes.urgentPayments);
+app.use('/api/external-comms', financeContract.routes.externalComms);
 app.use('/api/pmc-assignments', systemContract.routes.pmcAssignments);
 app.use('/api/governance', systemContract.routes.governance);
 app.use('/api/company-entities', systemContract.routes.companyEntities);
