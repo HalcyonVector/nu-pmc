@@ -864,27 +864,17 @@ const APP = {
 
     if (!u || !p) { errEl.textContent = 'Enter username and password'; return; }
 
-    // Dev role switcher: support the special dev credentials that return
-    // a user list for picking an acting user. Server-side route exists
-    // only when NODE_ENV=development. Using client-side detection of the
-    // literal dev credentials avoids changing normal login behaviour.
-    // If dev-login is unavailable or doesn't return a user list, fall
-    // through to the normal /auth/login path so real users named 'user1'
-    // can still authenticate.
+    // Dev role switcher — probe the dev-login route for every login attempt.
+    // In production the route returns 404 (caught below) and we fall through
+    // to normal login. No credentials are hardcoded in the client.
     try {
-      if (u.toLowerCase() === 'user1' && p === 'Start@123') {
-        const devRes = await API.post('/auth/dev-login', { username: u, password: p });
-        if (devRes?.dev && Array.isArray(devRes.users)) {
-          // Open a modal to pick the user to act as
-          APP._openDevPicker(devRes.users);
-          return;
-        }
-        // dev-login exists but didn't return a user list — fall through to
-        // normal login so the real user1 account can still authenticate.
+      const devRes = await API.post('/auth/dev-login', { username: u, password: p });
+      if (devRes?.dev && Array.isArray(devRes.users)) {
+        APP._openDevPicker(devRes.users);
+        return;
       }
     } catch (e) {
-      // If dev-login route isn't present or errors, continue with normal login
-      console.warn('Dev-login attempt failed:', e?.message || e);
+      // dev-login route not present (production) or errored — proceed with normal login
     }
 
     const res = await API.login(u, p);

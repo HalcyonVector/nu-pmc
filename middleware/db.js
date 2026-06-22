@@ -9,7 +9,7 @@ const poolConfig = {
   password:        process.env.DB_PASSWORD || process.env.DB_PASS || '',
   waitForConnections: true,
   connectionLimit: 20,
-  queueLimit:      0,
+  queueLimit:      50,  // buffer under traffic spikes; 0 = unlimited (risky)
   charset:         'utf8mb4',
   timezone:        '+05:30',  // IST
 };

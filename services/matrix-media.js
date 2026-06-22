@@ -62,11 +62,12 @@ async function processIncomingFile(event, roomId) {
   if (existing) return { action: 'duplicate', id: existing.id };
 
   // 2. Resolve project from room.
+  // Table is matrix_rooms (not project_matrix_rooms); column is room_id (not matrix_room_id).
   const [[room]] = await db.query(
     `SELECT pmr.project_id, p.code AS project_code
-       FROM project_matrix_rooms pmr
+       FROM matrix_rooms pmr
        JOIN projects p ON p.id = pmr.project_id
-      WHERE pmr.matrix_room_id = ? LIMIT 1`,
+      WHERE pmr.room_id = ? LIMIT 1`,
     [roomId]
   );
   if (!room) return { action: 'skipped', reason: 'room_not_a_project_room' };

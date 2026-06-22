@@ -1,4 +1,12 @@
 // scripts/seed-demo-interactive.js
+// SAFETY GUARD — this script drops and recreates the entire database.
+// It must never run on the production server.
+if (process.env.NODE_ENV === 'production') {
+  console.error('ERROR: seed-demo-interactive.js is a development-only script.');
+  console.error('NODE_ENV is "production" — refusing to run. Exiting.');
+  process.exit(1);
+}
+
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');

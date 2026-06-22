@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NU PMC — Employee Guide</title>
+<style>
+  :root{--navy:#1D3D62;--blue:#4263EB;--green:#2E7D32;--amber:#C8A040;--red:#C0392B;--bg:#F5F7FA;--card:#fff;--border:#E2E8F0;--text:#2D3748;--muted:#718096;--r:10px;--mono:'Courier New',monospace}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+  .header{background:var(--navy);color:#fff;padding:20px 24px;display:flex;align-items:center;gap:14px}
+  .header-logo{width:40px;height:40px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .header-title{font-size:18px;font-weight:700}.header-sub{font-size:12px;opacity:.7;margin-top:2px}
+  .role-tabs{background:#fff;border-bottom:1px solid var(--border);display:flex;overflow-x:auto;justify-content:center}
+  .role-tab{padding:14px 18px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;color:var(--muted);border-bottom:3px solid transparent;transition:all .15s;flex-shrink:0}
+  .role-tab.active{color:var(--navy);border-bottom-color:var(--navy)}
+  .role-tab:hover:not(.active){color:var(--text);background:#f8f9fa}
+  .content{max-width:900px;margin:0 auto;padding:24px 16px 60px}
+  .page{display:none}.page.active{display:block}
+  .section-title{font-size:22px;font-weight:700;color:var(--navy);margin-bottom:4px}
+  .section-sub{font-size:14px;color:var(--muted);margin-bottom:24px}
+  .fg{margin-bottom:32px}
+  .fg-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .flow-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+  .flow-card-header{padding:14px 16px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;user-select:none}
+  .flow-card-header:hover{background:#FAFBFC}
+  .flow-num{width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .flow-title{font-size:15px;font-weight:700;color:var(--navy)}.flow-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .flow-chevron{margin-left:auto;font-size:16px;color:var(--muted);transition:transform .2s}
+  .flow-card.open .flow-chevron{transform:rotate(180deg)}
+  .flow-body{display:none;padding:0 16px 16px}.flow-card.open .flow-body{display:block}
+  .steps{list-style:none;position:relative;padding-left:28px}
+  .steps::before{content:'';position:absolute;left:10px;top:6px;bottom:6px;width:2px;background:var(--border)}
+  .steps li{position:relative;padding:6px 0 6px 12px;font-size:13px;line-height:1.6}
+  .steps li::before{content:'';position:absolute;left:-8px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--navy);border:2px solid #fff;box-shadow:0 0 0 2px var(--border)}
+  .steps li strong{color:var(--navy)}
+  .nh{font-size:11px;font-family:var(--mono);background:#F0F4FF;color:var(--blue);padding:1px 6px;border-radius:4px;margin-left:4px}
+  .note{background:#FFF8E1;border-left:3px solid var(--amber);border-radius:0 6px 6px 0;padding:10px 12px;font-size:12px;color:#5D4037;margin:10px 0;line-height:1.6}
+  .tip{background:#E8F5E9;border-left:3px solid var(--green);border-radius:0 6px 6px 0;padding:10px 12px;font-size:12px;color:#2E7D32;margin:10px 0;line-height:1.6}
+  .warn{background:#FFEBEE;border-left:3px solid var(--red);border-radius:0 6px 6px 0;padding:10px 12px;font-size:12px;color:#B71C1C;margin:10px 0;line-height:1.6}
+  .t{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
+  .t th{background:#EEF2FF;color:var(--navy);padding:8px 10px;text-align:left;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .t td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
+  .t tr:last-child td{border-bottom:none}.t tr:nth-child(even) td{background:#FAFBFF}
+  .role-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px}
+  .rc-title{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px}
+  .rc-sub{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6}
+  .caps{display:flex;flex-wrap:wrap;gap:6px}
+  .cap{font-size:11px;background:#F0F4FF;color:var(--navy);padding:3px 10px;border-radius:20px;border:1px solid #C7D2FE}
+  .sf{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .sf-s{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#EEF2FF;color:var(--navy);white-space:nowrap}
+  .sf-a{color:var(--muted);font-size:14px}
+  .sf-done{background:#E8F5E9;color:var(--green)}.sf-red{background:#FFEBEE;color:var(--red)}
+  .ic{font-family:var(--mono);background:#F0F4FF;color:var(--blue);padding:1px 5px;border-radius:3px;font-size:11px}
+  h4{font-size:13px;font-weight:700;color:var(--navy);margin:12px 0 6px}
+  p.body{font-size:13px;line-height:1.7;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-logo">🏗️</div>
+  <div>
+    <div class="header-title">NU PMC — Platform Guide</div>
+    <div class="header-sub">Complete reference for all team members · June 2026</div>
+  </div>
+</div>
+<div class="role-tabs">
+  <div class="role-tab active" onclick="showTab('overview')">Overview</div>
+  <div class="role-tab" onclick="showTab('principal')">Principal</div>
+  <div class="role-tab" onclick="showTab('pmc')">PMC Head</div>
+  <div class="role-tab" onclick="showTab('design')">Design / Services Head</div>
+  <div class="role-tab" onclick="showTab('site')">Site Manager</div>
+  <div class="role-tab" onclick="showTab('finance')">Finance Admin</div>
+  <div class="role-tab" onclick="showTab('team')">Design Team</div>
+  <div class="role-tab" onclick="showTab('trainee')">Trainee</div>
+  <div class="role-tab" onclick="showTab('flows')">All Flows &amp; Rules</div>
+</div>
+<div class="content">
+
+<!-- OVERVIEW -->
+<div id="page-overview" class="page active">
+<div class="section-title">Welcome to NU PMC</div>
+<div class="section-sub">Full reference — every role, every flow, every rule, in plain language</div>
+
+<div class="fg">
+<div class="fg-title">First Login — Mandatory for Every New User</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">!</div><div><div class="flow-title">Your account has a temporary password — you must change it before anything else works</div><div class="flow-meta">The system blocks all features until password is changed</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Log in with the username and temporary password given to you by IT admin.</li>
+<li>The system immediately locks every screen. Every API call returns error code <span class="ic">MUST_CHANGE_PASSWORD</span>. The only three actions available are: change password, view your own profile, or log out.</li>
+<li>On the change-password screen, enter your current temporary password, then your chosen new password twice.</li>
+<li><strong>Password rules (all must pass):</strong> Minimum 8 characters, maximum 128 · At least one UPPERCASE letter · At least one lowercase letter · At least one digit · Not on the common-passwords blocklist (which includes <span class="ic">welcome@123</span>, <span class="ic">nupmc@2026</span>, <span class="ic">nuassociates</span>, month+year combos like <span class="ic">january2026</span>, city names like <span class="ic">bangalore1</span>, and ~50 others) · Must not contain your own username if your username is 4 or more characters long.</li>
+<li>Once accepted, you are logged in and can access all features assigned to your role.</li>
+</ul>
+<div class="warn"><strong>Forgot password / locked out?</strong> There is no self-service password reset — the WhatsApp OTP flow was removed in v3.1 (April 2026). Ask your direct manager or a Principal / Design Principal to reset your password via <strong>User Management → your name → Reset Password</strong>. They will set a temporary password; you must change it on your next login.</div>
+</div></div></div>
+
+<div class="fg">
+<div class="fg-title">Roles at a Glance</div>
+<table class="t">
+<tr><th>Role</th><th>What they do</th><th>Key permissions</th></tr>
+<tr><td><strong>Principal / Design Principal</strong></td><td>Firm-wide authority. Creates projects, activates them, gives final payment approval, approves vendor engagements, signs off change orders and schedules, approves weekly client reports.</td><td>Create project · Final payment approval · Vendor engagement approval · Schedule approval · Password reset any user · Approve CNs · Weekly report final approval</td></tr>
+<tr><td><strong>PMC Head</strong></td><td>Day-to-day project management. Raises and PMC-approves payment requests, reviews daily reports, approves GRNs, creates and issues MOMs, uploads schedules, validates labour, manages vendors, drafts and signs change orders.</td><td>Raise + PMC-approve payments · Review daily reports · Approve GRNs · Create/approve/issue MOMs · Upload schedules · Validate labour · Register + engage vendors · Draft + sign CNs</td></tr>
+<tr><td><strong>Design Head / Services Head</strong></td><td>Stream oversight. Manages drawing register, gives L2 (final) drawing approval, manages BOQ and material requests for their stream, signs weekly report for their stream.</td><td>Upload drawing register · L2 drawing approval · BOQ management · Material request review · Weekly report sign (own stream) · Vendor bank change (propose)</td></tr>
+<tr><td><strong>Site Manager / Sr. Site Manager</strong></td><td>On-site operations. Submits daily reports, logs labour, takes photos, raises GRNs, updates task progress, raises urgent payments, records site visits and observations, raises issues/snags. Senior can additionally approve GRNs below 5% of project budget.</td><td>Submit daily reports · Upload photos · Raise GRNs · Update task progress · Raise urgent payments · Raise issues/snags · Record site visits</td></tr>
+<tr><td><strong>Finance Admin</strong></td><td>Financial gatekeeper. Clears vendors for payment eligibility, confirms payments after Principal approval, generates ICICI batch files, generates proforma invoices (PDF + Tally XML), manages client receipts and petty cash.</td><td>Vendor clearance · Payment confirmation · ICICI export · Proforma invoices · Client receipts · Petty cash · Vendor bank change (propose)</td></tr>
+<tr><td><strong>Design Team</strong> (Team Lead, Jr. Architect, Jr. Engineer, Services Engineer, Coordinator)</td><td>Design execution. Uploads drawing files, raises material requests, logs submittals. Team Leads additionally perform L1 (first-pass) drawing review.</td><td>Upload drawings · L1 review (Team Lead only) · Raise material requests · Log submittals</td></tr>
+<tr><td><strong>Trainee</strong></td><td>Read-only on almost everything. Can write: daily reports, photos, issues/snags, site visit observations, own lessons-learned input, and their own password. Blocked from: payments, invoices, budgets, client data, vendor fee schedules, approvals, change orders, measurements, action items.</td><td>Submit daily reports · Upload photos · Raise issues/snags · Record site visits · Lessons-learned input · Change own password · Read-only everything else</td></tr>
+</table>
+</div>
+
+<div class="fg">
+<div class="fg-title">Project Lifecycle</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">→</div><div><div class="flow-title">How a project moves from creation to completion</div><div class="flow-meta">Automatic state machine with a 7-item readiness gate</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">initialising</div><div class="sf-a">→ (7 items done)</div><div class="sf-s">active</div><div class="sf-a">→</div><div class="sf-s sf-done">completed</div><div class="sf-a"> / </div><div class="sf-s sf-red">on_hold</div><div class="sf-a"> / </div><div class="sf-s sf-red">cancelled</div></div>
+<h4>Phase 1: initialising</h4>
+<p class="body">Principal creates the project. Status = initialising. No site operations, no payments, no drawings can be approved yet. The team works through the 7-item Readiness Gate during this phase.</p>
+<h4>Phase 2: Readiness Gate — all 7 must be complete to activate</h4>
+<table class="t">
+<tr><th>#</th><th>Checklist Item</th><th>What must happen</th><th>Who does it</th></tr>
+<tr><td>1</td><td><strong>project_created</strong></td><td>Auto-ticked when the project record is saved</td><td>System (automatic)</td></tr>
+<tr><td>2</td><td><strong>design_register</strong></td><td>Design Head uploads drawing register Excel; Principal signs off</td><td>Design Head → Principal</td></tr>
+<tr><td>3</td><td><strong>services_register</strong></td><td>Services Head uploads services drawing register; Principal signs off</td><td>Services Head → Principal</td></tr>
+<tr><td>4</td><td><strong>design_boq</strong></td><td>Design BOQ uploaded (all design-stream items with quantities and rates)</td><td>Design Head / PMC Head</td></tr>
+<tr><td>5</td><td><strong>services_boq</strong></td><td>Services BOQ uploaded (MEP and services items)</td><td>Services Head / PMC Head</td></tr>
+<tr><td>6</td><td><strong>schedule</strong></td><td>PMC Head uploads baseline schedule; Principal approves first version</td><td>PMC Head → Principal</td></tr>
+<tr><td>7</td><td><strong>site_manager</strong></td><td>A Site Manager or Senior Site Manager is assigned to the project</td><td>Principal / PMC Head</td></tr>
+</table>
+<p class="body">When all 7 are checked, the system automatically transitions the project to <strong>active</strong>. This uses a state machine with a concurrency guard — if two people somehow complete the last item simultaneously, only one transition wins; the other sees a "stale state" error and must refresh.</p>
+<h4>Phase 3: active</h4>
+<p class="body">All features unlock: daily reports, payments, drawings, GRNs, issues, MOMs, site visits, etc.</p>
+<h4>Phase 4: completed / on_hold / cancelled</h4>
+<p class="body">Principal moves the project after handover is done. <strong>completed</strong> = project delivered and closed. <strong>on_hold</strong> = temporarily suspended. <strong>cancelled</strong> = abandoned. These transitions are guarded and audit-logged.</p>
+</div></div></div>
+
+<div class="fg">
+<div class="fg-title">System Safeguards (Plain Language)</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">🔒</div><div><div class="flow-title">Concurrency protection, audit log, and notifications (Matrix + WhatsApp)</div><div class="flow-meta">Why you sometimes see "Stale Version" errors — and how the notification system actually works</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<h4>Stale Version (409) errors</h4>
+<p class="body">Every record has a hidden version counter. When you open a payment or drawing card, your browser notes the version. When you click Approve, the system checks whether the version still matches. If someone else already approved or edited it, the version has changed → you see a 409 Stale Version error. <strong>Fix: refresh the page</strong>, then re-check whether action is still needed.</p>
+<h4>State machine guard</h4>
+<p class="body">Status changes (e.g. pending_pmc → pmc_approved) are enforced by a database-level WHERE clause: the update only executes if the current status in the database matches what the system expects. Two simultaneous approvals → one wins, one gets "transition failed". Refresh and re-check.</p>
+<h4>Audit log — permanent and tamper-proof</h4>
+<p class="body">Every significant action is written to an append-only audit log: who (user ID), what (action), which record (type + ID), when (timestamp), from where (IP address + browser). Nobody can edit or delete audit log entries. If there is ever a dispute about who approved a payment or changed bank details, the audit log is the definitive source of truth.</p>
+<h4>Notifications — Matrix first, WhatsApp as fallback (v5.23+)</h4>
+<p class="body">Staff notifications go via <strong>Matrix</strong>, not raw WhatsApp. Matrix bridges to WhatsApp for vendors/clients without a Matrix room. If a vendor has no Matrix room (Tier B), a manual send task is queued for PMC Head or Finance Admin in the External Comms queue.</p>
+<table class="t">
+<tr><th>Event</th><th>Who is notified</th><th>Channel</th></tr>
+<tr><td>New user account created</td><td>The new user (welcome + temp password)</td><td>Matrix DM / WhatsApp bridge</td></tr>
+<tr><td>Drawing issued (L2 approved)</td><td>Site Manager, Sr. Site Manager, PMC Head</td><td>Matrix</td></tr>
+<tr><td>RFI / drawing query raised</td><td>PMC Head + relevant stream Head + Principal</td><td>Matrix</td></tr>
+<tr><td>RFI overdue</td><td>PMC Head, Design Head, Services Head, Principal</td><td>Matrix</td></tr>
+<tr><td>Schedule version approved</td><td>PMC Head, Site Managers, Design Head, Services Head</td><td>Matrix</td></tr>
+<tr><td>Change Notice approved</td><td>PMC Head, Site Manager, Design Head, Services Head</td><td>Matrix</td></tr>
+<tr><td>CN stuck unsigned (escalation)</td><td>Principal, Design Principal</td><td>Matrix</td></tr>
+<tr><td>Approval needed</td><td>Principal, Design Principal</td><td>Matrix</td></tr>
+<tr><td>Approval expired without quorum</td><td>Person who raised the request</td><td>Matrix</td></tr>
+<tr><td>Weekly report approved</td><td>PMC Head, Design Head, Services Head</td><td>Matrix</td></tr>
+<tr><td>Missing daily report reminder</td><td>Site Manager who has not submitted</td><td>Matrix / WA bridge</td></tr>
+<tr><td>Material request overdue</td><td>PMC Head, Site Manager</td><td>Matrix</td></tr>
+<tr><td>Payment confirmed (UTR)</td><td>Vendor</td><td>Matrix room (Tier A) or manual WhatsApp send assigned to Finance/PMC (Tier B)</td></tr>
+<tr><td>Defect / snag raised</td><td>Vendor</td><td>Matrix room (Tier A) or manual send assigned (Tier B)</td></tr>
+<tr><td>Vendor bank change poll</td><td>Designated approver</td><td>Matrix poll</td></tr>
+<tr><td>Weekly sign-off poll</td><td>PMC Head, Design Head, Services Head</td><td>Matrix poll</td></tr>
+<tr><td>PI raised to client</td><td>Client</td><td><strong>Email only</strong> — PWA opens mailto: link. Finance Admin sends manually. Not routed via Matrix or WhatsApp.</td></tr>
+</table>
+<div class="note">Failed WhatsApp bridge sends are logged to <span class="ic">wa_send_failures</span>. Contact IT admin. Phone numbers must be E.164 format (+91XXXXXXXXXX). Only last 4 digits appear in server logs.</div>
+<div class="note"><strong>Vendor tiers:</strong> Tier A = vendor has <span class="ic">matrix_room_id</span> set → messages go directly to their Matrix room (which bridges to their WhatsApp). Tier B = no Matrix room → notification queued as a manual task in the External Comms queue.</div>
+</div></div></div>
+</div>
+
+<!-- PRINCIPAL -->
+<div id="page-principal" class="page">
+<div class="section-title">Principal / Design Principal</div>
+<div class="section-sub">Firm-wide authority — project creation, final approvals, governance</div>
+
+<div class="fg"><div class="fg-title">Project Setup</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Create a New Project</div><div class="flow-meta">Home → Projects → + New Project</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Projects</strong> from the Home tab. Tap <strong>+ New Project</strong> (only Principals see this button).</li>
+<li>Fill in all required fields: <strong>Project Name</strong>, <strong>Client</strong> (must exist in client master — add them first if new), <strong>Site Address / Location</strong>, <strong>Start Date</strong>, <strong>Contract Value</strong> in rupees, <strong>Company Entity</strong> (which NU legal entity is contracting), <strong>Project Type</strong> (design-only / construction / full PMC).</li>
+<li>Submit → project created in <strong>initialising</strong> status. The <span class="ic">project_created</span> checklist item is auto-ticked immediately.</li>
+<li>Assign a PMC Head to the project via the <strong>Assignments</strong> tab. PMC Head then drives the remaining 6 readiness checklist items.</li>
+</ul>
+<div class="note"><strong>Contract value is used for payment validation.</strong> The system hard-blocks any payment that would cause cumulative vendor payments to exceed the contract value. If the contract value changes (client-approved variation), a Principal must update this field. The change is audit-logged.</div>
+<div class="tip">If the client does not exist yet, go to <strong>Clients</strong> tab → + Add Client before creating the project. Client data needed: company name, contact person, phone/email, GSTIN, billing address.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">Assign Team Members</div><div class="flow-meta">Project → Assignments tab → + Assign</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Open the project → <strong>Assignments</strong> tab → <strong>+ Assign</strong>.</li>
+<li>Search for a team member by name. Select their <strong>role on this project</strong> (a person can have a different role on each project).</li>
+<li>Assigning a Site Manager or Senior Site Manager auto-ticks the <span class="ic">site_manager</span> readiness checklist item.</li>
+<li>Only assigned team members appear as selectable reviewers, action-item owners, or approvers on that project.</li>
+</ul>
+<div class="note"><strong>Delegation:</strong> If you will be away, go to Settings → Delegations → + New Delegation. Set the delegate (another Principal or Design Principal) and the date range. All approvals routed to you during that window redirect to the delegate. Delegations are audit-logged. Active delegations are displayed on your dashboard.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Sign Off Drawing Register</div><div class="flow-meta">Completes design_register and services_register checklist items</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Design Head uploads the drawing register Excel → system creates all register entries (drawing number, name, category, expected revision).</li>
+<li>You receive an in-app notification + WhatsApp message. Go to <strong>Drawings → Register</strong> for the project.</li>
+<li>Review the list. Tap <strong>Sign Off Register</strong> → ticks <span class="ic">design_register</span>.</li>
+<li>Repeat for Services Head's services register upload → ticks <span class="ic">services_register</span>.</li>
+</ul>
+<div class="note">Once signed off, drawings can only be <em>added</em> to the register, not removed — unless no file has been uploaded against that entry yet. Your sign-off is your approval of the full drawing scope.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">4</div><div><div class="flow-title">Approve Schedule Version</div><div class="flow-meta">Approvals tab → pending schedule change → Approve</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">PMC uploads + raises request</div><div class="sf-a">→</div><div class="sf-s">Pending Principal</div><div class="sf-a">→</div><div class="sf-s sf-done">Approved → becomes current</div></div>
+<ul class="steps">
+<li>Go to <strong>Approvals</strong> → <strong>Pending</strong>. Find Schedule Change requests.</li>
+<li>Each request shows: version number, reason, number of tasks, drift days (vs previous baseline).</li>
+<li>Download the schedule file from the card to review if needed.</li>
+<li>Tap <strong>Approve</strong> → new version becomes current. If this is the first-ever schedule approval for this project, it also ticks <span class="ic">schedule</span> on the readiness checklist — which may auto-activate the project if all 7 items are now done.</li>
+<li>Tap <strong>Reject</strong> with reason → PMC Head notified. They must revise and re-upload.</li>
+</ul>
+<div class="note">Rejecting does not undo task-progress updates already logged against the previous schedule. Site managers continue against the previously approved version's tasks.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">5</div><div><div class="flow-title">Approve Vendor Engagement</div><div class="flow-meta">Vendors tab → Pending Approval</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">PMC registers vendor</div><div class="sf-a">→</div><div class="sf-s">Finance clears vendor</div><div class="sf-a">→</div><div class="sf-s">PMC engages vendor</div><div class="sf-a">→</div><div class="sf-s sf-done">Principal approves</div></div>
+<ul class="steps">
+<li>Go to <strong>Vendors</strong> for the project → <strong>Pending Approval</strong>.</li>
+<li>The card shows: vendor name, scope, contract value for this engagement, stream (design / services / construction).</li>
+<li>Only Finance-cleared vendors appear here. An uncleared vendor cannot be engaged.</li>
+<li>Tap <strong>Approve</strong> → engagement is active. Payment requests can now be raised for this vendor.</li>
+<li>Tap <strong>Reject</strong> with reason → PMC Head must correct and resubmit.</li>
+</ul>
+<div class="note"><strong>The 4-step chain:</strong> (1) PMC registers vendor → (2) Finance Admin clears vendor → (3) PMC engages vendor on project → (4) Principal approves engagement. All four must complete before the first payment can go through.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Approve Payment Batch</div><div class="flow-meta">Payments tab → review pmc_approved payments → approve</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">pending_pmc</div><div class="sf-a">→</div><div class="sf-s">pmc_approved</div><div class="sf-a">→</div><div class="sf-s">pending_principal</div><div class="sf-a">→</div><div class="sf-s sf-done">principal_approved</div><div class="sf-a">→</div><div class="sf-s sf-done">paid</div></div>
+<ul class="steps">
+<li>Go to <strong>Payments</strong>. You see all payments in <span class="ic">pending_principal</span> status (PMC-approved, awaiting your sign-off).</li>
+<li>Each card shows: vendor name, payment type (advance / RA bill / final bill / urgent / petty cash), amount, supporting documents (invoice / challan photo).</li>
+<li><strong>Automatic validation rules applied before the payment reaches you:</strong>
+  <br>• <strong>Hard block — rejected outright:</strong> Amount > vendor's contract value for this engagement
+  <br>• <strong>Hard block — rejected outright:</strong> Cumulative payments already ≥ contract value
+  <br>• <strong>Soft warning — you see it, you can override:</strong> Single payment > 50% of contract value
+  <br>• <strong>Soft warning:</strong> Payment is > 3× vendor's average bill size
+  <br>• Amount parsing handles ₹/Rs/INR prefixes and Indian comma grouping (e.g. ₹1,23,456)</li>
+<li>Tap <strong>Approve</strong> individually or <strong>Approve All</strong> for bulk (bulk only when no soft warnings active).</li>
+<li>Tap <strong>Reject</strong> with reason → payment returns to <span class="ic">pmc_rejected</span>. PMC Head is notified and must re-raise or cancel.</li>
+</ul>
+<div class="tip">Design Head / Services Head see only advance and final bills for their stream vendors — not construction payments.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">7</div><div><div class="flow-title">Approve Change Orders (CNs)</div><div class="flow-meta">Changes tab → Signed status → Approve</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">draft</div><div class="sf-a">→</div><div class="sf-s">signed (PMC)</div><div class="sf-a">→</div><div class="sf-s sf-done">approved (Principal)</div></div>
+<ul class="steps">
+<li>Go to <strong>Changes</strong> → filter <strong>Signed</strong>. These have been drafted and signed by PMC Head.</li>
+<li>Each CN shows: change description, reason, cost impact (+ or − amount), schedule impact (days), affected stream.</li>
+<li>Tap <strong>Approve</strong> → CN is formally approved and can be communicated to the contractor.</li>
+<li>Tap <strong>Reject</strong> → goes back to PMC Head for revision and re-signing.</li>
+</ul>
+<div class="note">If a CN increases the total contract value and the client has agreed, also update the project's Contract Value field. Otherwise payment validation will incorrectly block future legitimate payments.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">8</div><div><div class="flow-title">Weekly Client Report — Final Approval</div><div class="flow-meta">All three heads must sign their sections first</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">draft</div><div class="sf-a">→</div><div class="sf-s">pmc_signed + design_signed + services_signed</div><div class="sf-a">→</div><div class="sf-s sf-done">Principal approves → locked</div></div>
+<ul class="steps">
+<li>The weekly report is auto-generated every Friday, pulling data from daily reports, payment summaries, schedule progress, and open issues.</li>
+<li>PMC Head, Design Head, and Services Head each independently sign their section (via the app or Matrix poll response).</li>
+<li>Once all three sign, the <strong>Approve</strong> button appears for you.</li>
+<li>Tap <strong>Approve</strong> → report is locked. No further edits. Ready to share with client as PDF.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">9</div><div><div class="flow-title">Vendor Bank Detail Change — Approve</div><div class="flow-meta">Dual-approval mandatory — proposer ≠ approver</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>When a vendor's bank/UPI details must change, someone must <strong>propose</strong> the change and a <strong>different person</strong> must <strong>approve</strong> it.</li>
+<li><strong>Who can propose:</strong> Finance Admin or any Head (PMC / Design / Services).</li>
+<li><strong>Who can approve:</strong> If proposed by Finance Admin → Principal or Design Principal must approve. If proposed by a Head → Finance Admin or Principal or Design Principal must approve.</li>
+<li>Before approving, confirm the vendor was contacted directly (via Matrix or a known phone number) and confirmed the new bank details. Tick the "Vendor confirmed via Matrix" checkbox only after personal verification.</li>
+<li>Once approved, the bank details are updated and the change is audit-logged with both proposer and approver user IDs.</li>
+</ul>
+<div class="warn"><strong>NEVER approve a bank detail change without personally verifying with the vendor via a trusted channel.</strong> Attackers intercept emails and redirect payments. The dual-approval + Matrix verification process exists specifically to prevent this.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">10</div><div><div class="flow-title">Admin Password Reset for Another User</div><div class="flow-meta">User Management → find user → Reset Password</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>User Management</strong> → find the user → tap <strong>Reset Password</strong>.</li>
+<li>Enter a temporary password (must still meet all password policy rules).</li>
+<li>The system sets <span class="ic">force_password_change = true</span> on the user's account. On their next login, they must change it before accessing anything.</li>
+<li>Communicate the temporary password securely (not via email if avoidable).</li>
+</ul>
+<div class="note"><strong>Who can reset whose password:</strong> A Principal or Design Principal can reset any user's password. A manager can reset the password of users they directly manage (i.e. users where <span class="ic">managed_by</span> points to that manager's ID). You cannot reset your own password via this screen — use Change Password from your profile.</div>
+<div class="note"><strong>No self-service forgot-password:</strong> The WhatsApp OTP reset flow was removed in v3.1. Locked-out users must contact their manager or a Principal.</div>
+</div></div>
+</div>
+</div>
+
+<!-- PMC HEAD -->
+<div id="page-pmc" class="page">
+<div class="section-title">PMC Head</div>
+<div class="section-sub">Day-to-day project management — payments, reports, vendors, meetings, schedule</div>
+
+<div class="fg"><div class="fg-title">Daily Operations</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Review and Approve Daily Reports</div><div class="flow-meta">Daily Reports tab → Approve or Flag</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">submitted</div><div class="sf-a">→</div><div class="sf-s">pending_review</div><div class="sf-a">→</div><div class="sf-s sf-done">approved</div><div class="sf-a"> / </div><div class="sf-s sf-red">flagged</div></div>
+<ul class="steps">
+<li>Go to <strong>Daily Reports</strong>. Reports submitted by site managers appear here grouped by date and project.</li>
+<li>Each report contains: activity summary, labour headcount by trade, site photos (with AI-generated tags if the AI trigger fired), issues/blockers noted that day.</li>
+<li>Tap <strong>Approve</strong> to accept → report locked and counted in weekly summary.</li>
+<li>Tap <strong>Flag</strong> with a written reason → site manager is notified and must re-submit a corrected report. A flagged report does not count toward weekly progress until approved.</li>
+<li>Use <strong>Approve All</strong> for bulk approval of all pending reports with no flags.</li>
+</ul>
+<div class="note">Reports are locked for editing 2 days after the report date. Approve before that window closes. Once approved, no one can edit the report — only audit-log entries reflect it.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">Approve GRNs (Goods Received Notes)</div><div class="flow-meta">GRN tab → review → Approve or Reject</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">raised by site</div><div class="sf-a">→</div><div class="sf-s">pending</div><div class="sf-a">→</div><div class="sf-s sf-done">approved</div><div class="sf-a"> / </div><div class="sf-s sf-red">rejected</div></div>
+<ul class="steps">
+<li>Go to <strong>GRN</strong>. See all pending GRNs raised by site managers.</li>
+<li>Each GRN shows: vendor, material description, quantity received, unit rate, delivery challan / invoice photo attached.</li>
+<li>Verify that the material, quantity, and rate match what was expected and the delivery photo is genuine.</li>
+<li>Tap <strong>Approve</strong> → GRN is confirmed. This GRN can now be referenced in a payment request.</li>
+<li>Tap <strong>Reject</strong> with reason → site manager is notified. They may need to raise a corrected GRN.</li>
+</ul>
+<div class="tip">Senior Site Manager can approve GRNs whose value is below 5% of the project budget independently, without your action. You still see these in the log.</div>
+<div class="note">A payment request for material supply cannot be raised until a GRN covering that delivery has been approved. The GRN is the proof of receipt that justifies the payment.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Raise and PMC-Approve a Payment Request</div><div class="flow-meta">Vendors tab → vendor engagement → Raise Payment</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">pending_pmc</div><div class="sf-a">→</div><div class="sf-s">pmc_approved</div><div class="sf-a">→</div><div class="sf-s">pending_principal</div><div class="sf-a">→</div><div class="sf-s sf-done">principal_approved → paid</div></div>
+<ul class="steps">
+<li>Go to <strong>Vendors</strong> → find the vendor engagement → tap <strong>Raise Payment</strong>.</li>
+<li>Select payment type: <strong>Advance</strong> (upfront mobilisation) / <strong>RA Bill</strong> (running account / progressive) / <strong>Final Bill</strong> (last payment closing the engagement) / <strong>Retention Release</strong>.</li>
+<li>Enter amount. Amount can include ₹/Rs/INR prefix and Indian comma grouping (e.g. ₹1,23,456) — system parses correctly.</li>
+<li>Attach supporting documents: invoice scan, measurement sheet, GRN reference (for material payments).</li>
+<li>Submit → payment is in <span class="ic">pending_pmc</span>. Now you or another PMC Head must do the PMC-level approval.</li>
+<li>Go to <strong>Payments</strong> tab → find the payment → tap <strong>PMC Approve</strong>. This moves it to <span class="ic">pending_principal</span> for Principal's batch approval.</li>
+</ul>
+<div class="note"><strong>The system will hard-block the payment at this stage if:</strong> Amount > vendor's engagement contract value, OR cumulative payments already reach/exceed the contract value. You will see a clear error message explaining why. To resolve, check if a Change Order was approved increasing the scope, or if a previous payment was incorrectly raised.</div>
+<div class="tip">You can raise a payment and PMC-approve it yourself — no second PMC user needed for your own raises. The system does not require a different PMC user to approve PMC-level.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">4</div><div><div class="flow-title">Create MOMs and Issue to Client</div><div class="flow-meta">Meetings tab → + New MOM → Approve → Issue</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">draft</div><div class="sf-a">→</div><div class="sf-s">approved (internal)</div><div class="sf-a">→</div><div class="sf-s sf-done">issued to client</div></div>
+<ul class="steps">
+<li>Go to <strong>Meetings</strong> <span class="nh">Work tab</span> → tap <strong>+ New MOM</strong>.</li>
+<li>Fill in: MOM title, meeting date, meeting type (site review / design review / client meeting), attendees (select from assigned team members + add external names manually).</li>
+<li>Add agenda items and discussion points under each item.</li>
+<li>Add <strong>Action Items</strong>: for each action, assign to a team member, set due date, and set priority.</li>
+<li>Save as Draft. Review it.</li>
+<li>Tap <strong>Approve MOM</strong> → status moves to <strong>approved</strong>. MOM is now locked internally — no content edits allowed. This is the internal formal record.</li>
+<li>To send to client: tap <strong>Issue to Client</strong>. A confirmation dialog appears asking you to type the exact MOM number (e.g. MOM-2026-047) — this prevents accidental sends. Confirm → the MOM is dispatched via WhatsApp/email to the client contact. Status → <strong>issued</strong>.</li>
+</ul>
+<div class="note"><strong>Approving ≠ Issuing.</strong> Approval locks the MOM as an internal record. Issuing sends it to the client. You can approve without issuing (e.g. for internal design review MOMs that the client does not need to see). Once issued, status cannot be reversed.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">5</div><div><div class="flow-title">Manage Action Items</div><div class="flow-meta">Meetings → open a MOM → Action Items section</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Action items are created within a MOM. Open any MOM → scroll to <strong>Action Items</strong>.</li>
+<li>Tap <strong>+ Add Action</strong>: description, assigned to (must be a project team member), due date, priority (high / medium / low).</li>
+<li>Action items appear in the assignee's personal <strong>My Actions</strong> view and in the <strong>Needs You</strong> tab with a count.</li>
+<li>As actions are completed, the assignee marks them done. You can see outstanding actions per MOM and by person.</li>
+<li>Overdue actions are flagged in the weekly health report automatically.</li>
+</ul>
+<div class="note">Trainees cannot create or manage action items. They are read-only on the meetings/action-items section.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Upload Schedule and Raise Approval Request</div><div class="flow-meta">Schedule tab → Upload → Raise Approval</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Schedule</strong> <span class="nh">Work tab</span>.</li>
+<li>Tap <strong>Download Template</strong> to get the correct Excel column format. Required columns include: Task ID, Task Name, Start Date, End Date, Predecessor, Stream, % Complete. Column order and names matter exactly.</li>
+<li>Fill in the schedule. Upload the Excel via <strong>Upload New Schedule</strong>. The system validates the file — wrong columns cause a clear error message.</li>
+<li>Once uploaded, go to <strong>Approvals</strong> → tap <strong>+ Raise Request</strong> → select type <strong>Schedule Change</strong> → enter title, version description, reason for change.</li>
+<li>Principal receives notification and approves → new version becomes current schedule.</li>
+</ul>
+<div class="note">For the very first schedule on a project, the approval also ticks the <span class="ic">schedule</span> readiness checklist item. This may automatically activate the project if all other 6 items are done.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">7</div><div><div class="flow-title">Validate Labour Headcount</div><div class="flow-meta">Labour tab → Validate</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Labour</strong>. See all entries submitted by site managers, grouped by date.</li>
+<li>Each entry shows: date, trade (mason / carpenter / electrician / plumber / unskilled, etc.), contractor name, headcount.</li>
+<li>Verify the counts look reasonable for the work that was actually going on that day (cross-reference with daily report).</li>
+<li>Tap <strong>Validate All</strong> to bulk-validate, or validate/reject individual entries.</li>
+<li>Rejected entries: site manager must re-submit with correct figures.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">8</div><div><div class="flow-title">Register and Engage a Vendor</div><div class="flow-meta">Vendor Master → + Register Vendor → then engage on project</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">PMC registers</div><div class="sf-a">→</div><div class="sf-s">Finance clears</div><div class="sf-a">→</div><div class="sf-s">PMC engages</div><div class="sf-a">→</div><div class="sf-s sf-done">Principal approves</div></div>
+<ul class="steps">
+<li><strong>Step 1 — Register:</strong> Go to <strong>Vendor Master</strong> → <strong>+ Register Vendor</strong>. Enter: vendor/firm name, contact person, phone, PAN, GSTIN, bank account number, IFSC, account holder name, UPI ID (if applicable). Submit → vendor enters <span class="ic">pending finance clearance</span> status.</li>
+<li><strong>Step 2 — Wait for Finance clearance:</strong> Finance Admin verifies the details and clears the vendor. You will be notified when cleared. An uncleared vendor cannot be engaged.</li>
+<li><strong>Step 3 — Engage on project:</strong> Go to <strong>Vendors</strong> on the project → <strong>Engage Vendor</strong>. Only cleared vendors appear. Select vendor, fill in scope of work, contract value for this engagement, stream. Submit → goes to Principal for approval.</li>
+<li><strong>Step 4 — Wait for Principal approval:</strong> Once approved, you can raise payment requests for this vendor on this project.</li>
+</ul>
+<div class="tip">Map the vendor to BOQ line items via the <strong>BOQ Mapping</strong> tab. This links vendor payments to specific budget line items so Finance can track actual vs budget by line item.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">9</div><div><div class="flow-title">Draft and Sign Change Orders (CNs)</div><div class="flow-meta">Changes tab → + New CN → Draft → Sign → Principal approves</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Changes</strong> <span class="nh">Work tab</span> → tap <strong>+ New CN</strong>.</li>
+<li>Fill in: change description, reason/justification, cost impact amount and direction (+/-), schedule impact in days (+/-), affected stream.</li>
+<li>Attach supporting documents (client email, drawing revision, site photos evidencing the change).</li>
+<li>Save as <strong>Draft</strong>. Review and edit as needed.</li>
+<li>Tap <strong>Sign CN</strong> → status moves to <strong>signed</strong>. This is your PMC-level endorsement. The CN is now in Principal's queue for final approval.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">10</div><div><div class="flow-title">Record Site Visit and Observations</div><div class="flow-meta">Meetings → + Site Visit (Trainees can also do this)</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Meetings</strong> → tap <strong>+ Site Visit</strong>.</li>
+<li>Fill in: date of visit, attendees, purpose/agenda.</li>
+<li>Add <strong>Observations</strong> for each area of the site inspected: description of finding, severity (critical / major / minor), photos.</li>
+<li>Site visit observations are separate from issues/snags — they are part of the visit record and do not generate action items automatically. Convert critical observations to issues manually if needed.</li>
+<li>Site visits are read-only for Trainees after recording — they cannot edit others' observations.</li>
+</ul>
+</div></div>
+</div>
+
+<div class="fg"><div class="fg-title">Reporting and Weekly Sign-off</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">11</div><div><div class="flow-title">Sign the Weekly Health Report (PMC section)</div><div class="flow-meta">Weekly Report → PMC section → Sign</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Weekly Report</strong> <span class="nh">More tab</span>. The system auto-generates it every Friday.</li>
+<li>Review the PMC section: payment status summary, GRN summary, open action items, schedule health (% behind/ahead), issues/snags count.</li>
+<li>If data looks correct, tap <strong>Sign PMC Section</strong>. Your signature is recorded.</li>
+<li>Once all three heads (PMC + Design + Services) have signed, the Principal's Approve button unlocks.</li>
+<li>You also receive a <strong>Matrix sign-off poll</strong> — responding to the Matrix message also counts as your signature.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">12</div><div><div class="flow-title">Raise Measurements</div><div class="flow-meta">Measurements tab → + New Measurement</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Measurements</strong>. These are quantity take-offs used to validate RA bills and final bills.</li>
+<li>Tap <strong>+ New Measurement</strong>. Select the BOQ line item, enter the measurement description, length × breadth × height (or count), and the calculated quantity.</li>
+<li>Attach measurement sketches or photos if available.</li>
+<li>Measurements are linked to payment requests — an RA bill references the measurements that justify the quantity billed.</li>
+<li>Trainees cannot access the Measurements section at all (blocked at the middleware level).</li>
+</ul>
+</div></div>
+</div>
+</div>
+
+<!-- DESIGN / SERVICES HEAD -->
+<div id="page-design" class="page">
+<div class="section-title">Design Head / Services Head</div>
+<div class="section-sub">Stream oversight — drawings, BOQ, materials, schedule, and vendor bank changes</div>
+
+<div class="fg"><div class="fg-title">Drawing Register and Approvals</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Upload the Drawing Register</div><div class="flow-meta">Register tab → Upload Excel → Principal signs off</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Register</strong> <span class="nh">Work tab</span>. Download the <strong>Template</strong> for the correct Excel format.</li>
+<li>Fill in each row: <strong>Drawing Number</strong> (must be unique within the project), <strong>Drawing Name</strong>, <strong>Category</strong> (floor plan / section / elevation / services / structural / etc.), <strong>Expected Revision</strong>, <strong>Notes</strong>.</li>
+<li>Upload the Excel → each row becomes a register entry.</li>
+<li>Notify the Principal to sign off the register (or the system triggers a notification automatically). Their sign-off ticks the readiness checklist item for your stream (<span class="ic">design_register</span> or <span class="ic">services_register</span>).</li>
+</ul>
+<div class="note">Drawing numbers in the register are the only numbers team members can upload files against. If a drawing number is missing, add a row to the register — but only before a file has been uploaded against adjacent entries. Once the Principal has signed off, additions require a formal amendment process.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">L2 Drawing Approval (Final Sign-off)</div><div class="flow-meta">Drawings tab → filter Pending L2 → review → Approve or Reject</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">uploaded by team</div><div class="sf-a">→</div><div class="sf-s">L1 Review (Team Lead)</div><div class="sf-a">→</div><div class="sf-s">Pending L2</div><div class="sf-a">→</div><div class="sf-s sf-done">L2 Approved (final)</div></div>
+<ul class="steps">
+<li>Go to <strong>Drawings</strong> → filter <strong>Pending L2</strong>. These are drawings that Team Lead has already reviewed and passed (L1 done).</li>
+<li>Open the drawing card → tap the file link to download and review the PDF.</li>
+<li>Check: drawing number matches register, revision is correct, drawing is complete and meets standards for issue.</li>
+<li>Tap <strong>Approve</strong> → drawing version status becomes <strong>approved</strong>. This is the final official approval. The drawing is now in the approved set.</li>
+<li>Tap <strong>Reject</strong> with comments → drawing goes back to the uploader for revision. They must upload a new version. The rejected version is preserved in history.</li>
+</ul>
+<div class="tip">Design Head approves design-stream drawings (architectural, structural, interior). Services Head approves services-stream drawings (MEP, plumbing, HVAC, firefighting). Each sees only their stream's pending L2 queue by default.</div>
+<div class="note">The AI drawing check may have flagged anomalies before the drawing reached you. Check the AI check results on the drawing card — these are advisory only, but worth reviewing before L2 approval.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Manage BOQ Items</div><div class="flow-meta">Materials tab → BOQ → review and manage items</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Materials</strong> <span class="nh">Money tab</span> → <strong>BOQ</strong> tab.</li>
+<li>The BOQ is uploaded as an Excel by PMC Head or yourself. Each row is a line item: description, unit, quantity, unit rate, amount, trade/category.</li>
+<li>To soft-delete a BOQ item: tap the item → <strong>Delete</strong>. The item is marked deleted but preserved in history (it is not physically removed).</li>
+<li>To view material requests raised against each BOQ item: tap the item → <strong>Material Requests</strong> sub-tab.</li>
+<li>New BOQ versions are uploaded when there are scope changes — each version is preserved. The current version drives payment validation.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">4</div><div><div class="flow-title">Review Material Requests</div><div class="flow-meta">Materials tab → Requests → approve or reject</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Materials</strong> → <strong>Requests</strong> tab. See requests raised by team members against BOQ items.</li>
+<li>Each request shows: BOQ line item, quantity requested, required-by date, notes from the requester.</li>
+<li>Review whether the quantity and timing are reasonable given the schedule.</li>
+<li>Approve or reject with comments. Approved requests are the basis for procurement action by PMC Head.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">5</div><div><div class="flow-title">Propose Vendor Bank Detail Change</div><div class="flow-meta">Vendor Master → vendor → Propose Bank Change</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Vendor Master</strong> → find the vendor → tap <strong>Propose Bank Change</strong>.</li>
+<li>Enter the new bank account number, IFSC, account holder name, and/or UPI ID.</li>
+<li>Provide the reason and attach supporting documentation (vendor letter, cancelled cheque scan).</li>
+<li>Submit → a Principal or Design Principal (or Finance Admin) must approve this change. You as the proposer cannot be the approver.</li>
+<li>The approver will verify with the vendor directly via Matrix before approving.</li>
+</ul>
+<div class="warn">Do not propose a bank detail change based solely on an email or WhatsApp message from an unverified number claiming to be the vendor. Always call the vendor on their known registered number first.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Sign the Weekly Report (Your Stream)</div><div class="flow-meta">Weekly Report → your section → Sign</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Weekly Report</strong>. Find the current week's report.</li>
+<li>Review your section: drawing status summary (approved / pending / rejected this week), material request status, open issues in your stream.</li>
+<li>Tap <strong>Sign [Design / Services] Section</strong>. Or respond to the Matrix sign-off poll — both methods count.</li>
+<li>Once PMC Head, Design Head, and Services Head all sign, Principal's Approve button unlocks.</li>
+</ul>
+</div></div>
+</div>
+</div>
+
+<!-- SITE MANAGER -->
+<div id="page-site" class="page">
+<div class="section-title">Site Manager / Senior Site Manager</div>
+<div class="section-sub">On-site daily operations — reports, GRNs, photos, issues, task progress</div>
+
+<div class="fg"><div class="fg-title">Daily Routine</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Submit Daily Report</div><div class="flow-meta">Today's Report → fill in → Submit</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Today's Report</strong> from your home screen (it pre-fills today's date).</li>
+<li>Fill in <strong>Activity Summary</strong>: what work happened today, which areas of the site, what materials were used.</li>
+<li>Fill in <strong>Labour Headcount</strong>: for each trade on site today (mason, carpenter, plumber, electrician, unskilled, etc.) enter the contractor name and headcount. You can also do this from the Labour tab separately.</li>
+<li>Upload <strong>Site Photos</strong> (minimum 3–5 recommended). Tag each photo with the relevant schedule task. Add a caption describing what the photo shows.</li>
+<li>Note any <strong>Issues or Blockers</strong>: material not arrived, design query pending, equipment breakdown, weather stoppage, safety incident.</li>
+<li>Tap <strong>Submit</strong> → report goes to PMC Head for review. Status: <span class="ic">submitted → pending_review</span>.</li>
+<li>You can edit a submitted report until PMC Head approves it. Once approved, it is locked.</li>
+</ul>
+<div class="note">Reports must be submitted on the same calendar date. The submission window closes 2 days after the report date. If you miss it, notify PMC Head — they cannot extend the window but can note it in the next report.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">Update Task Progress</div><div class="flow-meta">Schedule → TODAY view → drag slider or mark complete</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Schedule</strong> <span class="nh">Work tab</span> → switch to <strong>TODAY</strong> view. Shows only tasks active today from the current approved schedule.</li>
+<li>For each task: drag the <strong>% complete slider</strong> to the current progress level.</li>
+<li>Tap <strong>Mark Complete</strong> when a task is 100% done. This triggers a task validation step — PMC Head reviews completions above a threshold.</li>
+<li>Use the <strong>LOOK AHEAD</strong> view to see tasks scheduled for the next 1–4 weeks. Add planning notes (e.g. "need shuttering material by Friday") for upcoming tasks.</li>
+<li>Use <strong>Past Notes</strong> section to see what you noted in the last 14 daily reports — useful for continuity.</li>
+</ul>
+<div class="tip">Progress updates directly feed the schedule health dashboard that PMC Head and Principal see. Keep updates accurate and timely — weekly report data pulls from these.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Raise a GRN (Goods Received Note)</div><div class="flow-meta">GRN tab → + Raise GRN</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>When a material delivery arrives at site, raise a GRN immediately.</li>
+<li>Go to <strong>GRN</strong> → tap <strong>+ Raise GRN</strong>.</li>
+<li>Select the <strong>vendor</strong> (must be an engaged vendor on this project).</li>
+<li>Fill in: <strong>Material description</strong>, <strong>Quantity received</strong> (count, kg, bags, etc.), <strong>Unit</strong>, <strong>Unit rate</strong> (from the purchase order or agreed rate).</li>
+<li>Attach the <strong>delivery challan or invoice photo</strong> (required — take a photo of the paper that came with the delivery).</li>
+<li>Submit → GRN enters <span class="ic">pending</span> status. PMC Head (or Senior Site Manager for small amounts) reviews and approves.</li>
+</ul>
+<div class="note">A payment request for material supply cannot be raised without a corresponding approved GRN. Raise the GRN on the same day as delivery — do not batch multiple deliveries into one GRN unless they arrived together.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">4</div><div><div class="flow-title">Raise an Urgent / Ad-hoc Payment</div><div class="flow-meta">Payments tab → Raise Urgent</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>For immediate cash purchases (local shops, petty suppliers not in the vendor master).</li>
+<li>Go to <strong>Payments</strong> → scroll to <strong>Urgent / Ad-hoc Payments</strong> → tap <strong>+ Raise Urgent</strong>.</li>
+<li>Enter amount, description of what was bought, and the reason it was urgent.</li>
+<li>Upload the invoice/receipt photo (mandatory — even a handwritten receipt counts).</li>
+<li>Select payment type <strong>Adhoc (shop)</strong> and fill in payee details: name, phone, UPI ID or bank account.</li>
+<li>Submit → PMC Head reviews. If below a threshold, PMC can approve directly. Above threshold, Principal must also approve before Finance Admin can confirm and pay.</li>
+</ul>
+<div class="tip">Always get a receipt, even handwritten. Without a receipt, the payment request may be rejected. Take a clear photo of it on-site immediately.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">5</div><div><div class="flow-title">Raise an Issue or Snag</div><div class="flow-meta">Issues tab → + Raise Issue</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">open</div><div class="sf-a">→</div><div class="sf-s">in_progress</div><div class="sf-a">→</div><div class="sf-s sf-done">resolved</div><div class="sf-a"> / </div><div class="sf-s sf-red">escalated</div></div>
+<ul class="steps">
+<li>Go to <strong>Issues</strong> <span class="nh">Work tab</span> → tap <strong>+ Raise Issue</strong>.</li>
+<li>Select type: <strong>Issue</strong> (blocking problem), <strong>Snag</strong> (defect / quality problem — formerly NCR, now unified under Issues in v5.9), <strong>Drawing Query</strong> (question about a drawing — these are folded into Issues since v2).</li>
+<li>Fill in: title, detailed description, severity (critical / major / minor), location on site, affected trade/discipline.</li>
+<li>Attach photos (strongly recommended for snags — before/after photos are essential).</li>
+<li>Assign to a team member if known (optional — PMC Head may reassign).</li>
+<li>Submit → issue is <strong>open</strong>. PMC Head and principals see it on the dashboard. A WhatsApp alert goes to the Site Manager (yourself) as confirmation and to the relevant design team member if it's a drawing query.</li>
+<li>For snag/defect closure: once fixed, tap <strong>Mark Resolved</strong> and attach a "resolved" photo showing the fix.</li>
+</ul>
+<div class="note">Quality NCRs that are system-generated from the GRN workflow (material quality failures) appear in the Issues list automatically — you do not raise these manually. They are created by the system when a GRN triggers a quality check flag.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Upload Site Photos</div><div class="flow-meta">Photos tab → + Upload</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Photos</strong> <span class="nh">Work tab</span> → tap <strong>+ Upload</strong>.</li>
+<li>Select photos from your phone. Multiple photos can be uploaded at once.</li>
+<li>For each photo: tag with the relevant schedule task, add a caption explaining what the photo shows.</li>
+<li>The AI photo-tagging feature may auto-suggest tags and identify materials/activities — review AI suggestions before saving.</li>
+<li>Photos are visible to PMC Head, Design/Services Heads, and Principals in real time.</li>
+</ul>
+<div class="tip">Best photo types: freshly poured concrete, structural connections, before/after of a completed activity, material delivery with challan visible, safety hazards that need addressing.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">7</div><div><div class="flow-title">Record a Site Visit Observation</div><div class="flow-meta">Meetings → site visit record → + Observation</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>When a PMC Head or Principal conducts a site visit, they create a site visit record. You can add observations to it.</li>
+<li>Go to <strong>Meetings</strong> → find the site visit record for today.</li>
+<li>Tap <strong>+ Observation</strong> → describe what was observed, location, severity. Attach photos.</li>
+<li>Trainees can also add site visit observations (it is one of their allowed write actions).</li>
+<li>Observations are part of the visit record — they do not automatically generate action items. Escalate critical findings to Issues if needed.</li>
+</ul>
+</div></div>
+</div>
+</div>
+
+<!-- FINANCE ADMIN -->
+<div id="page-finance" class="page">
+<div class="section-title">Finance Admin</div>
+<div class="section-sub">Vendor clearance, payment confirmation, ICICI export, invoices, receipts, petty cash</div>
+
+<div class="fg"><div class="fg-title">Vendor Clearance</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Clear a Vendor for Payments</div><div class="flow-meta">Vendor Master → Pending Clearance → verify → Clear</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">registered (by PMC)</div><div class="sf-a">→</div><div class="sf-s">pending finance clearance</div><div class="sf-a">→</div><div class="sf-s sf-done">cleared</div><div class="sf-a"> / </div><div class="sf-s sf-red">rejected</div></div>
+<ul class="steps">
+<li>Go to <strong>Vendor Master</strong> <span class="nh">Money tab</span> → filter <strong>Pending Finance Clearance</strong>.</li>
+<li>For each pending vendor, verify: <strong>PAN</strong> (valid format, matches the name), <strong>Bank account number + IFSC</strong> (do a penny test or verify from a cancelled cheque scan), <strong>GSTIN</strong> (valid format, active on GST portal), <strong>Account holder name</strong> matches PAN name.</li>
+<li>Check that the vendor has confirmed their bank details — ideally via Matrix message or a phone call. The ICICI batch will reject payments to unverified accounts.</li>
+<li>Tap <strong>✓ Clear</strong> → vendor status moves to <strong>cleared</strong>. PMC Head can now engage this vendor on a project.</li>
+<li>Tap <strong>Reject</strong> with reason → PMC Head is notified and must re-register with corrected details.</li>
+</ul>
+<div class="warn"><strong>Do not clear a vendor based on PAN alone.</strong> Bank account verification is critical — a wrong account number means payments go to the wrong recipient and may be unrecoverable. Always verify bank details from a primary source (cancelled cheque, official letter, or Matrix confirmation from the vendor).</div>
+</div></div>
+</div>
+
+<div class="fg"><div class="fg-title">Payment Confirmation and ICICI Export</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">Confirm Payments and Download ICICI Excel</div><div class="flow-meta">Payments → Finance view → Confirm → Download ICICI Excel</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">principal_approved</div><div class="sf-a">→</div><div class="sf-s">finance_confirmed</div><div class="sf-a">→</div><div class="sf-s sf-done">paid (ICICI uploaded)</div></div>
+<ul class="steps">
+<li>Go to <strong>Payments</strong> → Finance view. Shows all <span class="ic">principal_approved</span> payments awaiting Finance confirmation.</li>
+<li>For each payment: verify the vendor name, amount, and that the bank details on file match what you cleared during vendor clearance. If bank details changed recently, ensure the change went through the dual-approval process.</li>
+<li>Tap <strong>Confirm Payment</strong> on each → moves to <span class="ic">finance_confirmed</span>.</li>
+<li>Once all payments for the week are confirmed, tap <strong>Download ICICI Excel</strong>. This generates a 19-column PAB (Payment Advice Bulk) format file compatible with ICICI Corporate Banking bulk upload.</li>
+<li>Log into ICICI Corporate → <strong>Bulk Payments</strong> → upload the Excel file → verify the batch total matches → submit for processing.</li>
+</ul>
+<div class="note"><strong>Download the ICICI Excel only after ALL principal approvals for that week are done.</strong> Partial batches cause reconciliation mismatches — you may end up paying some vendors twice or missing others. Always confirm the total batch amount in ICICI matches the sum of all finance_confirmed payments in the system before uploading.</div>
+</div></div>
+</div>
+
+<div class="fg"><div class="fg-title">Proforma Invoices (PI)</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Generate Proforma Invoice — PDF and Tally XML</div><div class="flow-meta">Finance → Proforma Invoices → select invoice → Download PDF / Download Tally XML</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Finance</strong> → <strong>Proforma Invoices</strong>. See all PIs raised for client billing.</li>
+<li>Select a PI → you can download it in two formats:
+  <br><strong>PDF:</strong> HTML-rendered invoice with NU Associates letterhead, client details, line items, GST breakup. Send this to the client.
+  <br><strong>Tally XML:</strong> Import file for Tally Prime, containing a Sales Voucher (for the invoice) and a Receipt Voucher (for payment received). Import into Tally via Gateway of Tally → Import → Vouchers.
+</li>
+<li><strong>GST calculation:</strong> For intra-state supplies: CGST at 9% + SGST at 9% = 18% total. For inter-state: IGST at 18%. The PI uses HSN code <strong>998311</strong> (Architectural and Engineering Services). GST rate is stored as <span class="ic">gst_pct</span> on the PI and is split equally between CGST and SGST.</li>
+<li>Check the PI for accuracy before sending: client name and GSTIN, NU entity and GSTIN, invoice number and date, service description, amounts, and payment due date.</li>
+</ul>
+<div class="note">The Tally XML generates two vouchers: a <strong>Sales Voucher</strong> (records the service income) and a <strong>Receipt Voucher</strong> (records the amount received from the client). If the client pays in instalments, a separate Receipt Voucher is generated per payment. Do not modify the XML manually — regenerate from the system if corrections are needed.</div>
+</div></div>
+</div>
+
+<div class="fg"><div class="fg-title">Client Receipts and Petty Cash</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">4</div><div><div class="flow-title">Record Client Receipt</div><div class="flow-meta">Finance → Client Receipts → + Record Receipt</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>When a client pays (against a PI or advance), go to <strong>Finance</strong> → <strong>Client Receipts</strong> → <strong>+ Record Receipt</strong>.</li>
+<li>Select the project, the client, and the PI (if the payment is against a specific invoice). Enter the amount received, date, payment mode (NEFT / RTGS / cheque / UPI), and bank reference number.</li>
+<li>Attach the bank statement line or payment confirmation screenshot.</li>
+<li>Submit → the receipt is recorded and the outstanding balance against that PI updates automatically.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">5</div><div><div class="flow-title">Manage Petty Cash</div><div class="flow-meta">Finance → Petty Cash → log transactions</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Finance</strong> → <strong>Petty Cash</strong>. See the running balance for each project's petty cash float.</li>
+<li>Tap <strong>+ Add Transaction</strong> to record an expense: description, amount, date, category (stationery / travel / minor tools / tea/coffee / site misc), receipt photo.</li>
+<li>Petty cash transactions are included in the weekly financial summary and appear in the budget vs actual report.</li>
+<li>To replenish the float, record a credit entry when cash is handed over to the site manager.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Propose Vendor Bank Detail Change</div><div class="flow-meta">Same dual-approval process as described in Principal tab</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Vendor Master</strong> → find the vendor → <strong>Propose Bank Change</strong>.</li>
+<li>Enter new bank details and reason. Attach evidence (vendor letter + cancelled cheque scan).</li>
+<li>Submit → a Principal or Design Principal must approve (since you are Finance Admin, you cannot approve your own proposal).</li>
+<li>The approver will verify with the vendor directly via Matrix before approving.</li>
+</ul>
+<div class="warn">Do not accept bank change requests via email or unverified WhatsApp. Call the vendor directly on their registered phone number to confirm before even raising the proposal.</div>
+</div></div>
+</div>
+</div>
+
+<!-- DESIGN TEAM -->
+<div id="page-team" class="page">
+<div class="section-title">Design Team</div>
+<div class="section-sub">Team Lead, Jr. Architect, Jr. Engineer, Services Engineer, Coordinator — drawings, materials, submittals</div>
+
+<div class="fg"><div class="fg-title">Drawings</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Upload a Drawing</div><div class="flow-meta">Drawings tab → + Upload Drawing</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">uploaded</div><div class="sf-a">→</div><div class="sf-s">L1 Review (Team Lead)</div><div class="sf-a">→</div><div class="sf-s">L2 Approval (Head)</div><div class="sf-a">→</div><div class="sf-s sf-done">approved</div></div>
+<ul class="steps">
+<li>Go to <strong>Drawings</strong> → tap <strong>+ Upload Drawing</strong>.</li>
+<li>Select the drawing from the register dropdown. <strong>Only drawing numbers that exist in the register can be uploaded.</strong> If your number is missing, ask Design/Services Head to add it to the register.</li>
+<li>Set the <strong>revision number</strong> (e.g. R0 for first issue, R1 for first revision). Revision must be higher than the last uploaded revision for that drawing number.</li>
+<li>Upload the <strong>PDF file</strong>. File must be under the size limit (check with IT admin if upload fails).</li>
+<li>The drawing enters the <strong>L1 Review</strong> queue for your Team Lead. You cannot upload and then immediately see it as approved — it must go through the review chain.</li>
+<li>The AI drawing-check system may automatically run checks on your file and flag potential anomalies (missing title block, scale issues, etc.). These flags appear on the drawing card — they are advisory, not blocking.</li>
+</ul>
+<div class="note">If you upload a revision and then realise it was wrong, you can request withdrawal before L1 approval. After L1 approval (and especially after L2), the drawing cannot be deleted — only a newer revision can supersede it.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">L1 Drawing Review (Team Lead only)</div><div class="flow-meta">Drawings tab → filter Pending L1 → review → Approve or Reject</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Team Lead only. Go to <strong>Drawings</strong> → filter <strong>Pending L1</strong>.</li>
+<li>Open the drawing card → download and review the PDF thoroughly.</li>
+<li>Check: drawing number matches the register entry, revision is correct, drawing is complete, meets internal standards, and is ready for the Head to review.</li>
+<li>Tap <strong>Approve L1</strong> → drawing moves to <span class="ic">pending_l2</span> (Design Head or Services Head queue).</li>
+<li>Tap <strong>Reject</strong> with detailed comments → drawing goes back to the uploader. They must upload a corrected file as a new attempt (same revision number). The rejected version is preserved in history.</li>
+</ul>
+<div class="tip">Your L1 review is the first quality gate. Be thorough — catching errors at L1 saves time versus a Head rejecting at L2.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Raise a Material Request</div><div class="flow-meta">Materials tab → + Raise Request</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Materials</strong> → tap <strong>+ Raise Request</strong>.</li>
+<li>Select the BOQ line item this request is for. Enter quantity required, unit, required-by date, and notes (e.g. "needed for slab shuttering on 28 June").</li>
+<li>Submit → request goes to Design/Services Head for review and approval.</li>
+<li>Approved material requests are passed to PMC Head for procurement action.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">4</div><div><div class="flow-title">Log and Track Submittals</div><div class="flow-meta">Submittals tab → + New Submittal</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Submittals</strong> → tap <strong>+ New Submittal</strong>.</li>
+<li>Fill in: submittal title, type (shop drawing / material sample / mock-up / method statement / test report), due date, and which drawing or specification it relates to.</li>
+<li>Upload the submittal document.</li>
+<li>Design/Services Head reviews and either approves or returns with comments.</li>
+<li>Track open submittals in the <strong>Submittals</strong> tab — overdue submittals appear highlighted.</li>
+</ul>
+</div></div>
+</div>
+</div>
+
+<!-- TRAINEE -->
+<div id="page-trainee" class="page">
+<div class="section-title">Trainee</div>
+<div class="section-sub">Read-only on most features — limited write access as listed below</div>
+
+<div class="fg"><div class="fg-title">What Trainees CAN Do (Write Access)</div>
+<table class="t">
+<tr><th>Feature</th><th>What you can do</th><th>What is blocked</th></tr>
+<tr><td><strong>Daily Reports</strong></td><td>Submit your own daily report (same form as Site Manager)</td><td>Cannot approve, flag, or view others' reports from a management view</td></tr>
+<tr><td><strong>Photos</strong></td><td>Upload site photos with tags and captions</td><td>Cannot delete or edit photos others uploaded</td></tr>
+<tr><td><strong>Issues &amp; Snags</strong></td><td>Raise new issues, snags, and drawing queries; add comments; mark your own as resolved</td><td>Cannot escalate to NCR level or close others' issues</td></tr>
+<tr><td><strong>Site Visit Observations</strong></td><td>Add observations to an existing site visit record</td><td>Cannot create the site visit record itself (PMC Head does that)</td></tr>
+<tr><td><strong>Lessons Learned</strong></td><td>Write your own reflection/input on a completed or ongoing project</td><td>Cannot publish, generate, or view others' lessons-learned summaries</td></tr>
+<tr><td><strong>Password</strong></td><td>Change your own password (via Change Password in profile)</td><td>Cannot reset others' passwords</td></tr>
+</table>
+</div>
+
+<div class="fg"><div class="fg-title">What Trainees CANNOT Access (Blocked)</div>
+<table class="t">
+<tr><th>Blocked Section</th><th>Why</th></tr>
+<tr><td>Payments, Payment Requests, Invoices, Finance</td><td>Sensitive financial data</td></tr>
+<tr><td>Client data</td><td>Commercial sensitivity</td></tr>
+<tr><td>Vendor Fee Schedule</td><td>Commercial/contractual sensitivity</td></tr>
+<tr><td>Approvals, Change Orders, Claims</td><td>Governance — approval rights require a formal role</td></tr>
+<tr><td>Meetings / Action Items (read-only for MOM content; cannot create or manage)</td><td>Governance</td></tr>
+<tr><td>User Management</td><td>Admin function</td></tr>
+<tr><td>Drawing Versions (cannot upload)</td><td>Must be a registered design team member</td></tr>
+<tr><td>Schedule Upload / Update</td><td>Schedule management is PMC Head's responsibility</td></tr>
+<tr><td>Measurements</td><td>Quantity take-offs require certification</td></tr>
+<tr><td>Handover Events / Closure</td><td>Completion authority reserved for PMC Head / Principal</td></tr>
+<tr><td>Lessons Learned — Generate / Publish</td><td>AI summary and formal publication require Design/PMC Head approval</td></tr>
+</table>
+<div class="note">Trainees have read access to: schedule (view only), drawings (view approved drawings), daily reports (their own), issues (all open issues for their project), photos (view all), and general project info. All blocked sections return a <span class="ic">403 Trainees do not have access to this section</span> error.</div>
+</div>
+
+<div class="fg"><div class="fg-title">Trainee Flows</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">1</div><div><div class="flow-title">Submit a Daily Report (Trainee)</div><div class="flow-meta">Same process as Site Manager</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Today's Report</strong> → fill in your activity summary for the day (what you observed, what you assisted with).</li>
+<li>Upload photos of anything noteworthy you saw on site.</li>
+<li>Note any issues or questions you want to flag.</li>
+<li>Tap <strong>Submit</strong> → your supervisor (PMC Head or Design/Services Head) reviews it.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">2</div><div><div class="flow-title">Raise an Issue or Snag</div><div class="flow-meta">Issues tab → + Raise Issue</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Issues</strong> → tap <strong>+ Raise Issue</strong>.</li>
+<li>Select type (Issue / Snag / Drawing Query), fill description, severity, location, attach photos.</li>
+<li>Submit. PMC Head sees it and may reassign or escalate.</li>
+<li>You can add comments to your own open issues. You cannot close or resolve others' issues.</li>
+</ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">3</div><div><div class="flow-title">Write Lessons Learned</div><div class="flow-meta">Lessons tab → + Add Your Input</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>Lessons Learned</strong> for a project.</li>
+<li>Tap <strong>+ Add Your Input</strong> → write a free-text reflection: what went well, what could be improved, what you learned.</li>
+<li>Your input is stored. The Design Head or PMC Head can use the AI summary feature (not available to trainees) to synthesise all inputs into a structured lessons-learned document.</li>
+</ul>
+</div></div>
+</div>
+</div>
+
+<!-- ALL FLOWS -->
+<div id="page-flows" class="page">
+<div class="section-title">All Flows &amp; Rules — Quick Reference</div>
+<div class="section-sub">Complete status flows, role matrix, validation rules, and error codes</div>
+
+<div class="fg"><div class="fg-title">Complete Status Flow Table</div>
+<table class="t">
+<tr><th>Feature</th><th>Status sequence</th><th>Who initiates</th><th>Who approves each step</th></tr>
+<tr><td><strong>Daily Report</strong></td><td>draft → submitted → pending_review → approved / flagged</td><td>Site Manager / Trainee</td><td>PMC Head approves or flags</td></tr>
+<tr><td><strong>GRN</strong></td><td>pending → approved / rejected</td><td>Site Manager</td><td>Sr. Site Manager (≤5% budget) OR PMC Head OR Principal</td></tr>
+<tr><td><strong>Payment Request (standard)</strong></td><td>pending_pmc → pmc_approved → pending_principal → principal_approved → paid</td><td>PMC Head</td><td>PMC Head (PMC step) → Principal (final step) → Finance Admin (confirm + ICICI)</td></tr>
+<tr><td><strong>Payment Request (urgent/adhoc)</strong></td><td>pending → pmc_approved → (pending_principal if above threshold) → finance_confirmed → paid</td><td>Site Manager / PMC Head</td><td>PMC Head below threshold; Principal above threshold; Finance confirms</td></tr>
+<tr><td><strong>Drawing Version</strong></td><td>uploaded → l1_review → l2_pending → l2_approved / rejected</td><td>Design team member</td><td>Team Lead (L1) → Design Head or Services Head (L2)</td></tr>
+<tr><td><strong>Schedule Version</strong></td><td>uploaded → approval_requested → pending_principal → approved (current)</td><td>PMC Head</td><td>Principal</td></tr>
+<tr><td><strong>MOM</strong></td><td>draft → approved (internal) → issued (to client)</td><td>PMC Head</td><td>PMC Head (self-approves internally) → PMC Head issues to client (separate step)</td></tr>
+<tr><td><strong>Change Order (CN)</strong></td><td>draft → signed → approved</td><td>PMC Head</td><td>PMC Head (signs) → Principal (approves)</td></tr>
+<tr><td><strong>Vendor Master</strong></td><td>registered → pending_finance_clearance → cleared / rejected</td><td>PMC Head</td><td>Finance Admin</td></tr>
+<tr><td><strong>Vendor Engagement</strong></td><td>proposed → pending_principal → approved / rejected</td><td>PMC Head (after vendor cleared)</td><td>Principal</td></tr>
+<tr><td><strong>Vendor Bank Change</strong></td><td>proposed → pending_approval → approved / rejected / cancelled</td><td>Finance Admin or any Head</td><td>Different person from proposer: Principal/Design Principal (if proposer is Finance Admin) or Finance Admin/Principal (if proposer is Head)</td></tr>
+<tr><td><strong>Weekly Report</strong></td><td>draft → pmc_signed + design_signed + services_signed → principal_approved → locked</td><td>System auto-generates</td><td>Three heads sign independently → Principal approves</td></tr>
+<tr><td><strong>Project Status</strong></td><td>initialising → active → completed / on_hold / cancelled</td><td>Principal creates</td><td>Auto-activates on 7-item checklist complete; Principal moves to completed/hold/cancelled</td></tr>
+<tr><td><strong>Issue / Snag</strong></td><td>open → in_progress → resolved / escalated</td><td>Site Manager / Trainee</td><td>PMC Head manages lifecycle; Site Manager marks own issues resolved</td></tr>
+</table>
+</div>
+
+<div class="fg"><div class="fg-title">Payment Validation Rules (Hard Blocks vs Soft Warnings)</div>
+<table class="t">
+<tr><th>Rule</th><th>Type</th><th>What happens</th></tr>
+<tr><td>Amount > vendor's contract value for this engagement</td><td><strong>Hard Block</strong></td><td>Payment creation fails with clear error. Cannot override. Fix: check if CN has increased scope, or if amount is keyed in wrong.</td></tr>
+<tr><td>Cumulative payments already ≥ vendor's contract value</td><td><strong>Hard Block</strong></td><td>Payment creation fails. Cannot pay more than contracted without a formal CN increasing the contract value.</td></tr>
+<tr><td>Single payment > 50% of contract value</td><td><strong>Soft Warning</strong></td><td>Warning shown to PMC Head and Principal. Can proceed but must acknowledge warning. Logged in audit trail.</td></tr>
+<tr><td>Payment > 3× vendor's average bill size (based on prior payments)</td><td><strong>Soft Warning</strong></td><td>Warning shown. Principal cannot use "Approve All" — must approve individually and confirm they saw the warning.</td></tr>
+<tr><td>Amount format</td><td>Auto-parsed</td><td>System accepts ₹/Rs/INR prefix and Indian comma grouping (₹1,23,456). No manual stripping needed.</td></tr>
+</table>
+</div>
+
+<div class="fg"><div class="fg-title">Role Permission Matrix</div>
+<table class="t">
+<tr><th>Action</th><th>Principal</th><th>PMC Head</th><th>Design/Services Head</th><th>Site Manager</th><th>Finance Admin</th><th>Design Team</th><th>Trainee</th></tr>
+<tr><td>Create project</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Upload schedule</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Approve schedule</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Submit daily report</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+<tr><td>Approve daily report</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Raise GRN</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Approve GRN</td><td>✅</td><td>✅</td><td>—</td><td>Sr. only (≤5%)</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Raise payment request</td><td>—</td><td>✅</td><td>—</td><td>Urgent only</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>PMC-approve payment</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Final approve payment</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Confirm payment (ICICI)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
+<tr><td>Clear vendor</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
+<tr><td>Register vendor</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Engage vendor</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Approve vendor engagement</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Propose vendor bank change</td><td>—</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
+<tr><td>Approve vendor bank change</td><td>✅</td><td>—</td><td>Partial*</td><td>—</td><td>Partial*</td><td>—</td><td>—</td></tr>
+<tr><td>Upload drawing</td><td>—</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>✅</td><td>—</td></tr>
+<tr><td>L1 drawing review</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Team Lead only</td><td>—</td></tr>
+<tr><td>L2 drawing approval</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Create / issue MOM</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Raise issue / snag</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>✅</td></tr>
+<tr><td>Sign weekly report</td><td>—</td><td>✅ (PMC section)</td><td>✅ (own section)</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Approve weekly report</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Proforma invoice / Tally XML</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
+<tr><td>Client receipts</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
+<tr><td>Reset any user's password</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Upload / update site photos</td><td>—</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+<tr><td>Raise material request</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>✅</td><td>—</td></tr>
+<tr><td>Validate labour</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Draft / sign change order</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Approve change order</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+</table>
+<p style="font-size:11px;color:var(--muted);margin-top:6px">*Vendor bank change approval: Finance Admin can approve if proposer was a Head; Principal/Design Principal can approve in all cases. Proposer and approver must always be different people.</p>
+</div>
+
+<div class="fg"><div class="fg-title">Error Codes You May See</div>
+<table class="t">
+<tr><th>Error / Code</th><th>Meaning</th><th>What to do</th></tr>
+<tr><td><span class="ic">MUST_CHANGE_PASSWORD</span> (403)</td><td>Account has force_password_change=true — set by IT admin or first login</td><td>Change your password immediately from the prompt. You cannot use any other feature until you do.</td></tr>
+<tr><td><span class="ic">STALE_VERSION</span> (409)</td><td>The record was modified by someone else after you opened it</td><td>Refresh the page. Check if action is still needed. Re-attempt if so.</td></tr>
+<tr><td>State transition failed</td><td>The record's current status doesn't match what the system expected (concurrent update)</td><td>Refresh and re-check current status. Re-attempt if still pending.</td></tr>
+<tr><td>Hard block — amount exceeds contract value</td><td>Payment amount or cumulative total exceeds the vendor's engagement contract value</td><td>Check if a CN approved an increase. If yes, update engagement value. If no, the amount may be wrong.</td></tr>
+<tr><td>403 — Trainees do not have access</td><td>Trainee account tried to access a blocked section or perform a write on a restricted endpoint</td><td>Contact your team head — this action requires a different role.</td></tr>
+<tr><td>403 — Trainees are read-only on this function</td><td>Trainee tried a write action (POST/PUT/DELETE) on an endpoint not in their allowlist</td><td>Ask your team head to perform this action on your behalf.</td></tr>
+<tr><td>Drawing not in register</td><td>Upload attempted for a drawing number not in the register</td><td>Ask Design/Services Head to add the drawing number to the register first.</td></tr>
+<tr><td><span class="ic">SELF_SERVICE_OTP_REMOVED</span> (410)</td><td>Self-service password reset was removed in v3.1 (April 2026). The /request-otp and /verify-otp routes are gone.</td><td>Ask your direct manager or a Principal / Design Principal to reset your password from User Management.</td></tr>
+</table>
+</div>
+
+<div class="fg"><div class="fg-title">Common Mistakes to Avoid</div>
+<div class="note"><strong>Schedule upload:</strong> Always use the Download Template button in the Schedule tab. Column names and order are exact. Wrong column format causes an upload failure. Do not add extra columns.</div>
+<div class="note"><strong>Vendor 4-step chain:</strong> (1) Register → (2) Finance clears → (3) Engage on project → (4) Principal approves. All four must complete before a payment can be raised. If a payment is blocked, check which step is incomplete.</div>
+<div class="note"><strong>Drawing upload:</strong> Drawing number must exist in the register. Revision must be higher than the last uploaded revision for that number. Upload PDF only.</div>
+<div class="note"><strong>MOM — two separate steps:</strong> Approving locks the MOM as an internal record. Issuing sends it to the client. You can approve without issuing. You must type the exact MOM number when issuing — this prevents accidental sends.</div>
+<div class="note"><strong>Vendor bank change:</strong> Dual approval always required. Proposer ≠ approver. Always verify with vendor directly via Matrix or phone before proposing or approving.</div>
+<div class="note"><strong>Payment amount:</strong> If you see a hard block on payment amount, check: (a) is the amount keyed correctly? (b) has the vendor's contract value been updated to reflect any approved CNs? (c) is there already an earlier payment that consumed the remaining balance?</div>
+<div class="tip"><strong>Notifications:</strong> Check the bell icon for items waiting on you. The "Needs You" tab shows a count of pending actions. Action items assigned to you show in "My Actions".</div>
+<div class="tip"><strong>Stale Version error:</strong> Not a bug. Refresh and re-check. It means someone else acted first.</div>
+</div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+function toggleFlow(header) {
+  header.parentElement.classList.toggle('open');
+}
+document.querySelectorAll('.page').forEach(p => {
+  const first = p.querySelector('.flow-card');
+  if (first) first.classList.add('open');
+});
+</script>
+</body>
+</html>

@@ -443,6 +443,21 @@ app.get('/api/files/:subdir/:filename', require('./middleware/auth').requireAuth
   res.sendFile(filePath);
 });
 
+// ── HEALTH CHECK — dedicated endpoint for Docker/load-balancer probes.
+// Checks DB connectivity; returns 503 if DB is unreachable so upstream
+// orchestrators take the instance out of rotation before users see errors.
+// Deliberately unauthenticated (must be reachable without a session cookie).
+app.get('/health', async (req, res) => {
+  try {
+    const db = require('./middleware/db');
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', ts: new Date().toISOString() });
+  } catch (err) {
+    console.error('[health] DB check failed:', err.message);
+    res.status(503).json({ status: 'error', reason: 'db_unreachable' });
+  }
+});
+
 // ── PWA — serve index.html for all non-API routes
 // Note: /uploads/ is intentionally NOT served statically — all uploaded
 // content is accessible only via the authenticated /api/files/:subdir/:filename
@@ -473,6 +488,19 @@ scheduleTask(() => overdueCheck.run(), 15 * 60 * 1000, 'overdue-checker');
 // so it costs nothing in DRY_RUN environments.
 scheduleTask(() => matrixOutboxDrain.run(), 2 * 60 * 1000, 'matrix-outbox-drain');
 
+// Matrix poll reader — scan rooms for new votes and expire overdue polls.
+// Runs every 60 seconds (same cadence as the standalone cron script).
+// The standalone scripts/matrix-poll-reader.js can also be set up as an
+// external cron for redundancy; having both is safe — processVotesForRoom
+// advances a per-room cursor (matrix_reader_cursor), so concurrent runs
+// just skip already-seen events rather than double-dispatching.
+const matrixReplyActions = require('./services/matrix-reply-actions');
+const db = require('./middleware/db');
+scheduleTask(async () => {
+  await matrixReplyActions.expireOverdue(db);
+  await matrixReplyActions.processVotes(db);
+}, 60 * 1000, 'matrix-poll-reader');
+
 // Expire overdue approvals every 15 minutes. Cheap UPDATE; only touches
 // rows whose expires_at has passed and that are still 'pending'.
 const approvalsService = require('./services/approvals');
@@ -493,9 +521,20 @@ app.use(olErrorHandler);
 app.use(require('./middleware/error-handler').errorHandler);
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`nu PMC server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+
+  // Graceful shutdown on SIGTERM (PM2 sends this before SIGKILL).
+  // Stops accepting new connections, waits for in-flight requests to finish,
+  // then exits cleanly. Prevents mid-transaction aborts on deploy restarts.
+  process.on('SIGTERM', () => {
+    console.log('[SIGTERM] Graceful shutdown initiated');
+    server.close(() => {
+      console.log('[SIGTERM] All connections closed — exiting');
+      process.exit(0);
+    });
   });
 }
 

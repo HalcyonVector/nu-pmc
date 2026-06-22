@@ -42,9 +42,9 @@ ENTRYPOINT ["/sbin/tini", "--"]
 
 EXPOSE 3100
 
-# Simple health check — nu PMC has no dedicated /health endpoint, so probe
-# the login page. A 200 response means node + session + DB are all alive.
+# Health check — probes /health which verifies node + DB connectivity.
+# Returns 503 if DB is unreachable so orchestrators take the instance out of rotation.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -f --max-time 3 http://localhost:3100/ || exit 1
+  CMD curl -f --max-time 3 http://localhost:3100/health || exit 1
 
 CMD ["node", "server.js"]

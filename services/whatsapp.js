@@ -218,7 +218,7 @@ async function sendTemplate(to, templateKey, vars = {}) {
 const TEMPLATES = {
   drawing_issued:    process.env.TWILIO_TMPL_DRAWING_ISSUED,
   query_raised:      process.env.TWILIO_TMPL_QUERY_RAISED,
-  otp_reset:         process.env.TWILIO_TMPL_OTP,
+  // otp_reset removed — /request-otp route removed in v3.1 (April 2026); returns 410
   daily_report:      process.env.TWILIO_TMPL_DAILY_REPORT,
   payment_confirmed: process.env.TWILIO_TMPL_PAYMENT_CONFIRMED,
   defect_raised:     process.env.TWILIO_TMPL_DEFECT_RAISED,

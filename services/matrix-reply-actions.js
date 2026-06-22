@@ -427,10 +427,14 @@ async function processDrawingQueryReplies(db, roomId, events) {
  * @returns {Promise<{rooms:number, scanned:number, dispatched:number, ignored:number}>}
  */
 async function processVotes(db) {
+  // matrix_pending_polls was dropped in v5.39-phase4-cleanup. Active rooms
+  // are now tracked via signoff_instances (v5.32+). Scan rooms that have
+  // in_progress signoff instances — those are the rooms with live polls.
   const [rooms] = await db.query(
-    `SELECT DISTINCT room_id
-       FROM matrix_pending_polls
-      WHERE status = 'pending' AND expires_at > NOW()`
+    `SELECT DISTINCT poll_room_id AS room_id
+       FROM signoff_instances
+      WHERE status = 'in_progress'
+        AND poll_room_id IS NOT NULL`
   );
 
   let totals = { rooms: rooms.length, scanned: 0, dispatched: 0, ignored: 0 };

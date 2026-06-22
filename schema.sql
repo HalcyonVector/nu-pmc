@@ -2183,8 +2183,11 @@ ALTER TABLE users ADD COLUMN whatsapp_notifications TINYINT(1) NOT NULL DEFAULT 
 CREATE TABLE matrix_rooms (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   project_id  INT UNSIGNED NULL,
-  room_type   ENUM('site','finance','design','general',
-                   'internal_principal','internal_finance','system_health')
+  -- Active project room types: coordination (team+vendors), internal (team only), finance
+  -- Legacy kept for archived rows: site, design, general (v5.28 migration renamed them)
+  room_type   ENUM('coordination','internal','finance',
+                   'internal_principal','internal_finance','system_health',
+                   'site','design','general')
                 NOT NULL,
   room_id     VARCHAR(255) NOT NULL,
   room_alias  VARCHAR(255) NULL,

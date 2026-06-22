@@ -10,14 +10,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: SSH into EC2 and pull latest code
+      - name: SSH into EC2, test, then deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd /home/ec2-user/nu-pmc
             git pull origin main
-            npm install --production
+            # Install all deps (including devDeps for Jest/Supertest)
+            npm install
+            # Run test suite — aborts deploy on any failure
+            npm test || { echo "Tests failed — deploy aborted"; exit 1; }
+            # Prune devDeps before restarting production process
+            npm prune --production
             pm2 restart all
