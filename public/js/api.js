@@ -323,6 +323,57 @@ API.reviewSubmittal= (id, d)   => API.call('PATCH', `/submittals/${id}/review`, 
 // ── WEEKLY HEALTH
 API.getWeeklyHealth = () => API.call('GET', '/weekly-health/report');
 
+// ── DRAWINGS (review actions)
+API.getDrawings          = (pid)          => API.call('GET',  `/drawings/${pid}`);
+API.getDrawingHistory    = (pid, drawId)  => API.call('GET',  `/drawings/${pid}/${drawId}/history`);
+API.approveDrawingVersion= (vid)          => API.call('POST', `/drawings/version/${vid}/approve`);
+API.rejectDrawingVersion = (vid, d)       => API.call('POST', `/drawings/version/${vid}/reject`, d);
+API.flagDrawingVersion   = (vid, d)       => API.call('POST', `/drawings/version/${vid}/flag`, d);
+
+// ── DAILY REPORTS
+API.getDailyReportToday  = (pid)          => API.call('GET',  `/daily-reports/${pid}/today`);
+API.submitDailyReport    = (pid, d, fd)   => fd
+  ? API.call('POST', `/daily-reports/${pid}/submit`, fd, true)
+  : API.call('POST', `/daily-reports/${pid}/submit`, d);
+API.approveDailyReport   = (id)           => API.call('POST', `/daily-reports/${id}/approve`);
+API.flagDailyReport      = (id, reason)   => API.call('POST', `/daily-reports/${id}/flag`, { reason });
+API.batchApproveDailyReports = (pid)      => API.call('POST', `/daily-reports/${pid}/batch-approve`);
+
+// ── MEETINGS (review/issue actions)
+API.updateMeeting        = (id, d)        => API.call('PATCH', `/meetings/${id}`, d);
+API.approveMeeting       = (id)           => API.call('POST',  `/meetings/${id}/approve`);
+API.issueMeetingToClient = (id, d)        => API.call('POST',  `/meetings/${id}/issue-to-client`, d);
+API.reissueMeeting       = (id)           => API.call('POST',  `/meetings/${id}/reissue`);
+API.unlockMeeting        = (id)           => API.call('POST',  `/meetings/${id}/unlock`);
+API.acknowledgeMeetingAction  = (id)      => API.call('PATCH', `/meetings/action-items/${id}/acknowledge`);
+API.countersignMeetingAction  = (id)      => API.call('PATCH', `/meetings/action-items/${id}/countersign`);
+API.completeMeetingAction     = (id)      => API.call('PATCH', `/meetings/action-items/${id}/complete`);
+
+// ── PAYMENT REQUESTS (review chain)
+API.pmcReviewPaymentRequest       = (id, d) => API.call('PATCH', `/payment-requests/${id}/pmc-review`, d);
+API.principalReviewPaymentRequest = (id, d) => API.call('PATCH', `/payment-requests/${id}/principal-review`, d);
+API.confirmPayment                = (id, d) => API.call('PATCH', `/payment-requests/${id}/confirm-payment`, d);
+API.raisePaymentRequest           = (pid, d)=> API.call('POST',  `/payment-requests/${pid}`, d);
+
+// ── LABOUR (single entry)
+API.validateLabourEntry = (pid, id)       => API.call('PATCH', `/labour/${pid}/${id}/validate`);
+API.rejectLabourEntry   = (pid, id, d)    => API.call('PATCH', `/labour/${pid}/${id}/reject`, d);
+
+// ── URGENT PAYMENTS
+API.getUrgentPayments   = (pid)           => API.call('GET',  `/urgent-payments/${pid}`);
+API.raiseUrgentPayment  = (pid, d, fd)    => fd
+  ? API.call('POST', `/urgent-payments/${pid}`, fd, true)
+  : API.call('POST', `/urgent-payments/${pid}`, d);
+
+// ── VENDOR MASTER (finance clearance + engagement approvals)
+API.getVendorMaster          = (q)        => API.call('GET',  `/vendors/master${q?'?q='+encodeURIComponent(q):''}`);
+API.getPendingVendorClearance = ()         => API.call('GET',  '/vendors/master/pending-clearance');
+API.clearVendor              = (id, d)    => API.call('PATCH', `/vendors/master/${id}/clear`, d);
+API.rejectVendor             = (id, d)    => API.call('PATCH', `/vendors/master/${id}/reject`, d);
+API.approveEngagement        = (pid, id)  => API.call('PATCH', `/vendors/${pid}/engagements/${id}/approve`);
+API.rejectEngagement         = (pid, id, d) => API.call('PATCH', `/vendors/${pid}/engagements/${id}/reject`, d);
+API.getEngagementHistory     = (pid, id)  => API.call('GET',   `/vendors/${pid}/engagements/${id}/history`);
+
 // ── USER MANAGEMENT
 API.getPendingUsers  = ()  => API.call('GET',  '/user-management/pending');
 API.approveUserMgmt  = (id) => API.call('POST', `/user-management/${id}/approve`);

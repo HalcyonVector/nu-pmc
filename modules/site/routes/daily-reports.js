@@ -324,6 +324,14 @@ router.post('/:id/approve',
       [id]
     );
     if (!row) return res.status(404).json({ error: 'Report not found' });
+    // SEC: manual project-scope guard (daily_reports not in SCOPE_ENTITY_TABLES)
+    if (PROJECT_SCOPED_ROLES.includes(me.role)) {
+      const [[asn]] = await db.query(
+        'SELECT 1 FROM project_assignments WHERE project_id=? AND user_id=? AND is_active=1',
+        [row.project_id, me.id]
+      );
+      if (!asn) return res.status(403).json({ error: 'Not assigned to this project' });
+    }
     if (row.status === 'approved') {
       return res.status(400).json({ error: 'Already approved' });
     }
@@ -421,6 +429,14 @@ router.post('/:id/flag',
       [id]
     );
     if (!row) return res.status(404).json({ error: 'Report not found' });
+    // SEC: manual project-scope guard (daily_reports not in SCOPE_ENTITY_TABLES)
+    if (PROJECT_SCOPED_ROLES.includes(me.role)) {
+      const [[asn]] = await db.query(
+        'SELECT 1 FROM project_assignments WHERE project_id=? AND user_id=? AND is_active=1',
+        [row.project_id, me.id]
+      );
+      if (!asn) return res.status(403).json({ error: 'Not assigned to this project' });
+    }
     if (row.status === 'approved') {
       return res.status(400).json({ error: 'Cannot flag an already-approved report' });
     }

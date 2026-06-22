@@ -164,7 +164,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
   }
 });
 
-router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), asyncHandler(async (req, res) => {
+router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requireRole('senior_site_manager','pmc_head','principal','design_principal'), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const [[grn]] = await db.query(
       `SELECT g.*,

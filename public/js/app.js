@@ -4292,7 +4292,7 @@ Tomorrow: start formwork on next bay."
     const details = document.getElementById('ap-details')?.value.trim();
     const drift   = document.getElementById('ap-drift')?.value;
     if (!title) { UI.toast('Enter a title'); return; }
-    const res = await API.raiseApproval({ project_id: pid, request_type: type, title, details, drift_days: drift||null });
+    const res = await API.raiseApproval({ project_id: pid, action_type: type, message_sent: title + (details ? ' — ' + details : ''), drift_days: drift||null });
     if (res?.success) { UI.closeModal(); UI.toast('Request raised ✓'); APP.renderApprovals(); }
     else UI.toast(res?.error || 'Failed');
   },
