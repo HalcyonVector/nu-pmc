@@ -412,13 +412,14 @@ API.getClaimItems   = (pid, id)      => API.call('GET',  `/claims/${pid}/${id}/i
 API.createClaim     = (pid, d)       => API.call('POST', `/claims/${pid}`, d);
 API.addClaimItems   = (pid, id, d)   => API.call('POST', `/claims/${pid}/${id}/items`, d);
 API.claimRsSignoff  = (pid, id, d)   => API.call('POST', `/claims/${pid}/${id}/rs-signoff`, d);
-API.claimPmcApprove = (pid, id)      => API.call('POST', `/claims/${pid}/${id}/pmc-approve`, {});
-API.setClaimInvoice = (pid, id, d)   => API.call('POST', `/claims/${pid}/${id}/set-invoice`, d);
+API.claimPmcApprove = (pid, id)      => API.call('POST',  `/claims/${pid}/${id}/pmc-signoff`, {});
+API.setClaimInvoice = (pid, id, d)   => API.call('PATCH', `/claims/${pid}/${id}/invoice-number`, d);
 
 // ── FORMS / INSPECTIONS
-API.getForms            = (pid)       => API.call('GET',  `/forms/${pid}`);
-API.createFormTemplate  = (pid, d)    => API.call('POST', `/forms/${pid}/templates`, d);
-API.approveFormTemplate = (pid, id)   => API.call('POST', `/forms/${pid}/templates/${id}/approve`, {});
+API.getFormTemplates    = ()          => API.call('GET',  `/forms/templates`);
+API.getFormSubmissions  = (pid)       => API.call('GET',  `/forms/${pid}/submissions`);
+API.createFormTemplate  = (d)         => API.call('POST', `/forms/templates`, d);
+API.approveFormTemplate = (id)        => API.call('PATCH', `/forms/templates/${id}/approve`, {});
 API.submitForm          = (pid, d)    => API.call('POST', `/forms/${pid}/submit`, d);
 
 // ── LABOUR QUICK
@@ -442,6 +443,4 @@ API.getAdvanceRecovery   = (engId)   => API.call('GET',  `/finance/advance-recov
 // ── VENDOR BANK CHANGE
 API.getPendingBankChanges = ()         => API.call('GET',  '/vendors/master/bank-changes/pending');
 API.proposeBankChange     = (vid, d)   => API.call('POST', `/vendors/master/${vid}/bank-change/propose`, d);
-API.approveBankChange     = (id)       => API.call('POST', `/vendors/master/bank-change/${id}/approve`, {});
-API.rejectBankChange      = (id, d)    => API.call('POST',  `/vendors/master/bank-change/${id}/reject`, d);
-
+API.approveBankChange   
