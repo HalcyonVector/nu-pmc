@@ -148,7 +148,7 @@ router.post('/login', asyncHandler(async (req, res) => {
     // admin-reset and the bulk password-reset script — this is what guarantees
     // "change on next login" for every user), OR as a secondary safety net when
     // the user is still on the default password after FORCE_CHANGE_AFTER logins.
-    const FORCE_CHANGE_AFTER = 25;
+    const FORCE_CHANGE_AFTER = 2;
     await db.query('UPDATE users SET login_count = login_count + 1 WHERE id = ?', [user.id]);
     const [[countRow]] = await db.query('SELECT login_count FROM users WHERE id = ?', [user.id]);
     const loginCount = countRow.login_count;

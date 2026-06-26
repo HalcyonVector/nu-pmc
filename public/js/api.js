@@ -324,7 +324,7 @@ API.reviewSubmittal= (id, d)   => API.call('PATCH', `/submittals/${id}/review`, 
 API.getWeeklyHealth = () => API.call('GET', '/weekly-health/report');
 
 // ── DRAWINGS (review actions)
-API.getDrawings          = (pid)          => API.call('GET',  `/drawings/${pid}`);
+// (getDrawings is defined once in the API object literal above — no duplicate here)
 API.getDrawingHistory    = (pid, drawId)  => API.call('GET',  `/drawings/${pid}/${drawId}/history`);
 API.approveDrawingVersion= (vid)          => API.call('POST', `/drawings/version/${vid}/approve`);
 API.rejectDrawingVersion = (vid, d)       => API.call('POST', `/drawings/version/${vid}/reject`, d);

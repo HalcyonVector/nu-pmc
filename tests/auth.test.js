@@ -94,8 +94,8 @@ describe('POST /api/auth/login', () => {
       .mockResolvedValueOnce([[{ id:3, username:'earlyuser', full_name:'Early User', role:'pmc_head', stream:'all', password_hash: hash, is_active:1, force_password_change:0 }]])
       .mockResolvedValueOnce([[{ '1': 1 }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
-      // login_count below threshold
-      .mockResolvedValueOnce([[{ login_count: 10 }]])
+      // login_count below threshold (FORCE_CHANGE_AFTER = 2)
+      .mockResolvedValueOnce([[{ login_count: 1 }]])
       .mockResolvedValueOnce([[]]); // empty projects
     const res = await request(app).post('/api/auth/login').send({ username: 'earlyuser', password: 'Start@123' });
     expect(res.status).toBe(200);

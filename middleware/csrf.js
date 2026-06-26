@@ -75,7 +75,7 @@ function issueToken(req, res) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: false,                       // frontend JS reads this
     sameSite: 'strict',
-    secure:   process.env.NODE_ENV === 'production',
+    secure:   process.env.FORCE_HTTPS === '1',   // match session cookie (server.js): secure only with real TLS, not merely NODE_ENV — otherwise a Secure cookie over cleartext HTTP gets dropped and breaks all writes
     maxAge:   8 * 60 * 60 * 1000,          // 8h, same as session
   });
   return token;
