@@ -23,7 +23,6 @@ logs/
 
 # Test artefacts and dev tooling
 tests/
-test-uploads/
 test-uploads-v2/
 coverage/
 .nyc_output/
