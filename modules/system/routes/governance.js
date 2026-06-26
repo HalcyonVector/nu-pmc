@@ -368,7 +368,7 @@ async function _importSLAs(workbook, conn) {
   // SLA items in column A (item type, skipping section headers), days in column C
   for (let i = 4; i < rows.length; i++) {
     const itemType = String(rows[i][0] || '').trim().toLowerCase();
-    const slaDays  = parseInt(rows[i][2]);
+    const slaDays  = parseInt(rows[i][2], 10);
     if (!itemType || isNaN(slaDays) || itemType === 'item type') continue;
 
     // Map sheet item type to project_slas item_type key

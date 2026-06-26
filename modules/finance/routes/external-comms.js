@@ -63,7 +63,7 @@ router.get('/my-queue', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/:id/mark-sent', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.session.user.id;
-  const id     = parseInt(req.params.id);
+  const id     = parseInt(req.params.id, 10);
 
   const [[assignment]] = await db.query(
     `SELECT id, assigned_to, activity_type, vendor_id, status
@@ -107,7 +107,7 @@ router.post('/:id/mark-sent', requireAuth, asyncHandler(async (req, res) => {
 router.post('/:id/cancel', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.session.user.id;
   const role   = req.session.user.role;
-  const id     = parseInt(req.params.id);
+  const id     = parseInt(req.params.id, 10);
   const { reason } = req.body;
 
   const CANCELLABLE_ROLES = ['principal', 'design_principal', 'pmc_head', 'finance_admin'];

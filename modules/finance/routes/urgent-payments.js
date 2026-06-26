@@ -155,7 +155,7 @@ router.post('/:project_id',
 
       audit.log({ userId: me.id, action: 'urgent_payment.raise',
         entityType: 'payment_requests', entityId: result.insertId,
-        details: { project_id: parseInt(req.params.project_id), vendor_id: input.vendor_id || null, is_adhoc: isAdhoc, amount: validAmount, payment_lane: lane, upi_id: upiId || null, initial_status: initialStatus, approval_chain: chain, reason: input.reason }, req });
+        details: { project_id: parseInt(req.params.project_id, 10), vendor_id: input.vendor_id || null, is_adhoc: isAdhoc, amount: validAmount, payment_lane: lane, upi_id: upiId || null, initial_status: initialStatus, approval_chain: chain, reason: input.reason }, req });
 
       res.json({ success: true, id: result.insertId, chain, payment_lane: lane, upi_id: upiId||null,
         message: chain[0]==='auto' ? 'Auto-approved — Finance Admin notified.' : 'PMC Head notified for approval.' });

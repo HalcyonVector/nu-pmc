@@ -26,9 +26,11 @@ module.exports = {
       merge_logs:  true,
 
       // Environment — production
+      // PORT 3100 matches the nginx upstream (deploy/nginx.conf:7) and Docker
+      // (Dockerfile EXPOSE 3100, docker-compose PORT 3100). All three must agree.
       env_production: {
         NODE_ENV: 'production',
-        PORT:     3000,
+        PORT:     3100,
       },
 
       // Environment — development

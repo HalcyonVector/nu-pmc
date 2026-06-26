@@ -257,7 +257,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(),
     }
 
     // Urgent payment — auto-approve if below petty cash threshold
-    const pettyCashThreshold = parseInt(process.env.PETTY_CASH_THRESHOLD || '25000');
+    const pettyCashThreshold = parseInt(process.env.PETTY_CASH_THRESHOLD || '25000', 10);
     if (body.is_urgent && validAmount <= pettyCashThreshold) {
       const { paymentRequest: prSM } = require('../../../services/state-machines');
       await prSM.transition({
@@ -331,7 +331,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
 
     if (action === 'reject') {
       await prSM.transition({
-        id: parseInt(req.params.id), from: pr.status, to: 'pmc_rejected',
+        id: parseInt(req.params.id, 10), from: pr.status, to: 'pmc_rejected',
         extraCols: {
           pmc_reviewed_by: me.id,
           pmc_reviewed_at: new Date(),
@@ -360,7 +360,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
     if (approvedAmount >= threshold) {
       // Needs Principal approval — transition to pending_principal
       await prSM.transition({
-        id: parseInt(req.params.id), from: pr.status, to: 'pending_principal',
+        id: parseInt(req.params.id, 10), from: pr.status, to: 'pending_principal',
         extraCols: {
           pmc_reviewed_by: me.id, pmc_reviewed_at: new Date(),
           pmc_amount: approvedAmount, pmc_notes: reviewBody.pmc_notes,
@@ -378,7 +378,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
     } else {
       // Below threshold — fast-path to principal_approved (Finance Admin can pay without Principal review)
       await prSM.transition({
-        id: parseInt(req.params.id), from: pr.status, to: 'principal_approved',
+        id: parseInt(req.params.id, 10), from: pr.status, to: 'principal_approved',
         extraCols: {
           pmc_reviewed_by: me.id, pmc_reviewed_at: new Date(),
           pmc_amount: approvedAmount, pmc_notes: reviewBody.pmc_notes,
@@ -454,7 +454,7 @@ router.patch('/:id/principal-review', requireAuth, requirePrincipal, asyncHandle
     }
 
     await prSM.transition({
-      id: parseInt(req.params.id), from: pr.status, to: newStatus,
+      id: parseInt(req.params.id, 10), from: pr.status, to: newStatus,
       extraCols: {
         principal_reviewed_by: me.id,
         principal_reviewed_at: new Date(),
@@ -519,7 +519,7 @@ router.patch('/:id/confirm-payment',
 
     const { paymentRequest: prSM } = require('../../../services/state-machines');
     await prSM.transition({
-      id: parseInt(req.params.id), from: pr.status, to: 'paid',
+      id: parseInt(req.params.id, 10), from: pr.status, to: 'paid',
       extraCols: {
         actual_paid: paidCheck.amount,
         payment_date: payment_date,
@@ -532,12 +532,15 @@ router.patch('/:id/confirm-payment',
 
     const amtFmt = fmtRupee(paidCheck.amount);
 
-    // WhatsApp to vendor
+    // WhatsApp to vendor — vendors are EXTERNAL (no users row), so route via the
+    // phone-based notifyPaymentConfirmed path. notifyWhatsApp(userId) would run
+    // SELECT ... WHERE id = <phone> → 0 rows → the message is silently dropped.
     const vendorPhone = prVendor.get(pr.vendor_id)?.phone;
     if (vendorPhone) {
-      await notifyWhatsApp(vendorPhone,
-        `Payment received — ₹${amtFmt} — ${pr.project_name} — UTR: ${utr_number}. Thank you.`
-      );
+      const notif = require('../../../services/notifications');
+      await notif.notifyPaymentConfirmed(
+        vendorPhone, pr.vendor_name, paidCheck.amount, utr_number, payment_date
+      ).catch(e => console.warn('[payment-requests] vendor payment notify:', e.message));
     }
 
     // WhatsApp to requester
@@ -593,7 +596,7 @@ router.patch('/threshold/:project_id', requireAuth, requirePrincipal, asyncHandl
     const [[prevRow]] = await db.query('SELECT payment_approval_threshold FROM projects WHERE id = ?', [req.params.project_id]);
     await db.query('UPDATE projects SET payment_approval_threshold = ? WHERE id = ?', [v.amount, req.params.project_id]);
     audit.log({ userId: req.session.user.id, action: 'project.threshold_update',
-      entityType: 'projects', entityId: parseInt(req.params.project_id),
+      entityType: 'projects', entityId: parseInt(req.params.project_id, 10),
       details: { previous_threshold: prevRow?.payment_approval_threshold ?? null, new_threshold: v.amount }, req });
     res.json({ success: true, message: `Threshold set to ${fmtRupee(v.amount)}` });
   }));

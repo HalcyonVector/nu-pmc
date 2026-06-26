@@ -183,18 +183,18 @@ router.patch("/:id/deputy", requireAuth, async (req, res) => {
     if (!body) return;
     const { deputy_id, deputy_from, deputy_until, deputy_reason } = body;
     const me = req.session.user;
-    const targetId = parseInt(req.params.id);
+    const targetId = parseInt(req.params.id, 10);
     const isSelf = targetId === me.id;
     const isPrincipal = ["principal","design_principal"].includes(me.role);
     if (!isSelf && !isPrincipal) {
       return res.status(403).json({ error: 'Can only set your own deputy' });
     }
-    if (deputy_id && parseInt(deputy_id) === targetId) {
+    if (deputy_id && parseInt(deputy_id, 10) === targetId) {
       return res.status(400).json({ error: 'Cannot set self as deputy' });
     }
     if (deputy_id) {
       const [[other]] = await db.query('SELECT deputy_id FROM users WHERE id=?', [deputy_id]);
-      if (other && parseInt(other.deputy_id) === targetId) {
+      if (other && parseInt(other.deputy_id, 10) === targetId) {
         return res.status(400).json({ error: 'Cycle detected — this would create a mutual deputy loop' });
       }
     }
@@ -221,7 +221,7 @@ router.patch("/:id/deputy", requireAuth, async (req, res) => {
       );
       audit.log({ userId: me.id, action: 'user.deputy_set',
         entityType: 'users', entityId: targetId,
-        details: { deputy_id: parseInt(deputy_id), deputy_from: deputy_from || null, deputy_until: deputy_until || null, reason: deputy_reason || null, is_self: true }, req });
+        details: { deputy_id: parseInt(deputy_id, 10), deputy_from: deputy_from || null, deputy_until: deputy_until || null, reason: deputy_reason || null, is_self: true }, req });
     } else {
       // Principal override path — stamps overridden_by + overridden_at
       await db.query(
@@ -233,7 +233,7 @@ router.patch("/:id/deputy", requireAuth, async (req, res) => {
       );
       audit.log({ userId: me.id, action: 'user.deputy_override',
         entityType: 'users', entityId: targetId,
-        details: { deputy_id: parseInt(deputy_id), deputy_from: deputy_from || null, deputy_until: deputy_until || null, reason: deputy_reason || null, principal_override: true }, req });
+        details: { deputy_id: parseInt(deputy_id, 10), deputy_from: deputy_from || null, deputy_until: deputy_until || null, reason: deputy_reason || null, principal_override: true }, req });
     }
     res.json({ success: true, message: 'Deputy assigned' });
   } catch (err) { console.error('[users PATCH deputy]', err); res.status(500).json({ error: 'Deputy update failed' }); }
@@ -249,11 +249,49 @@ router.patch('/:id/deactivate', requireAuth, asyncHandler(async (req, res) => {
     const isPrincipal = ['principal', 'design_principal'].includes(me.role);
     const isManager   = t.managed_by === me.id;
 
+    // Principals and design principals can only be deactivated by a principal.
+    // A manager whose `managed_by` field mistakenly points to a principal
+    // must NOT be able to remove them.
+    if (['principal', 'design_principal'].includes(t.role) && !isPrincipal) {
+      return res.status(403).json({ error: 'Only a Principal can deactivate a Principal or Design Principal' });
+    }
+
+    // Prevent self-deactivation — locks the account and nobody can undo it
+    // without direct DB access.
+    if (t.id === me.id) {
+      return res.status(400).json({ error: 'Cannot deactivate your own account' });
+    }
+
     if (!isPrincipal && !isManager) return res.status(403).json({ error: 'Cannot deactivate this user' });
 
     await db.query('UPDATE users SET is_active = 0 WHERE id = ?', [req.params.id]);
+
+    // Kill all active Express sessions for this user so they are logged out
+    // of the PWA immediately. Without this, a deactivated user with an open
+    // browser session can continue making API requests for up to 8 hours
+    // (the session maxAge). Uses JSON_EXTRACT to match sessions by user id
+    // in MySQLStore's `sessions` table.
+    try {
+      await db.query(
+        `DELETE FROM sessions WHERE JSON_EXTRACT(data, '$.user.id') = ?`,
+        [parseInt(req.params.id, 10)]
+      );
+    } catch (sessErr) {
+      console.warn('[users.deactivate] Session cleanup failed (non-fatal):', sessErr.message);
+    }
+
+    // Revoke all active OIDC tokens so the user is immediately kicked out
+    // of Element X (SSO). Without this, their Element X session lives until
+    // the 1-hour token expiry even after deactivation.
+    try {
+      const oidcProvider = require('../../../services/oidc-provider');
+      await oidcProvider.revokeUserTokens(parseInt(req.params.id, 10));
+    } catch (oidcErr) {
+      console.warn('[users.deactivate] OIDC revocation failed (non-fatal):', oidcErr.message);
+    }
+
     audit.log({ userId: me.id, action: 'user.deactivate',
-      entityType: 'users', entityId: parseInt(req.params.id),
+      entityType: 'users', entityId: parseInt(req.params.id, 10),
       details: { target_username: t.username, target_role: t.role }, req });
     res.json({ success: true });
 
@@ -300,7 +338,6 @@ router.post('/bulk-upload', requireAuth, upload.single('users'), asyncHandler(as
 
       // U5: Math.random is not cryptographically secure. crypto.randomBytes
       // matches the practice already used in admin-reset.js and
-      // user-management.js approve flows. 6 bytes hex = 12 chars, ~48 bits
       // entropy — adequate for a one-time password the user must change.
       const tempPassword = 'tmp-' + crypto.randomBytes(6).toString('hex');
       const hash = await bcrypt.hash(tempPassword, 10);

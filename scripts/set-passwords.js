@@ -67,7 +67,7 @@ async function run() {
     password: process.env.DB_PASSWORD || process.env.DB_PASS || '',
   };
   if (process.env.DB_SOCKET) conn.socketPath = process.env.DB_SOCKET;
-  if (process.env.DB_PORT)   conn.port       = parseInt(process.env.DB_PORT);
+  if (process.env.DB_PORT)   conn.port       = parseInt(process.env.DB_PORT, 10);
   const db = await mysql.createConnection(conn);
 
   // Pull every active user — we'll filter for placeholder hashes in JS so we

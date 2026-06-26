@@ -194,22 +194,51 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       isFirmWide ? [] : [scopedProjectIds]
     );
 
-    for (const p of projects) {
-      const [overMRows] = await db.query(
-        `SELECT COUNT(*) AS c FROM material_requests WHERE project_id = ? AND is_overdue = 1`,
-        [p.id]
-      );
-      const overM = overMRows[0];
-      const DS = require('../../design-services/contract');
-      const scheduleSummary = await DS.functions.getCurrentScheduleSummary(p.id);
-      const avg_pct = Math.round(parseFloat(scheduleSummary?.avg_pct_complete) || 0);
+    // Batch per-project enrichment — replaces N*2 queries with 2 total.
+    if (projects.length) {
+      const dashProjectIds = projects.map(p => p.id);
 
-      p.avg_pct = avg_pct;
-      p.stats = {
-        open_queries: p.open_queries || 0,
-        flagged_tasks: p.open_flags || 0,
-        overdue_materials: overM?.c || 0,
-      };
+      // Overdue material requests
+      const [overMBatch] = await db.query(
+        `SELECT project_id, COUNT(*) AS c
+           FROM material_requests WHERE project_id IN (?) AND is_overdue = 1
+           GROUP BY project_id`,
+        [dashProjectIds]
+      );
+      const overMMap = new Map(overMBatch.map(r => [r.project_id, Number(r.c)]));
+
+      // Schedule summary — batch equivalent of DS.functions.getCurrentScheduleSummary().
+      // Uses the same logic as the contract function but across all projects in one query.
+      const [scheduleSummaryBatch] = await db.query(
+        `SELECT sv.project_id,
+           COUNT(*) AS total_tasks,
+           SUM(CASE WHEN latest_pct.pct = 100           THEN 1 ELSE 0 END) AS completed,
+           SUM(CASE WHEN latest_pct.pct BETWEEN 1 AND 99 THEN 1 ELSE 0 END) AS in_progress,
+           COALESCE(AVG(latest_pct.pct), 0) AS avg_pct_complete,
+           MAX(latest_pct.report_date) AS last_update_date
+         FROM schedule_tasks st
+         JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+         LEFT JOIN (
+           SELECT tu1.task_id, tu1.pct_complete AS pct, tu1.report_date
+             FROM task_updates tu1
+            WHERE tu1.id = (SELECT MAX(tu2.id) FROM task_updates tu2 WHERE tu2.task_id = tu1.task_id)
+         ) latest_pct ON latest_pct.task_id = st.id
+         WHERE sv.project_id IN (?)
+         GROUP BY sv.project_id`,
+        [dashProjectIds]
+      );
+      const schedSumMap = new Map(scheduleSummaryBatch.map(r => [r.project_id, r]));
+
+      for (const p of projects) {
+        const schedSum = schedSumMap.get(p.id);
+        const avg_pct  = Math.round(parseFloat(schedSum?.avg_pct_complete) || 0);
+        p.avg_pct = avg_pct;
+        p.stats = {
+          open_queries:      p.open_queries || 0,
+          flagged_tasks:     p.open_flags   || 0,
+          overdue_materials: overMMap.get(p.id) || 0,
+        };
+      }
     }
 
     res.json({

@@ -3,7 +3,7 @@ const mysql = require('mysql2/promise');
 
 const poolConfig = {
   host:            process.env.DB_HOST     || 'localhost',
-  port:            parseInt(process.env.DB_PORT) || 3306,
+  port:            parseInt(process.env.DB_PORT, 10) || 3306,
   database:        process.env.DB_NAME     || 'nu_pmc',
   user:            process.env.DB_USER     || 'nu_app',
   password:        process.env.DB_PASSWORD || process.env.DB_PASS || '',

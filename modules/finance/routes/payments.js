@@ -218,7 +218,7 @@ router.post('/:project_id/raise', requireAuth, requireProjectScope(), requirePMC
     });
     audit.log({ userId: req.session.user.id, action: 'vendor_payment.raise',
       entityType: 'vendor_payments', entityId: result.insertId,
-      details: { project_id: parseInt(req.params.project_id), engagement_id: body.engagement_id, vendor_id: insertEng.vendor_id, payment_type: body.payment_type, amount_requested: validAmount, recommended, auto_deduction: autoDeduction, work_done_pct: validWorkPct, has_boq: hasBoq }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), engagement_id: body.engagement_id, vendor_id: insertEng.vendor_id, payment_type: body.payment_type, amount_requested: validAmount, recommended, auto_deduction: autoDeduction, work_done_pct: validWorkPct, has_boq: hasBoq }, req });
   }));
 
 // ── PATCH approve payment — PMC Head approves
@@ -254,7 +254,7 @@ router.patch('/:project_id/payments/:id/approve', requireAuth, requireProjectSco
     const sm = require('../../../services/state-machines').vendorPayment;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: vp.status, to: 'approved',
+        id: parseInt(req.params.id, 10), from: vp.status, to: 'approved',
         extraCols: {
           approved_by: req.session.user.id, approved_at: new Date(),
           actual_amount: validActual, adjustment_reason: adjustment_reason || null,
@@ -262,8 +262,8 @@ router.patch('/:project_id/payments/:id/approve', requireAuth, requireProjectSco
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: req.session.user.id, action: 'vendor_payment.approve',
-      entityType: 'vendor_payments', entityId: parseInt(req.params.id),
-      details: { project_id: parseInt(req.params.project_id), amount_requested: parseFloat(vp.amount_requested), actual_amount: validActual, adjustment_reason: adjustment_reason || null, adjusted: Math.abs(validActual - parseFloat(vp.amount_requested)) > 0.01 }, req });
+      entityType: 'vendor_payments', entityId: parseInt(req.params.id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), amount_requested: parseFloat(vp.amount_requested), actual_amount: validActual, adjustment_reason: adjustment_reason || null, adjusted: Math.abs(validActual - parseFloat(vp.amount_requested)) > 0.01 }, req });
     res.json({ success: true, message: 'Payment approved — ready for ICICI upload.' });
     try { require('../../../modules/system/routes/sse').broadcast('payment_update', { project_id: req.params.project_id }); } catch(_e) {}
   }));
@@ -311,7 +311,7 @@ async function gatherApprovedPayments(projectId, paymentIds) {
 router.get('/:project_id/icici/preview', requireAuth, requirePMC, asyncHandler(async (req, res) => {
     const paymentIdsRaw = req.query.payment_ids;
     if (!paymentIdsRaw) return res.status(400).json({ error: 'payment_ids query param required' });
-    const paymentIds = String(paymentIdsRaw).split(',').map(s => parseInt(s.trim())).filter(Boolean);
+    const paymentIds = String(paymentIdsRaw).split(',').map(s => parseInt(s.trim(), 10)).filter(Boolean);
     if (!paymentIds.length) return res.status(400).json({ error: 'No valid payment IDs' });
 
     const payments = await gatherApprovedPayments(req.params.project_id, paymentIds);
@@ -545,7 +545,7 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
       originalName: file.originalname,
       userId: req.session.user.id,
       projectId: req.params.project_id,
-      cycleId: parseInt(cycle_id),
+      cycleId: parseInt(cycle_id, 10),
       createdAt: Date.now()
     };
 
@@ -558,7 +558,7 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
         will_notify_vendors: totalToNotify,
       },
       file_token: fileToken,
-      cycle_id: parseInt(cycle_id),
+      cycle_id: parseInt(cycle_id, 10),
       warning: `If confirmed: ${successCount} payments will be marked paid, ${totalToNotify} vendors will receive WhatsApp with UTR details. ${failCount} rows will need manual follow-up.`,
     });
   }));
@@ -589,7 +589,7 @@ router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), re
     if (preview.projectId !== req.params.project_id) {
       return res.status(400).json({ error: 'Project mismatch for this confirmation token' });
     }
-    if (preview.cycleId !== parseInt(cycle_id)) {
+    if (preview.cycleId !== parseInt(cycle_id, 10)) {
       return res.status(400).json({ error: 'Cycle ID mismatch for this confirmation token' });
     }
 
@@ -643,11 +643,11 @@ router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), re
 
       // Count successes again — compare with expected from preview
       const willSucceed = matched.filter(c => c.status?.toLowerCase().includes('success') && c.utr).length;
-      if (expected_success_count !== undefined && parseInt(expected_success_count) !== willSucceed) {
+      if (expected_success_count !== undefined && parseInt(expected_success_count, 10) !== willSucceed) {
         return res.status(409).json({
           error: `Preview showed ${expected_success_count} would succeed, now ${willSucceed}. Re-preview and confirm.`,
           code: 'COUNT_MISMATCH',
-          expected: parseInt(expected_success_count),
+          expected: parseInt(expected_success_count, 10),
           actual: willSucceed,
         });
       }
@@ -940,7 +940,7 @@ router.post('/:project_id/compliance-check', requireAuth, requireProjectScope(),
 
     audit.log({ userId: req.session.user.id, action: 'payment.compliance_check',
       entityType: 'payment_requests', entityId: null,
-      details: { project_id: parseInt(pid), checked_count: results.length, cleared, held }, req });
+      details: { project_id: parseInt(pid, 10), checked_count: results.length, cleared, held }, req });
 
     res.json({
       success: true, results, cleared, held,

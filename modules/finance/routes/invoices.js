@@ -96,7 +96,7 @@ router.post('/:project_id/fee-schedule/upload', requireAuth, requireProjectScope
 
     audit.log({ userId: req.session.user.id, action: 'fee_schedule.upload',
       entityType: 'fee_schedule', entityId: null,
-      details: { project_id: parseInt(pid), items_imported: count, skipped, error_count: errors.length, file_path: req.file?.path }, req });
+      details: { project_id: parseInt(pid, 10), items_imported: count, skipped, error_count: errors.length, file_path: req.file?.path }, req });
 
     res.json({ success: true, items_imported: count, skipped, errors: errors.slice(0, 10) });
   }));
@@ -200,7 +200,7 @@ router.post('/:project_id/pi', requireAuth, requireProjectScope(), requirePMC, a
 
     audit.log({ userId: req.session.user.id, action: 'invoice.pi_raise',
       entityType: 'proforma_invoices', entityId: result.insertId,
-      details: { project_id: parseInt(pid), pi_number: piNum, fee_schedule_id: body.fee_schedule_id, schedule_task_id: body.schedule_task_id || null, amount_ex_gst: amtEx, gst_pct: gstPct, amount_total: amtTot }, req });
+      details: { project_id: parseInt(pid, 10), pi_number: piNum, fee_schedule_id: body.fee_schedule_id, schedule_task_id: body.schedule_task_id || null, amount_ex_gst: amtEx, gst_pct: gstPct, amount_total: amtTot }, req });
 
     res.json({
       success: true,
@@ -233,12 +233,12 @@ router.patch('/pi/:id/status', requireAuth, requirePMC, asyncHandler(async (req,
     const extraCols = tsCol ? { [tsCol]: new Date() } : {};
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: status, extraCols,
+        id: parseInt(req.params.id, 10), from: cur.status, to: status, extraCols,
       });
     } catch (err) { return sm.handleRouteError(err, res); }
 
     audit.log({ userId: req.session.user.id, action: 'invoice.pi_status',
-      entityType: 'proforma_invoices', entityId: parseInt(req.params.id),
+      entityType: 'proforma_invoices', entityId: parseInt(req.params.id, 10),
       details: { new_status: status }, req });
 
     res.json({ success: true });

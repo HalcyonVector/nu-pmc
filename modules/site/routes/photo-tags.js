@@ -131,7 +131,7 @@ router.post('/:photo_id/ai-tag', requireAuth, asyncHandler(async (req, res) => {
     // the parent's project_id, refuse if a project-scoped role is not assigned.
     const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
     if (PROJECT_SCOPED_ROLES.includes(me.role)) {
-      const assigned = (me.projects || []).some(p => parseInt(p.id) === parseInt(photo.project_id));
+      const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === parseInt(photo.project_id, 10));
       if (!assigned) {
         return res.status(403).json({
           error: 'Not assigned to this project',

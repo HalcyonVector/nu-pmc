@@ -102,7 +102,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asy
   let skipped  = 0;
 
   for (const entry of entries) {
-    const headcount = parseInt(entry.headcount ?? 0);
+    const headcount = parseInt(entry.headcount ?? 0, 10);
     if (headcount < 0) continue;
 
     if (entry.engagement_id && !entry.unregistered) {

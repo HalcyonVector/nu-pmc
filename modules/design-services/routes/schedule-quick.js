@@ -61,8 +61,8 @@ router.post('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asy
   let saved = 0;
 
   for (const upd of updates) {
-    const taskId = parseInt(upd.task_id);
-    const pct    = Math.max(0, Math.min(100, parseInt(upd.pct_complete ?? 0)));
+    const taskId = parseInt(upd.task_id, 10);
+    const pct    = Math.max(0, Math.min(100, parseInt(upd.pct_complete ?? 0, 10)));
     if (!taskId) continue;
 
     await db.query(

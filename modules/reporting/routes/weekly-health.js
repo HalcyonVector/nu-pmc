@@ -650,63 +650,76 @@ router.get('/summary', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(
     return res.json({ projects: [] });
   }
 
-  const results = [];
-  for (const p of projects) {
-    // Schedule drift
-    const [[schedule]] = await db.query(
-      `SELECT drift_days, label FROM schedule_versions WHERE project_id = ? AND is_current = 1`,
-      [p.id]
-    );
+  // Batch all per-project queries — replaces N*5 queries with 5 total.
+  const projectIds = projects.map(p => p.id);
 
-    // Open issues
-    const [[issueRow]] = await db.query(
-      `SELECT COUNT(*) AS cnt FROM issues WHERE project_id = ? AND status NOT IN ('closed')`,
-      [p.id]
-    );
+  const [scheduleRows] = await db.query(
+    `SELECT project_id, drift_days, label
+       FROM schedule_versions WHERE project_id IN (?) AND is_current = 1`,
+    [projectIds]
+  );
+  const scheduleMap = new Map(scheduleRows.map(r => [r.project_id, r]));
 
-    // Pending payments
-    const [[pmtRow]] = await db.query(
-      `SELECT COUNT(*) AS cnt FROM vendor_payments WHERE project_id = ? AND status = 'pending'`,
-      [p.id]
-    );
+  const [issueCounts] = await db.query(
+    `SELECT project_id, COUNT(*) AS cnt
+       FROM issues WHERE project_id IN (?) AND status NOT IN ('closed')
+       GROUP BY project_id`,
+    [projectIds]
+  );
+  const issueMap = new Map(issueCounts.map(r => [r.project_id, Number(r.cnt)]));
 
-    // Open change notices
-    const [[cnRow]] = await db.query(
-      `SELECT COUNT(*) AS cnt FROM change_notices WHERE project_id = ? AND status NOT IN ('approved','rejected')`,
-      [p.id]
-    );
+  const [pmtCounts] = await db.query(
+    `SELECT project_id, COUNT(*) AS cnt
+       FROM vendor_payments WHERE project_id IN (?) AND status = 'pending'
+       GROUP BY project_id`,
+    [projectIds]
+  );
+  const pmtMap = new Map(pmtCounts.map(r => [r.project_id, Number(r.cnt)]));
 
-    // Risk narratives (last 4 weeks)
-    const [riskNarratives] = await db.query(
-      `SELECT trade, gap_pct, narrative, escalation_level
+  const [cnCounts] = await db.query(
+    `SELECT project_id, COUNT(*) AS cnt
+       FROM change_notices WHERE project_id IN (?) AND status NOT IN ('approved','rejected')
+       GROUP BY project_id`,
+    [projectIds]
+  );
+  const cnMap = new Map(cnCounts.map(r => [r.project_id, Number(r.cnt)]));
+
+  // Risk narratives: fetch all within 4 weeks, slice top-4 per project in JS.
+  const [allRiskNarratives] = await db.query(
+    `SELECT project_id, trade, gap_pct, narrative, escalation_level
        FROM schedule_risk_narratives
-       WHERE project_id = ? AND week_ending >= DATE_SUB(CURDATE(), INTERVAL 4 WEEK)
-       ORDER BY week_ending DESC, gap_pct DESC LIMIT 4`,
-      [p.id]
-    );
+       WHERE project_id IN (?) AND week_ending >= DATE_SUB(CURDATE(), INTERVAL 4 WEEK)
+       ORDER BY week_ending DESC, gap_pct DESC`,
+    [projectIds]
+  );
+  const riskMap = new Map();
+  for (const rn of allRiskNarratives) {
+    if (!riskMap.has(rn.project_id)) riskMap.set(rn.project_id, []);
+    const arr = riskMap.get(rn.project_id);
+    if (arr.length < 4) arr.push(rn);
+  }
 
-    // Health status — derive from drift
-    const drift = schedule?.drift_days || 0;
+  const results = projects.map(p => {
+    const schedule    = scheduleMap.get(p.id);
+    const drift       = schedule?.drift_days || 0;
     const healthStatus = drift > 14 ? 'at_risk' : drift > 7 ? 'caution' : 'active';
-
-    results.push({
+    return {
       id:               p.id,
       name:             p.name,
       code:             p.code,
       client_name:      p.client || '—',
       health_status:    healthStatus,
       schedule:         { drift_days: drift, label: schedule?.label || 'R0' },
-      open_issues:      issueRow?.cnt || 0,
-      pending_payments: pmtRow?.cnt || 0,
-      open_cns:         cnRow?.cnt || 0,
-      riskNarratives:   riskNarratives || [],
-    });
-  }
+      open_issues:      issueMap.get(p.id)  || 0,
+      open_cns:         cnMap.get(p.id)     || 0,
+      riskNarratives:   riskMap.get(p.id)   || [],
+    };
+  });
 
   res.json({ projects: results });
 }));
 
-// GET /api/weekly-health/schedule — show when next report runs
+// GET /api/weekly-health/schedule -- show when next report runs
 router.get('/schedule', requireAuth, asyncHandler(async (req, res) => {
   const today   = new Date();
   const nextMon = new Date(today);

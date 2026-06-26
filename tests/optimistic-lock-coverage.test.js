@@ -46,7 +46,7 @@ describe('B28 — meetings PATCH /:id has optimistic-lock guard', () => {
     expect(route).toMatch(/throw new ol\.StaleVersionError/);
   });
   test('returns the new row_version in the success payload', () => {
-    expect(route).toMatch(/row_version:\s*parseInt\(row_version\)\s*\+\s*1/);
+    expect(route).toMatch(/row_version:\s*parseInt\(row_version(?:,\s*10)?\)\s*\+\s*1/);
   });
   test('optimistic-lock helper is imported in the file', () => {
     expect(src).toMatch(/require\('\.\.\/\.\.\/\.\.\/middleware\/optimistic-lock'\)/);
@@ -77,7 +77,7 @@ describe('B28 — schedule PATCH /:project_id/drift-acknowledge has optimistic-l
     expect(route).toMatch(/throw new ol\.StaleVersionError/);
   });
   test('returns the new row_version in success payload', () => {
-    expect(route).toMatch(/row_version:\s*parseInt\(row_version\)\s*\+\s*1/);
+    expect(route).toMatch(/row_version:\s*parseInt\(row_version(?:,\s*10)?\)\s*\+\s*1/);
   });
   test('optimistic-lock helper is imported', () => {
     expect(src).toMatch(/require\('\.\.\/\.\.\/\.\.\/middleware\/optimistic-lock'\)/);

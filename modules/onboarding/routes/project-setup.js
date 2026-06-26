@@ -88,7 +88,7 @@ router.put('/:id/scope', requireAuth,
     }
 
     audit.log({ userId: me.id, action: 'project_setup.scope_set',
-      entityType: 'project_scope', entityId: parseInt(req.params.id),
+      entityType: 'project_scope', entityId: parseInt(req.params.id, 10),
       details: { scope_type: scope_type || 'pmc', sqft_area: sqft_area || null, num_floors: num_floors || null, num_blocks: num_blocks || null, dlp_months: dlp_months || 12, planned_handover_date: planned_handover_date || null, entity_id_set: !!entity_id }, req });
 
     res.json({ success: true });
@@ -108,7 +108,7 @@ router.post('/:id/documents', requireAuth, requirePrincipal, upload.single('doc'
     });
     audit.log({ userId: req.session.user.id, action: 'project_setup.document.upload',
       entityType: 'project_documents', entityId: null,
-      details: { project_id: parseInt(req.params.id), doc_type: doc_type || 'other', doc_date: doc_date || null, classified: !!isClassified }, req });
+      details: { project_id: parseInt(req.params.id, 10), doc_type: doc_type || 'other', doc_date: doc_date || null, classified: !!isClassified }, req });
     res.json({ success: true, classified: isClassified === 1 });
   }));
 
@@ -153,8 +153,8 @@ router.patch('/:id/sanity-checks/:check_id/acknowledge', requireAuth, requirePMC
       await notif.notify(p.id, 'sanity_check', `Date sanity check acknowledged by PMC Head on project ${req.params.id}.`);
     }
     audit.log({ userId: req.session.user.id, action: 'project_setup.sanity_check.acknowledge',
-      entityType: 'date_sanity_checks', entityId: parseInt(req.params.check_id),
-      details: { project_id: parseInt(req.params.id) }, req });
+      entityType: 'date_sanity_checks', entityId: parseInt(req.params.check_id, 10),
+      details: { project_id: parseInt(req.params.id, 10) }, req });
     res.json({ success: true });
   }));
 // GET /api/project-setup/entities — list company entities for selector
@@ -226,7 +226,10 @@ const VALIDATION_REGISTRY = {
   },
   vendors_cleared: async () => {
     const [rows] = await db.query(
-      `SELECT COUNT(*) as cnt FROM vendors WHERE clearance_status = 'approved'`
+      // vendors.clearance_status ENUM is ('pending','cleared','rejected') —
+      // 'approved' is not a valid value and never matched, so this gate was
+      // permanently failing. Correct value is 'cleared'.
+      `SELECT COUNT(*) as cnt FROM vendors WHERE clearance_status = 'cleared'`
     );
     return rows[0].cnt > 0;
   },
@@ -490,8 +493,8 @@ router.post('/:id/checklist/:item_id/complete',
 
   const audit = require('../../../services/audit');
   audit.log({ userId, action: 'project_setup.checklist_complete',
-    entityType: 'project_setup_tracking', entityId: parseInt(item_id),
-    details: { project_id: parseInt(projectId), notes: notes || null }, req });
+    entityType: 'project_setup_tracking', entityId: parseInt(item_id, 10),
+    details: { project_id: parseInt(projectId, 10), notes: notes || null }, req });
 
   res.json({ success: true, message: 'Item marked as complete' });
 }));
@@ -522,8 +525,8 @@ router.post('/:id/checklist/:item_id/uncomplete',
 
   const audit = require('../../../services/audit');
   audit.log({ userId: req.session.user.id, action: 'project_setup.checklist_uncomplete',
-    entityType: 'project_setup_tracking', entityId: parseInt(item_id),
-    details: { project_id: parseInt(projectId) }, req });
+    entityType: 'project_setup_tracking', entityId: parseInt(item_id, 10),
+    details: { project_id: parseInt(projectId, 10) }, req });
 
   res.json({ success: true, message: 'Item marked as incomplete' });
 }));

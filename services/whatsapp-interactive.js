@@ -57,7 +57,7 @@ function getClient() {
 // _env() for the canonical pattern. Three previously-duplicated constants
 // (FROM, BASE_URL, BASE_URL_fn, BASE — the last unused dead code) are
 // collapsed into two helpers.
-function _from()     { return process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886'; }
+function _from()     { return process.env.TWILIO_WA_NUMBER || process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886'; }
 function _baseUrl()  { return process.env.APP_BASE_URL || 'https://nuassociates.in'; }
 const { tagByType } = require('./wa-headers');
 

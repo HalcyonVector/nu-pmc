@@ -1,0 +1,43 @@
+# .dockerignore — prevents bloat and secrets from entering the Docker image.
+# COPY . . in the Dockerfile respects this file.
+
+# Dependencies — installed from package-lock.json inside the image
+node_modules/
+npm-debug.log*
+
+# Version control
+.git/
+.gitignore
+
+# Local environment — NEVER ship secrets into an image
+.env
+.env.*
+!.env.example
+
+# Upload data — mounted as a volume at runtime, not baked into the image
+uploads/
+
+# Log files — written at runtime, not needed at build time
+logs/
+*.log
+
+# Test artefacts and dev tooling
+tests/
+test-uploads/
+test-uploads-v2/
+coverage/
+.nyc_output/
+
+# Local SQL dumps and snapshots — large and sensitive
+*.sql
+!migrations/*.sql
+!schema.sql
+!schema_only.sql
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

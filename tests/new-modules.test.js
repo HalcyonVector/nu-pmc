@@ -494,17 +494,21 @@ describe('GET /api/clients', () => {
     expect(res.status).toBe(200);
   });
 
-  test.skip('pmc_head cannot view clients [PRODUCT QUESTION — see SHIP_READINESS_REPORT gap 8]', async () => {
-    // Test asserts firm-level client master is Principal+Finance Admin only.
-    // Current GET /api/clients only requires auth. EITHER the implementation
-    // should add a role gate (principal+design_principal+finance_admin), OR
-    // this test should be relaxed. Park for Principal decision.
+  // Decision (resolved): client-master read stays open to the roles that
+  // coordinate client projects — Principal, Design Principal, PMC/Design/
+  // Services Heads, Finance Admin, IT Admin (all granted clients.read in the
+  // permission matrix). Site managers and juniors are excluded (no grant).
+  // GET /api/clients enforces this via `can(role,'clients.read')` in
+  // modules/onboarding/routes/clients.js.
+  test('pmc_head can view clients (granted clients.read in the permission matrix)', async () => {
     const app = makeClientApp('pmc_head', 'pmc_head');
+    db.query.mockResolvedValueOnce([[{ id:1, client_name:'TLD MAINI' }]]);
     const res = await request(app).get('/api/clients');
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.clients).toBeDefined();
   });
 
-  test.skip('site_manager cannot view clients [PRODUCT QUESTION — see SHIP_READINESS_REPORT gap 8]', async () => {
+  test('site_manager cannot view clients (no clients.read grant → 403)', async () => {
     const app = makeClientApp('site_manager', 'anjaneya');
     const res = await request(app).get('/api/clients');
     expect(res.status).toBe(403);

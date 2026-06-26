@@ -51,7 +51,7 @@ router.post('/:project_id/petty-cash', requireAuth, requireProjectScope(), requi
     );
     audit.log({ userId: req.session.user.id, action: 'petty_cash.spend',
       entityType: 'petty_cash_transactions', entityId: pcResult.insertId,
-      details: { project_id: parseInt(req.params.project_id), amount: amtCheck.amount, category: category||'other', description, txn_date, bill_available: req.file?1:0 }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), amount: amtCheck.amount, category: category||'other', description, txn_date, bill_available: req.file?1:0 }, req });
     res.json({ success: true });
   }));
 
@@ -61,7 +61,7 @@ router.post('/:project_id/petty-cash/replenish', requireAuth, requireProjectScop
     const { validateAmount } = require('../../../services/payment-validation');
     const amtCheck = validateAmount(amount, 'Amount');
     if (!amtCheck.ok) return res.status(400).json({ error: amtCheck.error, code: 'INVALID_AMOUNT' });
-    const PETTY_CASH_THRESHOLD = parseInt(process.env.PETTY_CASH_THRESHOLD || "25000");
+    const PETTY_CASH_THRESHOLD = parseInt(process.env.PETTY_CASH_THRESHOLD || "25000", 10);
     if (amtCheck.amount > PETTY_CASH_THRESHOLD) {
       const me = req.session.user;
       if (!['principal','design_principal'].includes(me.role)) {
@@ -78,7 +78,7 @@ router.post('/:project_id/petty-cash/replenish', requireAuth, requireProjectScop
     );
     audit.log({ userId: req.session.user.id, action: 'petty_cash.replenish',
       entityType: 'petty_cash_transactions', entityId: rpResult.insertId,
-      details: { project_id: parseInt(req.params.project_id), amount: amtCheck.amount, notes: notes||'Float replenishment', threshold_check: amtCheck.amount > PETTY_CASH_THRESHOLD ? 'principal_approval' : 'pmc_approval' }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), amount: amtCheck.amount, notes: notes||'Float replenishment', threshold_check: amtCheck.amount > PETTY_CASH_THRESHOLD ? 'principal_approval' : 'pmc_approval' }, req });
 
     // Notify Finance Admin — petty cash replenishment requested (C2, friction-reduction brief)
     try {
@@ -147,7 +147,7 @@ router.post('/:project_id/direct-payments', requireAuth, requireProjectScope(), 
     );
     audit.log({ userId: req.session.user.id, action: 'direct_payment.record',
       entityType: 'principal_direct_payments', entityId: dpResult.insertId,
-      details: { project_id: parseInt(req.params.project_id), payment_date, payment_type, amount: amtCheck.amount, paid_to, description, upi_ref: upi_ref || null, boq_head: boq_head || null }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), payment_date, payment_type, amount: amtCheck.amount, paid_to, description, upi_ref: upi_ref || null, boq_head: boq_head || null }, req });
     res.json({ success: true });
   }));
 
@@ -219,7 +219,7 @@ router.post('/:project_id/client-receipts', requireAuth, requireProjectScope(), 
 
     audit.log({ userId: req.session.user.id, action: 'client_receipt.record',
       entityType: 'client_receipts', entityId: receiptId,
-      details: { project_id: parseInt(req.params.project_id), pi_id: body.pi_id, receipt_date: body.receipt_date, amount_received: body.amount_received, tds_deducted: body.tds_deducted, net_received: net, utr: body.utr }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), pi_id: body.pi_id, receipt_date: body.receipt_date, amount_received: body.amount_received, tds_deducted: body.tds_deducted, net_received: net, utr: body.utr }, req });
 
     res.json({ success: true, id: receiptId, net_received: net, tds_recorded: body.tds_deducted > 0 });
   }));
@@ -247,7 +247,7 @@ router.post('/advance-recovery', requireAuth, requirePMC, asyncHandler(async (re
     );
     audit.log({ userId: req.session.user.id, action: 'advance_recovery.create',
       entityType: 'advance_recovery_schedule', entityId: arResult.insertId,
-      details: { engagement_id: parseInt(engagement_id), advance_type: advance_type||'mobilisation', advance_amount, advance_date, recovery_pct_per_bill: recovery_pct_per_bill||10 }, req });
+      details: { engagement_id: parseInt(engagement_id, 10), advance_type: advance_type||'mobilisation', advance_amount, advance_date, recovery_pct_per_bill: recovery_pct_per_bill||10 }, req });
     res.json({ success: true });
   }));
 

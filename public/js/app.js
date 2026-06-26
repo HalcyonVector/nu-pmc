@@ -55,10 +55,9 @@ const TAB_LABELS = {
   boq_versions:'BOQ Versions',
   governance:'Governance',
   account_setup:'Account Setup',
-  ai_settings:'AI Settings',
+  ai_settings:'AI Features',
   errors_log:'Error Log',
   library:'Knowledge Library',
-  ai_settings:'AI Features',
   // New module tabs
   claims:'Claims',            forms:'Inspections',       labour_quick:'Labour (Quick)',
   schedule_quick:'Schedule Quick', comms:'Comms',        direct_payments:'Direct Pay',
@@ -1138,6 +1137,8 @@ Tomorrow: start formwork on next bay."
       flags:             () => APP.renderFlags(),
       nav_editor:        () => APP.renderNavEditor(),
       governance:        () => APP.renderGovernance(),
+      boq_versions:      () => APP.renderBOQVersions(),
+      deputy:            () => APP.loadProfile(),
       account_setup:     () => APP.renderAccountSetup(),
       ai_settings:       () => APP.renderAISettings(),
       errors_log:        () => APP.renderErrorsLog(),
@@ -8530,7 +8531,7 @@ APP.downloadAllTally = async function(pid) {
   const data = await API.get(`/pi-generator/all/${pid}/tally`);
   if (!data?.tally_urls?.length) { UI.toast('No paid invoices found'); return; }
   data.tally_urls.forEach((url, i) => {
-    setTimeout(() => { const a = document.createElement('a'); a.href = '/api' + url; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); }, i * 600);
+    setTimeout(() => { const a = document.createElement('a'); a.href = url; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); }, i * 600);
   });
   UI.toast(`Downloading ${data.count} Tally XML(s)…`);
 };
@@ -12215,6 +12216,51 @@ APP.showBOQVersions = async function(pid) {
   UI.openModal('BOQ Versions', body);
 };
 
+// Tab render for the boq_versions nav tab (same data as modal, but full-page)
+APP.renderBOQVersions = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid(); if (!pid) return;
+  el.innerHTML = UI.loading();
+  const res = await API.call('GET', `/materials/${pid}/boq/versions`);
+  const versions = res?.versions || [];
+  const canRollback = ['design_head','services_head','principal','design_principal'].includes(APP.user.role);
+
+  if (!versions.length) {
+    el.innerHTML = APP._projectSelectHtml('APP.renderBOQVersions()') + UI.empty('📋', 'No BOQ versions uploaded yet.');
+    return;
+  }
+
+  const byStream = { design: [], services: [] };
+  versions.forEach(v => { if (byStream[v.stream]) byStream[v.stream].push(v); });
+
+  const renderSection = (streamKey, label) => {
+    const list = byStream[streamKey];
+    if (!list.length) return '';
+    let h = `<div class="sec-label" style="margin:16px 0 8px">${label}</div>`;
+    list.forEach(v => {
+      const when = new Date(v.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+      const isCurrent = v.is_current === 1 || v.is_current === true;
+      h += `<div class="card" style="margin-bottom:8px;${isCurrent?'border-left:3px solid var(--green)':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:600;font-size:13px">${UI.escapeText(v.label)} ${isCurrent ? '<span class="badge b-green" style="margin-left:6px">CURRENT</span>' : ''}</div>
+            <div style="font-size:11px;color:var(--muted)">${v.item_count} items · ${UI.escapeText(v.uploaded_by_name || '—')} · ${when}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-sm" onclick="APP.previewBOQVersion(${pid},${v.id},'${UI.escapeAttr(v.label)}')">View</button>
+            ${!isCurrent && canRollback ? `<button class="btn-sm navy" onclick="APP.rollbackBOQVersion(${pid},${v.id},'${UI.escapeAttr(v.label)}','${v.stream}')">Rollback</button>` : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+    return h;
+  };
+
+  el.innerHTML = APP._projectSelectHtml('APP.renderBOQVersions()') +
+    `<div class="card-title" style="margin-bottom:4px">BOQ Version History</div>` +
+    renderSection('design', 'Design stream') + renderSection('services', 'Services stream');
+};
+
 APP.previewBOQVersion = async function(pid, versionId, label) {
   const res = await API.call('GET', `/materials/${pid}/boq/versions/${versionId}/items`);
   if (!res?.items) { UI.toast('Failed to load version'); return; }
@@ -12710,8 +12756,9 @@ APP._submitMeasurementClientAccept = async function(pid, mid) {
 };
 
 APP.downloadMeasurementCert = async function(pid, mid) {
+  UI.toast('Generating certificate…');
   const data = await API.get(`/measurements/${pid}/${mid}/certificate`);
-  if (data?.file_path) { window.open('/api' + data.file_path, '_blank'); }
+  if (data?.file_url) { window.open(data.file_url, '_blank'); }
   else UI.toast(data?.error || 'Certificate not available');
 };
 
@@ -12849,12 +12896,12 @@ APP.renderForms = async function() {
       html += `<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div class="card-title">${t.title||'—'}</div>
+            <div class="card-title">${UI.escapeText(t.name||'—')}</div>
             <div class="card-meta">${t.category||'General'} · ${t.field_count||0} fields</div>
           </div>
           <div style="display:flex;gap:6px">
             ${t.status === 'draft' && canManageTemplates ? `<button class="btn-sm approve" onclick="APP.approveFormTemplate(${pid},${t.id})">Approve</button>` : ''}
-            ${t.status === 'active' && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.title)}')">Fill Form</button>` : ''}
+            ${t.status === 'active' && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.name||'')}')">Fill Form</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -12872,7 +12919,7 @@ APP.renderForms = async function() {
     html += `<div class="card">
       <div style="display:flex;justify-content:space-between">
         <div>
-          <div class="card-title">${s.template_title||'—'}</div>
+          <div class="card-title">${UI.escapeText(s.template_name||'—')}</div>
           <div class="card-meta">${UI.fmtDate(s.submitted_at)} · ${s.submitted_by_name||'—'}</div>
         </div>
         <span class="badge ${badge}">${s.status||'submitted'}</span>
@@ -12901,12 +12948,12 @@ APP.showNewFormTemplate = function(pid) {
 };
 
 APP._submitFormTemplate = async function(pid) {
-  const title    = document.getElementById('ft-title')?.value?.trim();
+  const name     = document.getElementById('ft-title')?.value?.trim();
   const category = document.getElementById('ft-cat')?.value;
   const fieldText = document.getElementById('ft-fields')?.value || '';
   const fields   = fieldText.split('\n').map(f => f.trim()).filter(Boolean).map(label => ({ label, type: 'text' }));
-  if (!title) { UI.toast('Title required'); return; }
-  const res = await API.post(`/forms/templates`, { title, category, fields, project_id: pid });
+  if (!name) { UI.toast('Title required'); return; }
+  const res = await API.post(`/forms/templates`, { name, category, fields_json: JSON.stringify(fields), project_id: pid });
   if (res?.success) { UI.closeModal(); UI.toast('Template created ✓'); APP.renderForms(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -12931,7 +12978,7 @@ APP._submitFilledForm = async function(pid, templateId) {
   const notes = document.getElementById('sf-notes')?.value?.trim();
   let responses;
   try { responses = JSON.parse(responsesRaw); } catch(e) { responses = { response: responsesRaw }; }
-  const res = await API.post(`/forms/${pid}/submit`, { template_id: templateId, responses, notes });
+  const res = await API.post(`/forms/${pid}/submit`, { template_id: templateId, responses_json: JSON.stringify(responses), notes });
   if (res?.success) { UI.closeModal(); UI.toast('Form submitted ✓'); APP.renderForms(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -13261,36 +13308,34 @@ APP._rejectBankChange = async function(changeId) {
 
 // ── VENDOR PO / SETTLEMENT BUTTONS (called from vendor engagement cards)
 APP.showApprovePO = async function(engagementId, vendorName) {
-  const res = await API.post(`/engagements/${engagementId}/approve-po`, {});
+  const res = await API.post(`/vendor-documents/po/${engagementId}/approve`, {});
   if (res?.success) UI.toast(`PO approved for ${vendorName||'vendor'} ✓`);
   else UI.toast(res?.error || 'Failed');
 };
 
 APP.showFlagPO = function(engagementId) {
-  const reason = prompt('Flag reason:');
-  if (!reason) return;
-  API.post(`/engagements/${engagementId}/flag-po`, { reason }).then(res => {
-    if (res?.success) UI.toast('PO flagged');
+  if (!confirm('Mark this engagement as requiring a Purchase Order?')) return;
+  API.call('PATCH', `/vendor-documents/engagements/${engagementId}/po-flag`, { po_required: true }).then(res => {
+    if (res?.success) { UI.toast('PO requirement flagged ✓'); APP.renderVendors(); }
     else UI.toast(res?.error || 'Failed');
   });
 };
 
 APP.showRecordSettlement = function(engagementId, vendorName) {
   UI.showModal(`Final Settlement — ${vendorName||'Vendor'}`, `
-    <div class="field"><label>Final Settlement Amount (₹)</label><input type="number" id="set-amount" min="0"></div>
-    <div class="field"><label>Settlement Date</label><input type="date" id="set-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>DLP / Retention Deduction (₹)</label><input type="number" id="set-dlp" min="0" value="0"></div>
     <div class="field"><label>Notes</label><textarea id="set-notes" rows="2"></textarea></div>
-    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitSettlement(${engagementId})">Record Settlement</button>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Final payable = Contract Value − DLP Deduction. PDF generated and sent to vendor.</div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitSettlement(${engagementId})">Generate Settlement</button>
   `);
 };
 
 APP._submitSettlement = async function(engagementId) {
-  const amount          = document.getElementById('set-amount')?.value;
-  const settlement_date = document.getElementById('set-date')?.value;
-  const notes           = document.getElementById('set-notes')?.value?.trim();
-  if (!amount || !settlement_date) { UI.toast('Amount and date required'); return; }
-  const res = await API.post(`/engagements/${engagementId}/settlement`, 
-    { amount: parseFloat(amount), settlement_date, notes });
-  if (res?.success) { UI.closeModal(); UI.toast('Settlement recorded ✓'); }
+  const dlp_deduction = parseFloat(document.getElementById('set-dlp')?.value || 0);
+  const notes         = document.getElementById('set-notes')?.value?.trim();
+  if (isNaN(dlp_deduction)) { UI.toast('Enter a valid DLP deduction amount'); return; }
+  const res = await API.post(`/vendor-documents/settlement/${engagementId}`,
+    { dlp_deduction, notes });
+  if (res?.success) { UI.closeModal(); UI.toast('Settlement generated & sent to vendor ✓'); }
   else UI.toast(res?.error || 'Failed');
 };

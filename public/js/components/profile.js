@@ -59,7 +59,7 @@ window.Components.profile = function() {
       if (this.savingDeputy) return;
       this.savingDeputy = true;
       try {
-        const res = await API.call('PATCH', '/users/me/deputy', {
+        const res = await API.call('PATCH', `/users/${APP.user.id}/deputy`, {
           deputy_id: this.deputySelected || null,
         });
         if (res?.success || res?.queued) {

@@ -138,7 +138,7 @@ router.post('/', requireAuth, requireRole(...APPROVAL_RAISERS), asyncHandler(asy
 
     audit.log({ userId: req.session.user.id, action: 'approval.create',
       entityType: 'wa_pending_actions', entityId: result.insertId,
-      details: { action_type, project_id: parseInt(project_id), drift_days: drift_days || null }, req });
+      details: { action_type, project_id: parseInt(project_id, 10), drift_days: drift_days || null }, req });
 
     // Notify principals
     const { notifyApprovalNeeded } = require('../../../services/notifications');
@@ -193,7 +193,7 @@ router.post('/:id/approve', requireAuth, requirePrincipal, asyncHandler(async (r
 
     // Audit AFTER tx commits — record reflects the actual committed state
     audit.log({ userId: req.session.user.id, action: 'approval.approve',
-      entityType: 'wa_pending_actions', entityId: parseInt(req.params.id),
+      entityType: 'wa_pending_actions', entityId: parseInt(req.params.id, 10),
       details: { action_type: ar.action_type, ref_table: ar.ref_table, ref_id: ar.ref_id, project_id: ar.project_id }, req });
 
     // Side-effects after tx — notifications, checklist flags. These do not
@@ -237,7 +237,7 @@ router.post('/:id/reject', requireAuth, requirePrincipal, asyncHandler(async (re
       ['rejected', req.session.user.id, rejection_note || 'No reason given', req.params.id]
     );
     audit.log({ userId: req.session.user.id, action: 'approval.reject',
-      entityType: 'wa_pending_actions', entityId: parseInt(req.params.id),
+      entityType: 'wa_pending_actions', entityId: parseInt(req.params.id, 10),
       details: { action_type: ar?.action_type, ref_table: ar?.ref_table, ref_id: ar?.ref_id, project_id: ar?.project_id, rejection_note: rejection_note || 'No reason given' }, req });
     res.json({ success: true });
   }));

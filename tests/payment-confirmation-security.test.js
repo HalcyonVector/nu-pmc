@@ -54,7 +54,15 @@ describe('ICICI Payment Confirmation File Security', () => {
 
   beforeAll(() => {
     tempFilePath = path.join(__dirname, 'dummy_confirmation.xlsx');
-    fs.writeFileSync(tempFilePath, 'dummy excel content');
+    // Write a REAL .xlsx (a ZIP container) so the upload middleware's magic-byte
+    // validation accepts it. The spreadsheet parsing itself is mocked
+    // (parseConfirmationExcel), so only a valid xlsx/zip header is needed.
+    const XLSX = require('xlsx');
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      wb, XLSX.utils.aoa_to_sheet([['payment_id', 'amount', 'utr', 'status']]), 'Sheet1'
+    );
+    XLSX.writeFile(wb, tempFilePath);
   });
 
   afterAll(() => {
@@ -187,7 +195,9 @@ describe('ICICI Payment Confirmation File Security', () => {
     app = makeApp('pmc_head', [['/api/payments', require('../modules/finance/routes/payments')]]);
     const agent = request.agent(app);
 
-    // Create a dummy pdf file
+    // A .pdf whose content is NOT a real PDF. The upload middleware's magic-byte
+    // validation rejects it because the bytes don't match the extension — that
+    // is the security property under test (renaming a non-PDF to .pdf is caught).
     const pdfFilePath = path.join(__dirname, 'dummy_confirmation.pdf');
     fs.writeFileSync(pdfFilePath, 'dummy pdf content');
 
@@ -197,7 +207,7 @@ describe('ICICI Payment Confirmation File Security', () => {
       .field('cycle_id', '123');
 
     expect(previewRes.status).toBe(400);
-    expect(previewRes.body.error).toContain('Invalid file type');
+    expect(previewRes.body.error).toMatch(/does not match extension|not allowed/i);
 
     fs.unlinkSync(pdfFilePath);
   });

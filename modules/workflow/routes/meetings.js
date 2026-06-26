@@ -85,7 +85,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asy
     });
     audit.log({ userId: me.id, action: 'meeting.create',
       entityType: 'meetings', entityId: insertId,
-      details: { project_id: parseInt(req.params.project_id), meeting_number: momNumber, type: body.type, meeting_date: body.meeting_date, client_id: body.client_id || null }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), meeting_number: momNumber, type: body.type, meeting_date: body.meeting_date, client_id: body.client_id || null }, req });
     res.json({ success: true, id: insertId, meeting_number: momNumber });
   }));
 
@@ -107,7 +107,7 @@ router.patch('/:id', requireAuth, asyncHandler(async (req, res) => {
       // Strict: we require the client to send the version it loaded. A missing
       // version means the client is on an old build that hasn't been updated;
       // treat it the same as a stale version (force refresh).
-      throw new ol.StaleVersionError('meetings', parseInt(req.params.id), null, 'missing');
+      throw new ol.StaleVersionError('meetings', parseInt(req.params.id, 10), null, 'missing');
     }
     // Atomic: bump row_version AND set the fields in one statement, gated on
     // the client's version. affectedRows = 0 means another save raced ahead.
@@ -124,12 +124,12 @@ router.patch('/:id', requireAuth, asyncHandler(async (req, res) => {
       // Re-read current version for the 409 payload so the client knows what
       // it should re-load against.
       const [[fresh]] = await db.query('SELECT row_version FROM meetings WHERE id = ?', [req.params.id]);
-      throw new ol.StaleVersionError('meetings', parseInt(req.params.id), row_version, fresh ? fresh.row_version : 'not_found');
+      throw new ol.StaleVersionError('meetings', parseInt(req.params.id, 10), row_version, fresh ? fresh.row_version : 'not_found');
     }
     audit.log({ userId: req.session.user.id, action: 'meeting.draft_edit',
-      entityType: 'meetings', entityId: parseInt(req.params.id),
+      entityType: 'meetings', entityId: parseInt(req.params.id, 10),
       details: { project_id: mom.project_id, meeting_number: mom.meeting_number, title, meeting_date }, req });
-    res.json({ success: true, row_version: parseInt(row_version) + 1 });
+    res.json({ success: true, row_version: parseInt(row_version, 10) + 1 });
   }));
 
 // ── POST /api/meetings/:id/approve — PMC Head approves draft (INTERNAL ONLY; does NOT notify client)
@@ -143,14 +143,14 @@ router.post('/:id/approve', requireAuth, requirePMC, asyncHandler(async (req, re
     const sm = require('../../../services/state-machines').meeting;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: 'draft', to: 'approved',
+        id: parseInt(req.params.id, 10), from: 'draft', to: 'approved',
         extraCols: { approved_by: req.session.user.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
 
     // Close any matching row on central Approvals dashboard
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'meetings', refId: parseInt(req.params.id), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'meetings', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
     // Audit log
     audit.log({
@@ -242,7 +242,7 @@ router.post('/:id/issue-to-client', requireAuth, requirePMC, asyncHandler(async 
     await db.tx(async (conn) => {
       const sm = require('../../../services/state-machines').meeting;
       await sm.transition({
-        id: parseInt(req.params.id), from: 'approved', to: 'issued',
+        id: parseInt(req.params.id, 10), from: 'approved', to: 'issued',
         extraCols: { issued_at: new Date() },
         conn,
       });
@@ -276,7 +276,7 @@ router.post('/:id/issue-to-client', requireAuth, requirePMC, asyncHandler(async 
       const signoffGate = require('../../../services/signoff-gate');
       const { pollEventId } = await signoffGate.triggerSignoff(
         'mom_acknowledgement',
-        parseInt(req.params.id),
+        parseInt(req.params.id, 10),
         mom.project_id,
         {
           question: `${mom.meeting_number} — please acknowledge these meeting minutes.`,
@@ -349,7 +349,7 @@ router.post('/:id/reissue', requireAuth, requirePMC, upload.single('doc'), async
 
     // W15: high-stakes — client trail. Audit AFTER tx commits.
     audit.log({ userId: req.session.user.id, action: 'meeting.reissue',
-      entityType: 'meetings', entityId: parseInt(req.params.id),
+      entityType: 'meetings', entityId: parseInt(req.params.id, 10),
       details: { version: nextVersion, window_days: winDays, locked: winDays === 0, reason: req.body.reason || null }, req });
 
     res.json({
@@ -394,7 +394,7 @@ router.post('/:id/unlock', requireAuth, requirePrincipal, asyncHandler(async (re
       if (mom.status !== 'issued') {
         const sm = require('../../../services/state-machines').meeting;
         await sm.transition({
-          id: parseInt(req.params.id), from: mom.status, to: 'issued',
+          id: parseInt(req.params.id, 10), from: mom.status, to: 'issued',
           conn,
         });
       }
@@ -446,7 +446,7 @@ router.post('/:id/action-items', requireAuth, requirePMC, asyncHandler(async (re
     let assigned_to = null;
     let assignee_name = null;
     if (/^\d+$/.test(String(rawAssignee))) {
-      assigned_to = parseInt(rawAssignee);
+      assigned_to = parseInt(rawAssignee, 10);
     } else {
       assignee_name = String(rawAssignee);
     }
@@ -490,9 +490,17 @@ router.post('/:id/action-items', requireAuth, requirePMC, asyncHandler(async (re
       await notif.notify(assigned_to, 'action_item', `Action item assigned to you — due ${due_date}. Open app to acknowledge.`);
     }
 
+    // Notify the countersigner (peer / team-head review) that an item awaits
+    // their sign-off. Previously only the assignee was told, so the
+    // countersigner had to discover the pending review in-app.
+    if (countersignBy && countersignBy !== assigned_to) {
+      await notif.notify(countersignBy, 'countersign_needed',
+        `An action item needs your countersign — due ${due_date}. Open app to review.`);
+    }
+
     audit.log({ userId: req.session.user.id, action: 'action_item.create',
       entityType: 'meeting_actions', entityId: result.insertId,
-      details: { meeting_id: parseInt(req.params.id), action_text, assigned_to: assigned_to || null, assignee_name: assignee_name || null, countersign_by: countersignBy, due_date }, req });
+      details: { meeting_id: parseInt(req.params.id, 10), action_text, assigned_to: assigned_to || null, assignee_name: assignee_name || null, countersign_by: countersignBy, due_date }, req });
 
     res.json({ success: true, id: result.insertId, countersign_by: countersignBy });
   }));
@@ -505,12 +513,12 @@ router.patch('/action-items/:id/acknowledge', requireAuth, asyncHandler(async (r
     const sm = require('../../../services/state-machines').meetingAction;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: item.status, to: 'acknowledged',
+        id: parseInt(req.params.id, 10), from: item.status, to: 'acknowledged',
         extraCols: { acknowledged_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: req.session.user.id, action: 'action_item.acknowledge',
-      entityType: 'meeting_actions', entityId: parseInt(req.params.id),
+      entityType: 'meeting_actions', entityId: parseInt(req.params.id, 10),
       details: { meeting_id: item.meeting_id }, req });
     res.json({ success: true });
   }));
@@ -526,12 +534,12 @@ router.patch('/action-items/:id/countersign', requireAuth, asyncHandler(async (r
       const sm = require('../../../services/state-machines').meetingAction;
       try {
         await sm.transition({
-          id: parseInt(req.params.id), from: item.status, to: 'in_progress',
+          id: parseInt(req.params.id, 10), from: item.status, to: 'in_progress',
           extraCols: { countersigned_at: new Date() },
         });
       } catch (err) { return sm.handleRouteError(err, res); }
       audit.log({ userId: req.session.user.id, action: 'action_item.countersign.agree',
-        entityType: 'meeting_actions', entityId: parseInt(req.params.id),
+        entityType: 'meeting_actions', entityId: parseInt(req.params.id, 10),
         details: { meeting_id: item.meeting_id }, req });
       res.json({ success: true, message: 'Countersigned — action item active.' });
     } else {
@@ -539,12 +547,18 @@ router.patch('/action-items/:id/countersign', requireAuth, asyncHandler(async (r
       const sm = require('../../../services/state-machines').meetingAction;
       try {
         await sm.transition({
-          id: parseInt(req.params.id), from: item.status, to: 'pending',
+          id: parseInt(req.params.id, 10), from: item.status, to: 'pending',
         });
       } catch (err) { return sm.handleRouteError(err, res); }
       audit.log({ userId: req.session.user.id, action: 'action_item.countersign.disagree',
-        entityType: 'meeting_actions', entityId: parseInt(req.params.id),
+        entityType: 'meeting_actions', entityId: parseInt(req.params.id, 10),
         details: { meeting_id: item.meeting_id, reason: reason || null }, req });
+      // Tell the assignee their action item bounced back and the MOM must be
+      // reissued — otherwise the disagreement is silent to them.
+      if (item.assigned_to && item.assigned_to !== req.session.user.id) {
+        await notif.notify(item.assigned_to, 'countersign_disagreed',
+          `Your meeting action item was sent back on countersign review${reason ? ` (${reason})` : ''}. The MOM will be reissued.`);
+      }
       res.json({
         success: true, requires_reissue: true,
         message: `Disagreement recorded — MOM must be reissued. Uses one revision window. Reason: ${reason||'Not specified'}`,
@@ -567,12 +581,12 @@ router.patch('/action-items/:id/complete', requireAuth, asyncHandler(async (req,
     const sm = require('../../../services/state-machines').meetingAction;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: item.status, to: 'completed',
+        id: parseInt(req.params.id, 10), from: item.status, to: 'completed',
         extraCols: { completed_at: new Date(), completion_note: completion_note || null },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: req.session.user.id, action: 'action_item.complete',
-      entityType: 'meeting_actions', entityId: parseInt(req.params.id),
+      entityType: 'meeting_actions', entityId: parseInt(req.params.id, 10),
       details: { meeting_id: item.meeting_id, completion_note: completion_note || null }, req });
     res.json({ success: true });
   }));
@@ -597,7 +611,7 @@ router.post('/:project_id/site-visit', requireAuth, requireProjectScope(), async
     );
     audit.log({ userId: me.id, action: 'meeting.site_visit.create',
       entityType: 'meetings', entityId: result.insertId,
-      details: { project_id: parseInt(req.params.project_id), visit_date }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), visit_date }, req });
     res.json({ success: true, id: result.insertId });
   }));
 
@@ -632,7 +646,7 @@ router.post('/:meeting_id/observation',
     }
     audit.log({ userId: req.session.user.id, action: 'meeting.observation.add',
       entityType: 'meeting_actions', entityId: null,
-      details: { meeting_id: parseInt(req.params.meeting_id), has_photo: !!req.file, observation_length: observation.length }, req });
+      details: { meeting_id: parseInt(req.params.meeting_id, 10), has_photo: !!req.file, observation_length: observation.length }, req });
     res.json({ success: true });
   }));
 
@@ -657,7 +671,7 @@ router.post('/:meeting_id/upload',
     );
     audit.log({ userId: req.session.user.id, action: 'meeting.upload',
       entityType: 'meeting_photos', entityId: null,
-      details: { meeting_id: parseInt(req.params.meeting_id), doc_type: docType, file_path: req.file.path }, req });
+      details: { meeting_id: parseInt(req.params.meeting_id, 10), doc_type: docType, file_path: req.file.path }, req });
     res.json({ success: true, file: req.file.path });
   }));
 

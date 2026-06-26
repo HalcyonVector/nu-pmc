@@ -59,7 +59,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asy
 
     audit.log({ userId: req.session.user.id, action: 'submittal.create',
       entityType: 'submittals', entityId: result.insertId,
-      details: { project_id: parseInt(req.params.project_id), submittal_number: num, engagement_id: parseInt(engagement_id), submittal_type: submittal_type || 'shop_drawing' }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), submittal_number: num, engagement_id: parseInt(engagement_id, 10), submittal_type: submittal_type || 'shop_drawing' }, req });
 
     // PMC approval poll (B3, friction-reduction brief)
     try {
@@ -116,7 +116,7 @@ router.patch('/:id/review', requireAuth,
     const sm = require('../../../services/state-machines').submittal;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: status,
+        id: parseInt(req.params.id, 10), from: cur.status, to: status,
         extraCols: {
           reviewed_by: me.id, reviewed_at: new Date(),
           review_comments: review_comments || null,
@@ -127,7 +127,7 @@ router.patch('/:id/review', requireAuth,
       await db.query('UPDATE submittals SET resubmit_count=resubmit_count+1 WHERE id=?', [req.params.id]);
     }
     audit.log({ userId: me.id, action: 'submittal.review',
-      entityType: 'submittals', entityId: parseInt(req.params.id),
+      entityType: 'submittals', entityId: parseInt(req.params.id, 10),
       details: { from: cur.status, status, review_comments: review_comments || null }, req });
     res.json({ success: true });
   }));

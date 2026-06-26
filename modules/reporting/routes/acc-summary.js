@@ -21,7 +21,7 @@ router.use(requireAuth);
 // ── BADGE COUNTS ─────────────────────────────────────────────────────────
 router.get('/acc-summary/:projectId', requireProjectScope(r => r.params.projectId),
   asyncHandler(async (req, res) => {
-    const pid = parseInt(req.params.projectId);
+    const pid = parseInt(req.params.projectId, 10);
     const role = req.session.user.role;
     const uid  = req.session.user.id;
     const items = [];
@@ -161,7 +161,7 @@ router.get('/acc-summary/:projectId', requireProjectScope(r => r.params.projectI
 router.get('/acc-preview/:tabKey/:projectId?',
   asyncHandler(async (req, res) => {
     const { tabKey, projectId } = req.params;
-    const pid = projectId ? parseInt(projectId) : null;
+    const pid = projectId ? parseInt(projectId, 10) : null;
     const uid = req.session.user.id;
 
     // Validate project scope if scoped

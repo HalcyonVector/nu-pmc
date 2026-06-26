@@ -57,7 +57,7 @@ async function countWithScope(sqlTemplate, baseParams, projectIds, scopeColumn =
     sql = sqlTemplate.replace('{SCOPE}', '');
   }
   const [[r]] = await db.query(sql, params);
-  return parseInt(r.cnt || 0);
+  return parseInt(r.cnt || 0, 10);
 }
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {

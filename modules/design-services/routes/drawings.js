@@ -527,7 +527,7 @@ router.post('/version/:version_id/approve', requireAuth, asyncHandler(async (req
           'SELECT d.drawing_number, d.drawing_name FROM drawings d JOIN drawing_versions dv ON dv.drawing_id = d.id WHERE dv.id = ?',
           [dv.id]
         );
-        notifyDrawingIssued(dv.project_id, drawingInfo?.drawing_number||'', drawingInfo?.drawing_name||'', dv.revision||'')
+        notifyDrawingIssued(dv.project_id, drawingInfo?.drawing_number||'', dv.revision||'', drawingInfo?.drawing_name||'')
           .catch(e => console.warn('[drawings] notifyDrawingIssued swallowed:', e.message));
       } catch(e) { console.error('[drawings] Notify error:', e.message); }
     }
@@ -540,6 +540,14 @@ router.post('/version/:version_id/approve', requireAuth, asyncHandler(async (req
       } else {
         await Onboarding.functions.setChecklistFlag(dv.project_id, 'checklist_services_boq');
       }
+    }
+
+    // Notify L2 reviewer when drawing moves to pending_l2.
+    // notifyDrawingApproval handles both R1/R2 (Matrix poll via signoff-gate)
+    // and R3+ (in-app notification to design_head/services_head).
+    if (newStatus === 'pending_l2') {
+      notifyDrawingApproval(dv, dv.project_id)
+        .catch(e => console.warn('[drawings] L2 reviewer notify swallowed:', e.message));
     }
 
     res.json({

@@ -36,6 +36,7 @@ const router = express.Router();
 const onboarding = require('../../../services/vendor-onboarding');
 const db = require('../../../middleware/db');
 const audit = require('../../../services/audit');
+const asyncHandler = require('../../../middleware/asyncHandler');
 
 // Pre-load the template once on module init. Templates rarely change at
 // runtime; if they do, restart picks them up.
@@ -407,7 +408,7 @@ async function handleAction(req, res, vote) {
   return res.status(400).json({ error: 'Unsupported purpose', code: 'PURPOSE_INVALID' });
 }
 
-router.post('/:token/confirm', (req, res) => handleAction(req, res, 'approve'));
-router.post('/:token/reject',  (req, res) => handleAction(req, res, 'reject'));
+router.post('/:token/confirm', asyncHandler((req, res) => handleAction(req, res, 'approve')));
+router.post('/:token/reject',  asyncHandler((req, res) => handleAction(req, res, 'reject')));
 
 module.exports = router;

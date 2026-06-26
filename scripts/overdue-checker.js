@@ -99,6 +99,30 @@ async function run() {
      WHERE status != 'closed' AND DATEDIFF(NOW(), raised_at) >= 3 AND is_overdue = 0`
   );
 
+  // ── 1b. Notify PMC Head + Design Head for RFIs newly crossed 3-day threshold.
+  // Only fires at 9AM to avoid repeated alerts across the 15-min cron windows.
+  if (hour === 9 && now.getMinutes() < 15) {
+    const [overdueRFIs] = await db.query(
+      `SELECT i.id, i.project_id, i.title, i.description,
+              DATEDIFF(NOW(), i.raised_at) AS days_open,
+              p.code AS project_code
+         FROM issues i
+         JOIN projects p ON i.project_id = p.id
+        WHERE i.issue_type = 'rfi'
+          AND i.status NOT IN ('closed','resolved')
+          AND i.is_overdue = 1
+          AND DATEDIFF(NOW(), i.raised_at) BETWEEN 3 AND 7`
+    );
+    const notif = require('../services/notifications');
+    for (const rfi of overdueRFIs) {
+      await notif.notifyRFIOverdue(rfi.project_id, rfi.title.substring(0, 60), rfi.days_open)
+        .catch(e => console.warn('[overdue-checker] RFI notify swallowed:', e.message));
+    }
+    if (overdueRFIs.length) {
+      console.log(`[overdue-checker] ${overdueRFIs.length} overdue RFI(s) notified`);
+    }
+  }
+
   // ── 2. Mark material requests overdue
   await db.execute(
     `UPDATE material_requests SET is_overdue = 1

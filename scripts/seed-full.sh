@@ -94,6 +94,20 @@ for f in "$WORK_DIR"/migrations/v4.[3-9]*.sql; do
   $MYSQL "$DB_NAME" < "$f" 2>&1 | grep -iE "error|fatal" | head -3 || true
 done
 
+# Apply v5+ migrations that are not covered by the v4 loop above.
+# These are idempotent (CREATE TABLE IF NOT EXISTS / ALTER TABLE IF NOT EXISTS).
+for f in \
+  "$WORK_DIR/migrations/v5.42-restore-matrix-reader-cursor.sql" \
+  "$WORK_DIR/migrations/add-submittal-review-permission.sql" \
+  "$WORK_DIR/migrations/create-ai-feature-toggles.sql" \
+  "$WORK_DIR/migrations/create-lessons-learned-tables.sql" \
+  "$WORK_DIR/migrations/patch-2026-06-22-fixes.sql" \
+  "$WORK_DIR/migrations/create-oidc-tables.sql"; do
+  [ -f "$f" ] || continue
+  echo "━━━ applying $(basename "$f") ━━━"
+  $MYSQL "$DB_NAME" < "$f" 2>&1 | grep -iE "error|fatal" | head -3 || true
+done
+
 # Load the 8 governance sheets into DB (role_permissions, workflow_transitions,
 # notification_triggers). The sheets are the single source of truth; the
 # middleware refuses to run if role_permissions is empty.
@@ -102,65 +116,30 @@ if [ -d "$WORK_DIR/governance_sheets" ] && [ -f "$WORK_DIR/scripts/load-governan
   cd "$WORK_DIR" && node scripts/load-governance-sheets.js 2>&1 | tail -10
 fi
 
-# 4. Users — real team + test_<role> fixtures. Bcrypt hash for Test1234.
-# IMPORTANT: the app uses the `bcryptjs` npm package, not `bcrypt`. The two
-# produce hashes that look structurally similar ($2a$10$... vs $2b$10$...)
-# but hashes generated with one library may NOT verify correctly with the
-# other. The hash below was generated using bcryptjs specifically.
-# This was the root cause of Bug #34 — Guru's "couldn't log in" report.
-# Regenerate if you change libraries:
-#   node -e "console.log(require('bcryptjs').hashSync('Test1234', 10))"
-HASH='$2a$10$QdCA1yGPv3VGBQ6JlosUm.Vq/IkgIKr3g13qH.9JpK5hr74c/GB26'
+# 4. Role accounts — one per role, used by the dev role switcher (user1 → modal → pick role).
+# These are the permanent testing accounts. No real names, no test_ prefix.
+# Password is Start@123. force_password_change=0 so the switcher works immediately.
+# IMPORTANT: the app uses bcryptjs (not bcrypt). Regenerate hash if you change libraries:
+#   node -e "console.log(require('bcryptjs').hashSync('Start@123', 10))"
+HASH='$2a$10$DvVvHWouRT7XF97wZgPyhuFOhrtwkAemQENfn4VlpD0OrKAyqZjBO'
 $MYSQL "$DB_NAME" <<SQL
-INSERT IGNORE INTO users (username, password_hash, full_name, role, is_active) VALUES
-('naveen','$HASH','Naveen Bhat','principal',1),
-('ajay','$HASH','Design Principal','design_principal',1),
-('rajani','$HASH','Design Head','design_head',1),
-('srinath','$HASH','Srinath','services_head',1),
-('murugesan','$HASH','PMC Head One','pmc_head',1),
-('praveen','$HASH','PMC Head Two','pmc_head',1),
-('sahana','$HASH','Sahana','team_lead',1),
-('sushmitha','$HASH','Sushmitha','team_lead',1),
-('karthik','$HASH','Karthik','services_engineer',1),
-('preethi','$HASH','Preethi','jr_architect',1),
-('satish','$HASH','Satish','jr_architect',1),
-('anjaneya','$HASH','Anjaneya','site_manager',1),
-('arun','$HASH','Arun','site_manager',1),
-('suleman','$HASH','Suleman','site_manager',1),
-('prajwal','$HASH','Prajwal','site_manager',1),
-('ajay_a','$HASH','Ajay A','detailing',1),
-('abhishek','$HASH','Abhishek','detailing',1),
-('bhumika','$HASH','Bhumika','detailing',1),
-('shreyas','$HASH','Shreyas','detailing',1),
-('udupa','$HASH','Udupa','finance_admin',1),
--- Role fixtures for automated testing
-('test_principal','$HASH','Test principal','principal',1),
-('test_design_principal','$HASH','Test DP','design_principal',1),
-('test_pmc_head','$HASH','Test pmc_head','pmc_head',1),
-('test_design_head','$HASH','Test design_head','design_head',1),
-('test_services_head','$HASH','Test services_head','services_head',1),
-('test_finance_admin','$HASH','Test finance_admin','finance_admin',1),
-('test_senior_site_manager','$HASH','Test senior_site_manager','senior_site_manager',1),
-('test_site_manager','$HASH','Test site_manager','site_manager',1),
-('test_team_lead','$HASH','Test team_lead','team_lead',1),
-('test_jr_architect','$HASH','Test jr_architect','jr_architect',1),
-('test_services_engineer','$HASH','Test services_engineer','services_engineer',1),
-('test_coordinator','$HASH','Test coordinator','coordinator',1),
-('test_detailing','$HASH','Test detailing','detailing',1),
-('test_trainee','$HASH','Test trainee','trainee',1),
-('test_audit','$HASH','Test audit','audit',1),
-('test_it_admin','$HASH','Test it_admin','it_admin',1);
-
--- Force-overwrite any stale hashes (Bug #34): older DB snapshots had
--- either '\$2b\$10\$placeholder' literals OR hashes generated with the
--- wrong bcrypt library (bcrypt vs bcryptjs mismatch). Anything that
--- isn't the current target hash gets replaced. This runs every seed
--- to heal legacy data.
-UPDATE users SET password_hash = '$HASH' WHERE password_hash != '$HASH';
--- Clear force_password_change for TEST fixtures so automated tests go
--- straight to the app. Real users keep force_password_change=1 so they
--- must set their own password on first login — which is correct.
-UPDATE users SET force_password_change = 0 WHERE username LIKE 'test_%';
+INSERT IGNORE INTO users (username, password_hash, full_name, role, is_active, force_password_change) VALUES
+('principal',          '$HASH','Principal',          'principal',          1, 1),
+('design_principal',   '$HASH','Design Principal',   'design_principal',   1, 1),
+('pmc_head',           '$HASH','PMC Head',           'pmc_head',           1, 1),
+('design_head',        '$HASH','Design Head',        'design_head',        1, 1),
+('services_head',      '$HASH','Services Head',      'services_head',      1, 1),
+('finance_admin',      '$HASH','Finance Admin',      'finance_admin',      1, 1),
+('sr_site_manager',    '$HASH','Sr Site Manager',    'senior_site_manager',1, 1),
+('site_manager',       '$HASH','Site Manager',       'site_manager',       1, 1),
+('team_lead',          '$HASH','Team Lead',          'team_lead',          1, 1),
+('jr_architect',       '$HASH','Junior Architect',   'jr_architect',       1, 1),
+('jr_engineer',        '$HASH','Jr Engineer',        'jr_engineer',        1, 1),
+('services_eng',       '$HASH','Services Eng',       'services_engineer',  1, 1),
+('coordinator',        '$HASH','Coordinator',        'coordinator',        1, 1),
+('trainee',            '$HASH','Trainee',            'trainee',            1, 1),
+('audit',              '$HASH','Audit Account',      'audit',              1, 1),
+('it_admin',           '$HASH','IT Admin',           'it_admin',           1, 0);
 SQL
 USER_COUNT=$($MYSQL -Nse "SELECT COUNT(*) FROM $DB_NAME.users" 2>/dev/null)
 echo "✓ users: $USER_COUNT"
@@ -169,7 +148,7 @@ echo "✓ users: $USER_COUNT"
 # Idempotent: explicit delete-then-insert on seeded data by unique markers.
 $MYSQL "$DB_NAME" <<'SQL'
 SET FOREIGN_KEY_CHECKS=0;
-SET @nv = (SELECT id FROM users WHERE username='naveen');
+SET @nv = (SELECT id FROM users WHERE username='principal');
 
 -- Idempotence: blow away anything previously seeded by this script.
 -- We scope deletes by the project codes PV90 + TEST2 and the vendor names
@@ -219,7 +198,7 @@ SELECT user_id, @pv, role, @nv, 1 FROM (
   UNION
   SELECT u.id, u.role
     FROM users u
-   WHERE u.username IN ('anjaneya','karthik','preethi','sahana','satish','sushmitha')
+   WHERE u.username IN ('site_manager','sr_site_manager','team_lead','jr_architect','services_eng','coordinator')
 ) t;
 
 -- Vendor + engagement on PV90
@@ -396,5 +375,5 @@ UNION SELECT 'audit_log',      COUNT(*) FROM audit_log;" 2>/dev/null
 echo ""
 echo "✓ seed complete"
 echo ""
-echo "Test logins:  test_<role> / Test1234"
-echo "Real logins:  naveen, ajay, rajani, etc. / Test1234"
+echo "Dev logins:   principal, pmc_head, site_manager, etc. / Start@123"
+echo "Dev switcher: user1 / Start@123 → pick any role from the modal"

@@ -73,6 +73,7 @@
   <div class="role-tab" onclick="showTab('finance')">Finance Admin</div>
   <div class="role-tab" onclick="showTab('team')">Design Team</div>
   <div class="role-tab" onclick="showTab('trainee')">Trainee</div>
+  <div class="role-tab" onclick="showTab('matrix')">Matrix &amp; Messaging</div>
   <div class="role-tab" onclick="showTab('flows')">All Flows &amp; Rules</div>
 </div>
 <div class="content">
@@ -172,6 +173,9 @@
 <tr><td>Vendor bank change poll</td><td>Designated approver</td><td>Matrix poll</td></tr>
 <tr><td>Weekly sign-off poll</td><td>PMC Head, Design Head, Services Head</td><td>Matrix poll</td></tr>
 <tr><td>PI raised to client</td><td>Client</td><td><strong>Email only</strong> — PWA opens mailto: link. Finance Admin sends manually. Not routed via Matrix or WhatsApp.</td></tr>
+<tr><td>Drawing sent to L2 review (pending_l2)</td><td>Design Head / Services Head (stream-specific)</td><td>Matrix</td></tr>
+<tr><td>Measurement recorded (pending sign-off)</td><td>PMC Head</td><td>Matrix in-app notify</td></tr>
+<tr><td>Task regression-flagged by site manager</td><td>PMC Head</td><td>Matrix in-app notify</td></tr>
 </table>
 <div class="note">Failed WhatsApp bridge sends are logged to <span class="ic">wa_send_failures</span>. Contact IT admin. Phone numbers must be E.164 format (+91XXXXXXXXXX). Only last 4 digits appear in server logs.</div>
 <div class="note"><strong>Vendor tiers:</strong> Tier A = vendor has <span class="ic">matrix_room_id</span> set → messages go directly to their Matrix room (which bridges to their WhatsApp). Tier B = no Matrix room → notification queued as a manual task in the External Comms queue.</div>
@@ -488,6 +492,19 @@
 <li>Trainees cannot access the Measurements section at all (blocked at the middleware level).</li>
 </ul>
 </div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">13</div><div><div class="flow-title">Manage the RFI Register</div><div class="flow-meta">RFI tab → monitor open RFIs, close resolved ones</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>Go to <strong>RFI</strong> <span class="nh">Work tab</span>. The register shows all RFIs across the project with status, direction, days open, and deadline.</li>
+<li>Filter by <strong>Overdue</strong> to see RFIs that have passed their response deadline — these need immediate follow-up with the relevant Design or Services Head.</li>
+<li>When a Design/Services Head provides a response, the RFI moves to <strong>resolved</strong>. Confirm the response is acceptable, then tap <strong>Close RFI</strong> to formally close it with an optional closure note.</li>
+<li>For <strong>PMC → Contractor</strong> direction RFIs: raise the RFI yourself when you need a formal written answer from the contractor. Set direction = PMC → Contractor. The contractor's site team must respond via the app.</li>
+<li>You are notified via Matrix on every new RFI raised and every RFI that becomes overdue (daily 9AM alert).</li>
+</ul>
+<div class="note">RFI overdue alerts fire every morning at 9AM for any RFI open 3–7 days without a response. Alerts go to: PMC Head, Design Head, Services Head, and Principal. After 7 days, escalation continues in the daily Principal brief.</div>
+</div></div>
 </div>
 </div>
 
@@ -569,6 +586,22 @@
 <li>Tap <strong>Sign [Design / Services] Section</strong>. Or respond to the Matrix sign-off poll — both methods count.</li>
 <li>Once PMC Head, Design Head, and Services Head all sign, Principal's Approve button unlocks.</li>
 </ul>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">5</div><div><div class="flow-title">Respond to a Formal RFI</div><div class="flow-meta">RFI tab → open RFI → Respond · your response becomes the official written record</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">open</div><div class="sf-a">→</div><div class="sf-s sf-done">resolved (on response)</div><div class="sf-a">→</div><div class="sf-s sf-done">closed (PMC Head / Principal)</div></div>
+<ul class="steps">
+<li>When an RFI is raised that falls under your stream, you receive a Matrix notification. Go to <strong>RFI</strong> <span class="nh">Work tab</span> → filter <strong>Open</strong> → find the RFI.</li>
+<li>Read the question and any attached drawing versions linked to this RFI.</li>
+<li>Tap <strong>Respond</strong> → type your formal written response. This response is permanent and cannot be edited after submission.</li>
+<li>Optionally upload an <strong>RFI Response Drawing</strong> via the Drawings tab (drawing type = RFI Response, linked to this RFI number). The linked drawing appears in the RFI detail automatically.</li>
+<li>Submit → RFI status moves to <strong>resolved</strong>. The raiser and PMC Head are notified.</li>
+<li>PMC Head or Principal formally closes the RFI after the contractor/site acknowledges the response.</li>
+</ul>
+<div class="warn"><strong>Respond within the deadline shown on the RFI card.</strong> After 3 days, the RFI is marked overdue and daily alerts are sent to PMC Head, Services Head, and Principal until you respond. Overdue RFIs show in the Principal's morning brief.</div>
+<div class="note">You can see all RFIs for your stream via the <strong>RFI Register</strong> → filter by Discipline. RFIs with <span class="ic">days_until_deadline = 0</span> or negative are highlighted in red in the register view.</div>
 </div></div>
 </div>
 </div>
@@ -652,7 +685,22 @@
 </div></div>
 
 <div class="flow-card">
-<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Upload Site Photos</div><div class="flow-meta">Photos tab → + Upload</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">6</div><div><div class="flow-title">Raise a Formal RFI (Request for Information)</div><div class="flow-meta">RFI tab → + Raise RFI · use when a design/specification question needs a formal written response</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<div class="sf"><div class="sf-s">open</div><div class="sf-a">→</div><div class="sf-s">resolved (response received)</div><div class="sf-a">→</div><div class="sf-s sf-done">closed (acknowledged)</div></div>
+<ul class="steps">
+<li>Go to <strong>RFI</strong> <span class="nh">Work tab</span> → tap <strong>+ Raise RFI</strong>.</li>
+<li>Fill in: <strong>Title</strong> (short description of what needs clarification), <strong>Description</strong> (full question or scope of the query), <strong>Direction</strong> (Contractor → PMC: the contractor is asking PMC/design team; PMC → Contractor: PMC is asking the contractor or site), <strong>Discipline</strong> (civil / structural / MEP / interior / landscape / general), optional <strong>Contractor Reference</strong> if the contractor has given their own RFI number.</li>
+<li>Set or accept the <strong>Response Deadline</strong> (default = 7 calendar days from today).</li>
+<li>Submit → RFI is numbered automatically (RFI-001, RFI-002…) and status = <strong>open</strong>. PMC Head and Design Head are notified immediately via Matrix.</li>
+<li>Monitor the <strong>RFI Register</strong> to see response status and days remaining on the deadline.</li>
+</ul>
+<div class="note">RFIs with no response after 3 days are automatically flagged as overdue. PMC Head, Design Head, Services Head, and Principal receive a daily 9AM alert until the RFI is responded to or closed.</div>
+<div class="tip">Use RFIs for any formal written question that needs to be on record — design clarification, specification conflict, site condition that deviates from drawings. Do not use informal WhatsApp messages for issues that need a tracked response.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">8</div><div><div class="flow-title">Upload Site Photos</div><div class="flow-meta">Photos tab → + Upload</div></div><div class="flow-chevron">▾</div></div>
 <div class="flow-body">
 <ul class="steps">
 <li>Go to <strong>Photos</strong> <span class="nh">Work tab</span> → tap <strong>+ Upload</strong>.</li>
@@ -665,7 +713,7 @@
 </div></div>
 
 <div class="flow-card">
-<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">7</div><div><div class="flow-title">Record a Site Visit Observation</div><div class="flow-meta">Meetings → site visit record → + Observation</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-card-header" onclick="toggleFlow(this)"><div class="flow-num">9</div><div><div class="flow-title">Record a Site Visit Observation</div><div class="flow-meta">Meetings → site visit record → + Observation</div></div><div class="flow-chevron">▾</div></div>
 <div class="flow-body">
 <ul class="steps">
 <li>When a PMC Head or Principal conducts a site visit, they create a site visit record. You can add observations to it.</li>
@@ -920,6 +968,7 @@
 <tr><td><strong>Weekly Report</strong></td><td>draft → pmc_signed + design_signed + services_signed → principal_approved → locked</td><td>System auto-generates</td><td>Three heads sign independently → Principal approves</td></tr>
 <tr><td><strong>Project Status</strong></td><td>initialising → active → completed / on_hold / cancelled</td><td>Principal creates</td><td>Auto-activates on 7-item checklist complete; Principal moves to completed/hold/cancelled</td></tr>
 <tr><td><strong>Issue / Snag</strong></td><td>open → in_progress → resolved / escalated</td><td>Site Manager / Trainee</td><td>PMC Head manages lifecycle; Site Manager marks own issues resolved</td></tr>
+<tr><td><strong>Formal RFI</strong></td><td>open → resolved (response given) → closed (formally acknowledged)</td><td>Any staff role (direction: contractor→PMC or PMC→contractor)</td><td>Stream Heads / PMC respond · PMC Head / Principal close · 7-day default deadline · Overdue alert at 9AM on day 3+</td></tr>
 </table>
 </div>
 
@@ -959,6 +1008,9 @@
 <tr><td>L2 drawing approval</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td>Create / issue MOM</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td>Raise issue / snag</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>✅</td></tr>
+<tr><td>Raise RFI</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>—</td></tr>
+<tr><td>Respond to RFI</td><td>✅</td><td>✅</td><td>✅</td><td>Sr. only</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Close RFI (formal)</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td>Sign weekly report</td><td>—</td><td>✅ (PMC section)</td><td>✅ (own section)</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td>Approve weekly report</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td>Proforma invoice / Tally XML</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
@@ -996,8 +1048,245 @@
 <div class="note"><strong>Payment amount:</strong> If you see a hard block on payment amount, check: (a) is the amount keyed correctly? (b) has the vendor's contract value been updated to reflect any approved CNs? (c) is there already an earlier payment that consumed the remaining balance?</div>
 <div class="tip"><strong>Notifications:</strong> Check the bell icon for items waiting on you. The "Needs You" tab shows a count of pending actions. Action items assigned to you show in "My Actions".</div>
 <div class="tip"><strong>Stale Version error:</strong> Not a bug. Refresh and re-check. It means someone else acted first.</div>
+<div class="note"><strong>RFI vs Drawing Query:</strong> Drawing Queries (raised via Issues tab with a drawing linked) are informal. Formal RFIs (raised via the RFI tab) are numbered, tracked against a deadline, and generate overdue alerts. Use formal RFIs for any query that needs a documented response on record.</div>
+<div class="note"><strong>RFI direction matters:</strong> Contractor → PMC means the contractor is asking you for a design/spec clarification. PMC → Contractor means you are asking the contractor to clarify something about the site or their scope. Set this correctly when raising — it determines who the expected responder is.</div>
 </div>
 </div>
+
+<!-- MATRIX & MESSAGING -->
+<div id="page-matrix" class="page">
+<div class="section-title">Matrix &amp; Messaging</div>
+<div class="section-sub">How notifications work, how to set up Element X, and what etke.cc adds — for everyone, no technical background needed</div>
+
+<div class="fg">
+<div class="fg-title">What is Matrix? (Plain Language)</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">?</div><div><div class="flow-title">Matrix is our messaging backbone — think of it like a company WhatsApp that we fully control</div><div class="flow-meta">You receive project alerts, approvals, and vendor updates here</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<p class="body">Matrix is an open messaging standard. We run our own Matrix server (hosted by etke.cc) — which means our conversations, files, and alerts stay on our own infrastructure, not on a third-party platform.</p>
+<p class="body">The app you use to connect to Matrix is called <strong>Element X</strong>. It is available free on iOS and Android. Think of Element X the same way you think of WhatsApp — but instead of WhatsApp's servers, it connects to nu Associates' own server.</p>
+<h4>Why do we use Matrix instead of just WhatsApp?</h4>
+<table class="t">
+<tr><th>What we need</th><th>Matrix does it</th><th>Raw WhatsApp doesn't</th></tr>
+<tr><td>Bot sends automated alerts (payment approved, drawing issued, etc.)</td><td>✓ Our PMC bot sends to your room automatically</td><td>✗ Not possible without expensive Business API approvals</td></tr>
+<tr><td>Approval polls (Approve / Reject with a button)</td><td>✓ Matrix polls work natively in Element X</td><td>✗ Only text replies possible</td></tr>
+<tr><td>Files and drawings sent to a project room</td><td>✓ Any file type, no size hassle</td><td>✗ Size limits, compression degrades drawings</td></tr>
+<tr><td>Keep company conversations private</td><td>✓ Hosted on our own server</td><td>✗ Meta owns all your messages</td></tr>
+<tr><td>Vendors who don't want to install Element X</td><td>✓ WhatsApp bridge — they get the message on normal WhatsApp</td><td>✓ Already on WhatsApp</td></tr>
+</table>
+<div class="tip"><strong>Key point:</strong> As an internal staff member you use Element X. Vendors who are not on Matrix still receive messages on their regular WhatsApp — the system bridges automatically.</div>
+</div></div></div>
+
+<div class="fg">
+<div class="fg-title">First-Time Setup — Getting on Matrix (Every Staff Member)</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">1</div><div><div class="flow-title">Install Element X and sign in to the nu Associates server</div><div class="flow-meta">One-time setup — takes about 5 minutes</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li><strong>Download Element X</strong> — search "Element X" on the App Store (iPhone) or Play Store (Android). It is free. Install it.</li>
+<li>Open Element X → tap <strong>"Sign In"</strong> → tap <strong>"Change server"</strong> (or "Other" / "Custom homeserver").</li>
+<li>Type the server address your IT Admin gave you (it will look like <span class="ic">matrix.nuassociates.in</span> or similar). Tap Continue.</li>
+<li>Enter your Matrix username and the temporary password IT Admin gave you. Tap Sign In.</li>
+<li>Element X will ask you to set up a <strong>Security Key</strong> or <strong>Recovery Phrase</strong> — this is for message encryption backup. Save this somewhere safe (Notes app, printed paper). If you lose it and lose your device, messages cannot be recovered.</li>
+<li>Once in, you will see rooms you have been invited to. Accept the invites.</li>
+</ul>
+<div class="note"><strong>Your Matrix username</strong> is separate from your NU PMC app login. IT Admin creates both. The Matrix username usually follows the pattern <span class="ic">@yourname:matrix.nuassociates.in</span>.</div>
+<div class="warn"><strong>Never share your Matrix password or Recovery Key with anyone</strong>, including IT Admin. IT Admin does not need your password to manage your account.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">2</div><div><div class="flow-title">Understanding your rooms — what each room is for</div><div class="flow-meta">You are added to rooms based on your role. You cannot add yourself to rooms.</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<table class="t">
+<tr><th>Room Name Pattern</th><th>Who is in it</th><th>What you see here</th></tr>
+<tr><td><span class="ic">PV90 — Coordination</span> (project code + Coordination)</td><td>PMC Head, Site Managers, both Stream Heads</td><td>Drawing issued alerts, GRN raised, RFI raised, schedule updates, task reminders</td></tr>
+<tr><td><span class="ic">PV90 — Finance</span></td><td>PMC Head, Finance Admin, Principal</td><td>Payment exception alerts, payment confirmed, urgent UTR alerts, payment sheet ready</td></tr>
+<tr><td><span class="ic">internal_principal</span></td><td>Principal, Design Principal only</td><td>Approval requests, escalations, CN stuck alerts, weekly report ready for sign-off</td></tr>
+<tr><td><span class="ic">internal_finance</span></td><td>Finance Admin only</td><td>Payment sheet ready, confirmation needed, vendor bank change requests</td></tr>
+<tr><td>Your name — DM with bot</td><td>You + the PMC bot</td><td>Personal alerts: your daily report overdue, task assigned to you, password reset temporary password</td></tr>
+<tr><td>Vendor rooms (e.g. <span class="ic">ABC Electrical — NU</span>)</td><td>PMC Head, Finance Admin + the vendor (via WhatsApp bridge)</td><td>Defect raised, payment confirmed, vendor confirmations. Vendor sees this on their WhatsApp.</td></tr>
+</table>
+<div class="tip">Rooms you are not in → you do not get those alerts. If you feel you are missing notifications that should be yours, tell IT Admin — they will check your room memberships.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">3</div><div><div class="flow-title">Responding to polls (Approve / Reject buttons)</div><div class="flow-meta">Used for weekly sign-offs, change notices, and vendor bank changes</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<p class="body">When a decision needs your sign-off, the PMC bot sends a <strong>poll</strong> to the relevant room. A poll looks like a message with selectable options — "Approve" or "Reject" (sometimes with more options for multi-choice decisions).</p>
+<ul class="steps">
+<li>Open Element X → go to the room where the poll appeared.</li>
+<li>Tap the poll card. You will see the options listed (e.g. Approve / Reject).</li>
+<li>Tap your choice. The bot registers your vote within seconds and sends a ✅ reaction on your message to confirm it was recorded.</li>
+<li>Once enough votes are in (quorum is met), the bot closes the poll and the NU PMC app automatically updates the record status.</li>
+</ul>
+<div class="note"><strong>Polls time out.</strong> If a poll stays open without enough votes for too long, it expires. You will get a notification in your DM with the bot telling you the approval expired. You or the proposer must re-raise the request in the app.</div>
+<div class="warn"><strong>Do not vote twice</strong> — if you tap a different answer after already voting, your first vote changes. Matrix only counts your most recent vote. Do not accidentally vote both Approve and Reject.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">4</div><div><div class="flow-title">What to do every day — your Matrix routine</div><div class="flow-meta">Takes 2–3 minutes each morning</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li><strong>Morning — check unread rooms.</strong> Open Element X. Rooms with bold names have unread messages. Scan through them. Most are automated alerts from the bot — read them so you know what happened overnight or early morning.</li>
+<li><strong>Respond to polls first.</strong> If you see a poll with your name called out or in a room where your vote is expected, respond before checking anything else. Polls time out, app actions don't.</li>
+<li><strong>Check your bot DM.</strong> Your personal DM with the PMC bot contains items directly addressed to you: overdue reports, tasks you are behind on, your own approval expiries.</li>
+<li><strong>If you see a @mention</strong> — someone has explicitly called your attention. The @ badge shows in the room list. These take priority over general room messages.</li>
+<li><strong>End of day — verify your daily report went in.</strong> If you submitted a daily report in the NU PMC app, the bot sends a confirmation to your DM. If you don't see it by 7 PM, check the app and resubmit.</li>
+</ul>
+<div class="tip">You do not need to reply to most bot messages. They are for your awareness, not for conversation. Only respond when there is a poll or a direct question directed at you.</div>
+</div></div>
+</div>
+
+<div class="fg">
+<div class="fg-title">Single Sign-On (SSO) — One login for everything</div>
+<div class="flow-card open">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">🔑</div><div><div class="flow-title">Your nu PMC username and password are all you need — no separate Matrix password</div><div class="flow-meta">When Element X asks you to sign in, use your normal nu PMC credentials</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<p class="body">SSO stands for Single Sign-On. In plain terms: you do not have a separate password for Element X. The same username and password you use for the nu PMC web app is what you use to log into Element X. One set of credentials, everything unlocks.</p>
+<h4>How to sign in to Element X using SSO</h4>
+<ul class="steps">
+<li>Open Element X. When it asks you to sign in, you will see a button that says <strong>"Sign in with nu Associates"</strong> (instead of a plain username/password box). Tap that button.</li>
+<li>Element X will open a login page in your phone's browser. This is the standard nu PMC login page — the same one you use for the web app.</li>
+<li>Enter your <strong>nu PMC username</strong> and your <strong>nu PMC password</strong>. Tap Sign In.</li>
+<li>If your credentials are correct, the browser will automatically hand you back to Element X. You do not need to copy or paste anything.</li>
+<li>Element X is now signed in. You will see your rooms and start receiving notifications.</li>
+</ul>
+<div class="tip"><strong>Already logged into the web app on the same browser?</strong> If you are already signed in to the nu PMC web app on your phone's browser, the login page may approve you automatically without asking for your password again. This is normal — it means the browser recognised your existing session.</div>
+<div class="note"><strong>Your password never goes to Matrix.</strong> When you sign in via SSO, your credentials are entered on the nu PMC server only. Matrix and Element X never see your password — they simply receive a confirmation from our server that says "yes, this person is who they say they are." This is how SSO is designed to work.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">IT</div><div><div class="flow-title">IT Admin — when a staff member leaves, one action covers both systems</div><div class="flow-meta">Deactivate in nu PMC → Element X access ends automatically</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<p class="body">Because login is handled by the nu PMC server, deactivating an account there is all that is needed. You do not have to separately delete or disable the person's Matrix account.</p>
+<ul class="steps">
+<li>Go to <strong>User Management</strong> in the nu PMC app → find the staff member → tap <strong>Deactivate Account</strong>.</li>
+<li>The moment the account is deactivated, the server revokes all active SSO tokens. Any device where that person is logged into Element X will be signed out on the next request.</li>
+<li>The person will not be able to sign back in to Element X because the "Sign in with nu Associates" step will fail — their nu PMC account is inactive.</li>
+</ul>
+<div class="warn"><strong>Do not skip this step when someone leaves.</strong> As long as their nu PMC account is active, they can log back into Element X from any device and see project rooms and notifications. Deactivating in nu PMC is the single action that cuts access to everything.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">?</div><div><div class="flow-title">Common problem: "Element X says my credentials are wrong"</div><div class="flow-meta">Almost always a username issue — not a Matrix issue</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<p class="body">If the login page tells you the credentials are incorrect when you try to sign in through Element X, work through these checks before contacting IT Admin:</p>
+<ul class="steps">
+<li><strong>Are you using your nu PMC username?</strong> The username is the short one IT Admin gave you (for example <span class="ic">ravi.kumar</span>) — not your personal email address, not your @nuassociates.in email. If you are not sure what your username is, check the welcome message IT Admin sent when your account was created, or look at the top of your profile screen in the nu PMC web app.</li>
+<li><strong>Is your account active?</strong> If your account was deactivated (for example during a leave period) it will block login to both the web app and Element X. Try logging into the nu PMC web app first — if that also fails, your account needs to be reactivated. Contact IT Admin or your direct manager.</li>
+<li><strong>Did you recently change your password?</strong> Any device where Element X was already signed in will continue working using the cached session until it expires. After a password change, if you are asked to sign in again you must use the new password on the login page.</li>
+</ul>
+<div class="note">If none of the above resolves it, contact IT Admin and tell them: (1) the exact username you are trying to use, (2) whether the web app also fails to log you in or works fine, and (3) the error message you see on the login page. This helps IT Admin diagnose the issue quickly.</div>
+</div></div>
+</div>
+
+<div class="fg">
+<div class="fg-title">For Vendors — You Do Not Need to Install Anything</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">V</div><div><div class="flow-title">Vendor Tier A vs Tier B — how you receive notifications</div><div class="flow-meta">Vendors on WhatsApp Bridge (Tier A) get messages directly. Others (Tier B) get a manual send.</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<h4>Tier A — WhatsApp Bridge (Preferred)</h4>
+<p class="body">When a vendor is set up on our WhatsApp bridge, they receive messages directly on their normal WhatsApp — no app to install, no account to create. From the vendor's perspective, it looks like a WhatsApp message from a business number. From our side, it comes through our Matrix server. The vendor can reply and the reply appears in the vendor's Matrix room visible to PMC Head and Finance Admin.</p>
+<ul class="steps">
+<li>IT Admin registers the vendor in the NU PMC app (Vendors → master record).</li>
+<li>The etke.cc WhatsApp bridge creates a bridge room linked to the vendor's WhatsApp number.</li>
+<li>IT Admin sets the <span class="ic">matrix_room_id</span> on the vendor's record via the app (Vendors → vendor → Set Matrix Room).</li>
+<li>From this point, all automated vendor notifications (payment confirmed, defect raised) go to that room and appear as WhatsApp messages on the vendor's phone.</li>
+</ul>
+<h4>Tier B — Manual Send (Temporary, until bridge is set up)</h4>
+<p class="body">If a vendor doesn't have a Matrix room yet, any notification that would go to them is converted into a task in the <strong>External Comms</strong> queue. PMC Head or Finance Admin sees this task and must manually send the message via WhatsApp (the app provides the wa.me link pre-filled with the message). Once the task is marked done, the notification is logged as sent.</p>
+<div class="note">The manual send exists to ensure no notification is silently lost. It is friction by design — the more manual sends PMC Head has to do, the more pressure there is to onboard that vendor to the bridge.</div>
+</div></div></div>
+
+<div class="fg">
+<div class="fg-title">etke.cc — What It Provides and How to Manage It</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">☁</div><div><div class="flow-title">etke.cc is our Matrix hosting provider — 4 services we use from them</div><div class="flow-meta">You interact with these indirectly. IT Admin manages the configuration.</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<table class="t">
+<tr><th>Service</th><th>What it does for us</th><th>Who sees it</th><th>What to do if it's broken</th></tr>
+<tr><td><strong>Matrix Homeserver (Synapse)</strong></td><td>The core messaging server. All Element X connections, all room messages, all bot notifications go through here.</td><td>All staff (via Element X), vendors (via bridge)</td><td>If nobody can receive notifications and Element X shows "Connection failed", contact IT Admin. Uptime Kuma will have already alerted.</td></tr>
+<tr><td><strong>WhatsApp Bridge</strong></td><td>Links vendor WhatsApp numbers to Matrix rooms. A vendor sends a WhatsApp message → appears in their Matrix room. PMC replies in Matrix → vendor receives it on WhatsApp.</td><td>PMC Head, Finance Admin manage vendor rooms. Vendors see normal WhatsApp.</td><td>If vendor stops receiving messages, IT Admin checks bridge status at etke.cc dashboard. Vendor may need to be re-linked.</td></tr>
+<tr><td><strong>Email Hosting</strong></td><td>Provides @nuassociates.in email mailboxes for staff. Also used by the app to send system alerts (backup notifications when Matrix is unreachable) via SMTP.</td><td>All staff (their email inbox). Principals and IT Admin get system alerts here.</td><td>If email alerts stop, check SMTP credentials with IT Admin. The NU PMC app's health check will also show email status.</td></tr>
+<tr><td><strong>S3 File Storage</strong></td><td>Stores photos, drawings, and documents uploaded via Matrix rooms (site photos sent via Element X, vendor documents, etc.). The Matrix server saves these files to S3 automatically — no manual action needed.</td><td>Transparent to all users. Files appear as normal attachments in rooms.</td><td>If files are not loading in Element X rooms, IT Admin checks S3 bucket configuration at etke.cc dashboard.</td></tr>
+</table>
+<div class="note"><strong>You never interact with etke.cc directly.</strong> All configuration is done by IT Admin through the etke.cc dashboard. As a staff member, your touchpoint is Element X (for Matrix) and your @nuassociates.in email inbox (for email). Everything else is background infrastructure.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">📊</div><div><div class="flow-title">Uptime Kuma — how we know if something is broken before users notice</div><div class="flow-meta">IT Admin monitors this. You don't need to access it. But here's what it watches.</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<p class="body">Uptime Kuma is a monitoring dashboard that checks our systems every minute and sends an alert if something goes down. IT Admin has this set up at etke.cc.</p>
+<table class="t">
+<tr><th>What Uptime Kuma checks</th><th>What a failure means for you</th></tr>
+<tr><td>NU PMC app is reachable</td><td>If this fails, nobody can log in or use the app. IT Admin gets alerted immediately.</td></tr>
+<tr><td>Database is responding</td><td>If this fails, the app returns errors on every page. IT Admin gets alerted.</td></tr>
+<tr><td>Matrix homeserver is responding</td><td>If this fails, all notifications stop. Element X shows connection errors. IT Admin gets alerted. The app continues to work — but without notifications until Matrix is back.</td></tr>
+<tr><td>Matrix bot is active</td><td>If the bot is offline, polls and automated messages won't be sent. Manual action in the app still works.</td></tr>
+</table>
+<div class="tip">If you notice something is broken (app not loading, notifications stopped), check with a colleague first to confirm it's not just your connection. If it's widespread, IT Admin will already know via Uptime Kuma alerts. No need to flood IT Admin with messages — wait 10 minutes and check again.</div>
+</div></div>
+</div>
+
+<div class="fg">
+<div class="fg-title">Common Matrix Problems and Fixes</div>
+<table class="t">
+<tr><th>Problem</th><th>Most Likely Cause</th><th>What to Do</th></tr>
+<tr><td>Element X says "Unable to connect" or "Homeserver unreachable"</td><td>Your internet is down, or the Matrix server is temporarily offline</td><td>Check your internet first. Wait 2–3 minutes and try again. If persists for more than 10 minutes, tell IT Admin.</td></tr>
+<tr><td>I am not receiving app notifications (drawing issued, payment approved, etc.)</td><td>Your Matrix room memberships are not set up, or your account's Matrix ID is not linked in NU PMC</td><td>Tell IT Admin your Element X username (@yourname:server). They will link it to your NU PMC account and add you to the correct rooms.</td></tr>
+<tr><td>I voted on a poll but nothing happened in the app</td><td>You may not have reached quorum (need more votes), or the poll event hasn't been processed yet (up to 30 seconds)</td><td>Wait 30 seconds. If the app record hasn't updated after 2 minutes, tell IT Admin — there may be a bot connectivity issue.</td></tr>
+<tr><td>Vendor says they are not receiving WhatsApp messages from us</td><td>Vendor is not on the WhatsApp bridge (Tier B), or the bridge room is not linked</td><td>Check the vendor's record in the app → does it show "Matrix Room: set"? If not, tell IT Admin to set up the bridge room for this vendor.</td></tr>
+<tr><td>I deleted Element X and reinstalled it — now I can't see old messages</td><td>Your encryption keys were lost when you deleted the app</td><td>During reinstall, Element X will ask for your Recovery Key. Enter it to restore access to old encrypted messages. If you don't have the recovery key, old encrypted messages cannot be recovered — new messages will work fine.</td></tr>
+<tr><td>I am getting too many notifications from a room</td><td>You are a member of a high-traffic project room</td><td>In Element X, go to the room → long-press → "Notifications" → set to "Mentions only" or "Mute". This does not affect the NU PMC app — only your Element X notification sound/banner.</td></tr>
+<tr><td>The PMC bot is not in my room</td><td>The room was created without the bot being invited</td><td>Tell IT Admin. They will invite the bot (<span class="ic">@nu-pmc-bot:matrix.nuassociates.in</span>) to the room.</td></tr>
+</table>
+</div>
+
+<div class="fg">
+<div class="fg-title">IT Admin — Setting Up Matrix for a New User</div>
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">IT</div><div><div class="flow-title">Complete checklist: onboarding a new staff member to Matrix</div><div class="flow-meta">All steps required. Missing any one step = user will not receive notifications.</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li><strong>Create the Matrix account</strong> at etke.cc admin panel → Users → Create User. Username should match their NU PMC username for easy identification.</li>
+<li><strong>Set a temporary password</strong> and send it to the user via the NU PMC app (Users → their record → Reset Password → Send via Matrix). On first login to Element X, Element X will prompt them to change it.</li>
+<li><strong>Link the Matrix ID to their NU PMC account</strong> → Users → their record → Edit → set <span class="ic">Matrix User ID</span> field to <span class="ic">@username:matrix.nuassociates.in</span>. Without this, the app doesn't know where to send their notifications.</li>
+<li><strong>Create their personal DM room</strong> with the PMC bot. In Element X (logged in as admin/bot), start a DM with the user → send a welcome message. This room ID is automatically saved to their NU PMC account as <span class="ic">matrix_room_id</span>.</li>
+<li><strong>Add them to their project rooms</strong> → for each active project they work on, invite them to the relevant room (Coordination, Finance, etc.) via Element X room settings → Invite.</li>
+<li><strong>Verify</strong> — trigger a test notification from the app (e.g. have them log in and check the bell icon). Confirm they receive it in Element X within 30 seconds.</li>
+</ul>
+<div class="warn"><strong>Step 3 (linking Matrix ID in NU PMC) is the most commonly missed step.</strong> The app routes notifications to the Matrix ID stored in the users table. If that field is blank, all notifications for this user silently go to the WhatsApp fallback instead of Matrix.</div>
+</div></div>
+
+<div class="flow-card">
+<div class="flow-card-header" onclick="toggleFlow(this)">
+<div class="flow-num">IT</div><div><div class="flow-title">Setting up a vendor on the WhatsApp bridge</div><div class="flow-meta">Allows the vendor to receive all future notifications on their normal WhatsApp</div></div><div class="flow-chevron">▾</div></div>
+<div class="flow-body">
+<ul class="steps">
+<li>In the <strong>etke.cc dashboard</strong> → WhatsApp Bridge section → Contacts → find or add the vendor's WhatsApp number.</li>
+<li>The bridge will create a Matrix room for this contact. Copy the <strong>Matrix Room ID</strong> (it starts with <span class="ic">!</span> and contains a colon, e.g. <span class="ic">!abc123:matrix.nuassociates.in</span>).</li>
+<li>In the <strong>NU PMC app</strong> → Vendors → find the vendor → tap <strong>Set Matrix Room</strong> (requires IT Admin or Principal role). Paste the Matrix Room ID. Tap Save.</li>
+<li>The vendor's record now shows <span class="ic">Matrix Status: Joined</span>. All future notifications to this vendor route through the bridge automatically.</li>
+<li><strong>Test it:</strong> In the NU PMC app, go to the vendor's project engagement → raise a test defect or send a test notification. Confirm the vendor receives it on WhatsApp within 1 minute.</li>
+</ul>
+<div class="note"><strong>If the vendor's WhatsApp number changes:</strong> Return to etke.cc dashboard → update the contact number → the bridge creates a new room → update the Matrix Room ID in NU PMC to the new room ID. The old room ID will no longer receive messages.</div>
+<div class="tip">Once the bridge is set, the vendor can also reply via WhatsApp. Their reply appears in the Matrix room visible to PMC Head and Finance Admin. No staff member needs to be awake at 2 AM — the reply is there waiting in the morning.</div>
+</div></div>
+</div>
+
+</div><!-- /page-matrix -->
 
 </div><!-- /content -->
 

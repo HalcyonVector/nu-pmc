@@ -325,6 +325,20 @@ router.post('/:project_id/update', requireAuth, requireProjectScope(), validator
     // SSE real-time notification
     try { require('../../system/routes/sse').broadcast('task_update', { project_id: req.params.project_id, task_id }); } catch(_e) {}
 
+    // Notify PMC Head when a task is explicitly flagged or regression-flagged.
+    if (regressionFlag) {
+      const flagMsg = regressionNote || flag_note || 'No note provided';
+      const Auth = require('../../auth/contract');
+      const notif = require('../../../services/notifications');
+      Auth.functions.getUsersByRole('pmc_head', req.params.project_id).then(async heads => {
+        for (const h of heads) {
+          await notif.notify(h.id, 'task_flag',
+            `Task flagged on project — ${flagMsg.substring(0, 100)}. Reported by ${me.full_name}.`
+          );
+        }
+      }).catch(e => console.warn('[schedule] PMC flag notify swallowed:', e.message));
+    }
+
     res.json({ success: true });
 
   }));

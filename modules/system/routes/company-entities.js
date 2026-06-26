@@ -126,7 +126,7 @@ router.post('/', requireAuth, requirePrincipal, asyncHandler(async (req, res) =>
 // ── PATCH /api/company-entities/:id ────────────────────────────────────────
 // Updates all fields EXCEPT entity_code and gstin.
 router.patch('/:id', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).json({ error: 'Invalid id' });
 
   const [[current]] = await db.query(
@@ -186,7 +186,7 @@ router.patch('/:id', requireAuth, requirePrincipal, asyncHandler(async (req, res
 
 // ── PATCH /api/company-entities/:id/status ─────────────────────────────────
 router.patch('/:id/status', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id, 10);
   const { is_active } = req.body;
   if (typeof is_active !== 'boolean') {
     return res.status(400).json({ error: 'is_active (boolean) required', code: 'MISSING_STATUS' });

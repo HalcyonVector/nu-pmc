@@ -216,7 +216,7 @@ async function handleReportUpdate(db, pending, reply, from) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   let saved = 0;
   for (const [idxStr, pct] of Object.entries(updates)) {
-    const taskIdx = parseInt(idxStr) - 1;
+    const taskIdx = parseInt(idxStr, 10) - 1;
     if (tasks[taskIdx]) {
       await db.query(
         `INSERT INTO task_updates (task_id, project_id, report_date, pct_complete, updated_by)
@@ -343,8 +343,8 @@ function parseProgressReply(text) {
   const matches = (text || '').match(/(\d+)[-:]\s*(\d+)/g) || [];
   matches.forEach(m => {
     const parts = m.split(/[-:]/);
-    const idx = parseInt(parts[0]);
-    const pct = parseInt(parts[1]);
+    const idx = parseInt(parts[0], 10);
+    const pct = parseInt(parts[1], 10);
     if (idx >= 1 && idx <= 20 && pct >= 0 && pct <= 100) {
       updates[idx] = pct;
     }

@@ -23,6 +23,17 @@ function freshWorker() {
   return require('../scripts/matrix-outbox-drain');
 }
 
+// run() begins with the "stuck in sending" recovery step (two UPDATEs) before
+// it SELECTs the pending batch. Prime those two queries so the per-test mock
+// chain lines up with the SELECT. Both return 0 affected rows (nothing stuck).
+// NOTE: because of these two leading calls, db.query.mock.calls indices for the
+// SELECT/claim/mark-* queries are offset by +2.
+function primeRecovery() {
+  db.query
+    .mockResolvedValueOnce([{}])                   // stuck→pending recovery UPDATE (result unused)
+    .mockResolvedValueOnce([{ affectedRows: 0 }]); // terminal-fail recovery UPDATE
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   process.env = { ...ORIG_ENV };
@@ -52,6 +63,7 @@ describe('matrix-outbox-drain — early exits', () => {
 
   test('returns drained=0 when outbox is empty', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query.mockResolvedValueOnce([[]]);  // SELECT pending — no rows
     const r = await w.run();
     expect(r).toMatchObject({ skipped: false, mode: 'LIVE', drained: 0 });
@@ -63,6 +75,7 @@ describe('matrix-outbox-drain — early exits', () => {
 describe('matrix-outbox-drain — successful sends', () => {
   test('drains a text row, marks sent, stamps event_id', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query
       // SELECT pending
       .mockResolvedValueOnce([[
@@ -77,7 +90,8 @@ describe('matrix-outbox-drain — successful sends', () => {
     const r = await w.run();
     expect(r).toMatchObject({ drained: 1, sent: 1, retried: 0, failed: 0 });
     // The mark-sent UPDATE should set status='sent' and matrix_event_id
-    const markSentCall = db.query.mock.calls[2];
+    // (+2 offset for the two recovery UPDATEs at the head of run()).
+    const markSentCall = db.query.mock.calls[4];
     expect(markSentCall[0]).toMatch(/SET status='sent'/);
     expect(markSentCall[1]).toEqual(expect.arrayContaining(['$evt:s', 1]));
   });
@@ -88,6 +102,7 @@ describe('matrix-outbox-drain — successful sends', () => {
       'org.matrix.msc1767.text': 'Q?',
       'org.matrix.msc3381.poll.start': { question: { 'org.matrix.msc1767.text': 'Q?' }, answers: [] },
     };
+    primeRecovery();
     db.query
       .mockResolvedValueOnce([[
         { id: 2, room_id: '!r:s', txn_id: 'tx2', msg_type: 'poll', body: JSON.stringify(pollPayload), mxc_url: null, attempts: 0 },
@@ -108,6 +123,7 @@ describe('matrix-outbox-drain — successful sends', () => {
 describe('matrix-outbox-drain — failures', () => {
   test('4xx response → terminal failed', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query
       .mockResolvedValueOnce([[
         { id: 3, room_id: '!r:s', txn_id: 'tx3', msg_type: 'text', body: 'hi', mxc_url: null, attempts: 0 },
@@ -121,12 +137,13 @@ describe('matrix-outbox-drain — failures', () => {
     const r = await w.run();
     expect(r.failed).toBe(1);
     expect(r.sent).toBe(0);
-    const markFailedCall = db.query.mock.calls[2];
+    const markFailedCall = db.query.mock.calls[4];
     expect(markFailedCall[0]).toMatch(/SET status='failed'/);
   });
 
   test('5xx response → marked pending, attempts incremented', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query
       .mockResolvedValueOnce([[
         { id: 4, room_id: '!r:s', txn_id: 'tx4', msg_type: 'text', body: 'hi', mxc_url: null, attempts: 0 },
@@ -140,13 +157,14 @@ describe('matrix-outbox-drain — failures', () => {
     const r = await w.run();
     expect(r.retried).toBe(1);
     expect(r.failed).toBe(0);
-    const reupdateCall = db.query.mock.calls[2];
+    const reupdateCall = db.query.mock.calls[4];
     expect(reupdateCall[0]).toMatch(/SET status='pending', attempts=\?/);
   });
 
   test('attempt count reaching MAX_ATTEMPTS on 5xx → terminal failed', async () => {
     const w = freshWorker();
     // attempts=7 means this is the 8th attempt (MAX_ATTEMPTS=8)
+    primeRecovery();
     db.query
       .mockResolvedValueOnce([[
         { id: 5, room_id: '!r:s', txn_id: 'tx5', msg_type: 'text', body: 'hi', mxc_url: null, attempts: 7 },
@@ -160,15 +178,16 @@ describe('matrix-outbox-drain — failures', () => {
     const r = await w.run();
     // Even though it's 5xx (transient), we've exhausted attempts
     expect(r.failed).toBe(1);
-    const markFailedCall = db.query.mock.calls[2];
+    const markFailedCall = db.query.mock.calls[4];
     expect(markFailedCall[0]).toMatch(/SET status='failed'/);
   });
 
   test('SELECT excludes rows with attempts >= MAX_ATTEMPTS', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query.mockResolvedValueOnce([[]]);  // empty
     await w.run();
-    const selectCall = db.query.mock.calls[0];
+    const selectCall = db.query.mock.calls[2];
     expect(selectCall[0]).toMatch(/attempts < \?/);
     expect(selectCall[1][0]).toBe(8);  // MAX_ATTEMPTS
   });
@@ -177,6 +196,7 @@ describe('matrix-outbox-drain — failures', () => {
 describe('matrix-outbox-drain — concurrent worker safety', () => {
   test('skips a row whose claim UPDATE got 0 affectedRows (stolen by parallel worker)', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query
       .mockResolvedValueOnce([[
         { id: 6, room_id: '!r:s', txn_id: 'tx6', msg_type: 'text', body: 'hi', mxc_url: null, attempts: 0 },
@@ -194,6 +214,7 @@ describe('matrix-outbox-drain — concurrent worker safety', () => {
 describe('matrix-outbox-drain — replay uses txn_id verbatim', () => {
   test('PUT URL contains the original txn_id (idempotency)', async () => {
     const w = freshWorker();
+    primeRecovery();
     db.query
       .mockResolvedValueOnce([[
         { id: 7, room_id: '!r:s', txn_id: 'original-txn-id', msg_type: 'text', body: 'hi', mxc_url: null, attempts: 1 },

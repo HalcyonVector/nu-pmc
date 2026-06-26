@@ -113,6 +113,10 @@ describe('D11 — notification_triggers event_keys match code', () => {
       'ncr_disputed',             // not yet seeded
       'approval_expired',         // approvals expiry — not yet seeded
       'weekly_report_ready',      // weekly_report covers this; alias
+      'task_flag',                // direct send to a single assignee — no role list
+      'measurement',              // direct send to a single recipient — no role list
+      'countersign_needed',       // MOM action-item: direct DM to the named countersigner
+      'countersign_disagreed',    // MOM action-item: direct DM to the assignee on reissue
     ]);
 
     const missing = [];

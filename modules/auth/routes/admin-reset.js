@@ -36,6 +36,10 @@ const FULL_ACCESS_ROLES = new Set(['principal', 'design_principal', 'it_admin'])
 function canReset(caller, target) {
   if (caller.id === target.id) return false;            // never own password
   if (FULL_ACCESS_ROLES.has(caller.role)) return true;  // principals / IT admin — unrestricted
+  // Privilege-escalation guard: a non-privileged manager must NEVER be able to
+  // reset a privileged account, even if a managed_by row mistakenly points at
+  // one. Without this, a data error could hand a principal/IT-admin takeover.
+  if (FULL_ACCESS_ROLES.has(target.role)) return false;
   return target.managed_by === caller.id;               // everyone else — direct reports only
 }
 
@@ -82,7 +86,8 @@ router.get('/resettable-users', requireAuth, asyncHandler(async (req, res) => {
 // ── RESET A USER'S PASSWORD ───────────────────────────────────────────────
 router.post('/reset/:userId', requireAuth, asyncHandler(async (req, res) => {
   const caller   = req.session.user;
-  const targetId = parseInt(req.params.userId);
+  const targetId = parseInt(req.params.userId, 10);
+  if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
 
   // Fetch target user (need managed_by for the permission check)
   const [rows] = await db.query(
@@ -135,7 +140,8 @@ router.post('/reset/:userId', requireAuth, asyncHandler(async (req, res) => {
 // Called from the reset-password modal after the temp password is generated.
 router.post('/send-wa/:userId', requireAuth, asyncHandler(async (req, res) => {
   const caller   = req.session.user;
-  const targetId = parseInt(req.params.userId);
+  const targetId = parseInt(req.params.userId, 10);
+  if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
 
   const [rows] = await db.query(
     `SELECT id, username, full_name, role, managed_by, phone, temp_password, matrix_room_id

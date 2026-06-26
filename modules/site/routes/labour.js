@@ -56,11 +56,11 @@ router.post('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asy
        ON DUPLICATE KEY UPDATE headcount=VALUES(headcount), wages_paid=VALUES(wages_paid),
        notes=VALUES(notes), recorded_by=VALUES(recorded_by)`,
       [req.params.project_id, engagement_id, register_date, trade,
-       parseInt(headcount), wages_paid||null, notes||null, req.session.user.id]
+       parseInt(headcount, 10), wages_paid||null, notes||null, req.session.user.id]
     );
     audit.log({ userId: req.session.user.id, action: 'labour.record',
       entityType: 'labour_register', entityId: null,
-      details: { project_id: parseInt(req.params.project_id), engagement_id: parseInt(engagement_id), register_date, trade, headcount: parseInt(headcount), wages_paid: wages_paid || null }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), engagement_id: parseInt(engagement_id, 10), register_date, trade, headcount: parseInt(headcount, 10), wages_paid: wages_paid || null }, req });
     res.json({ success: true });
   }));
 
@@ -72,8 +72,8 @@ router.patch('/:project_id/:id/validate', requireAuth, requireProjectScope(), re
       [req.session.user.id, notes||null, req.params.id, req.params.project_id]
     );
     audit.log({ userId: req.session.user.id, action: 'labour.validate',
-      entityType: 'labour_register', entityId: parseInt(req.params.id),
-      details: { project_id: parseInt(req.params.project_id), notes: notes || null }, req });
+      entityType: 'labour_register', entityId: parseInt(req.params.id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), notes: notes || null }, req });
     res.json({ success: true });
   }));
 
@@ -91,7 +91,7 @@ router.post('/:project_id/validate-all', requireAuth, requireProjectScope(), req
     );
     audit.log({ userId: req.session.user.id, action: 'labour.validate_all',
       entityType: 'labour_register', entityId: null,
-      details: { project_id: parseInt(req.params.project_id), register_date: register_date || null, validated: result.affectedRows }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), register_date: register_date || null, validated: result.affectedRows }, req });
     res.json({ success: true, validated: result.affectedRows });
   }));
 
@@ -107,8 +107,8 @@ router.patch('/:project_id/:id/reject', requireAuth, requireProjectScope(), requ
       [req.session.user.id, 'REJECTED: ' + reason.trim(), req.params.id, req.params.project_id]
     );
     audit.log({ userId: req.session.user.id, action: 'labour.reject',
-      entityType: 'labour_register', entityId: parseInt(req.params.id),
-      details: { project_id: parseInt(req.params.project_id), reason: reason.trim() }, req });
+      entityType: 'labour_register', entityId: parseInt(req.params.id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), reason: reason.trim() }, req });
     res.json({ success: true });
   }));
 

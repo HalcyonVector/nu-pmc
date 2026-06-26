@@ -63,7 +63,7 @@ async function checkBudget(db, projectId, engagementId, boqItemId, newAmount, st
         'SELECT COUNT(*) AS cnt FROM budget_flags WHERE project_id=? AND boq_item_id=? AND flag_level=?',
         [projectId, boqItemId, 'line_item']
       );
-      const strikeCount = parseInt(strikes.cnt);
+      const strikeCount = parseInt(strikes.cnt, 10);
 
       if (pctOver >= T.lineItem.signoff) {
         const action = stage === 'po' ? 'block' : 'warn';
@@ -186,7 +186,7 @@ async function persistAndNotify(db, projectId, engagementId, checkResult, trigge
        AND flag_level='line_item' AND boq_item_id=?`,
       [projectId, flag.cost_head_id, flag.boq_item_id || null]
     );
-    const strikeNum = parseInt(existingFlag.cnt) + 1;
+    const strikeNum = parseInt(existingFlag.cnt, 10) + 1;
 
     await db.query(
       `INSERT INTO budget_flags

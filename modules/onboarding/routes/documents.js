@@ -129,7 +129,7 @@ router.post('/:projectId',
     // Bug B49: document upload now audited (project record-keeping).
     audit.log({ userId: me.id, action: 'document.upload',
       entityType: 'project_documents', entityId: result.documentId,
-      details: { project_id: parseInt(req.params.projectId), doc_type: doc_type || 'other', category: category || 'other', title: title || null, is_classified: isClassified, version_id: result.versionId }, req });
+      details: { project_id: parseInt(req.params.projectId, 10), doc_type: doc_type || 'other', category: category || 'other', title: title || null, is_classified: isClassified, version_id: result.versionId }, req });
 
     res.json({ success: true, ...result });
   })
@@ -163,8 +163,8 @@ router.post('/:projectId/:docId/versions',
 
     // Bug B51: version upload now audited.
     audit.log({ userId: me.id, action: 'document.version_upload',
-      entityType: 'project_documents', entityId: parseInt(req.params.docId),
-      details: { project_id: parseInt(req.params.projectId), version_id: result.versionId, version_number: result.versionNumber, change_note: req.body.change_note || null }, req });
+      entityType: 'project_documents', entityId: parseInt(req.params.docId, 10),
+      details: { project_id: parseInt(req.params.projectId, 10), version_id: result.versionId, version_number: result.versionNumber, change_note: req.body.change_note || null }, req });
 
     res.json({ success: true, ...result });
   })
@@ -193,7 +193,7 @@ router.get('/file/:versionId', requireAuth, asyncHandler(async (req, res) => {
   // assigned to v.project_id. Firm-wide roles pass through.
   const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
   if (PROJECT_SCOPED_ROLES.includes(role)) {
-    const assigned = (me.projects || []).some(p => parseInt(p.id) === v.project_id);
+    const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === v.project_id);
     if (!assigned) {
       return res.status(403).json({ error: 'Not authorised for this project' });
     }
@@ -303,7 +303,7 @@ router.post('/link', requireAuth, asyncHandler(async (req, res) => {
   // Project scope check — caller must have access to docProjectId.
   const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
   if (PROJECT_SCOPED_ROLES.includes(me.role)) {
-    const assigned = (me.projects || []).some(p => parseInt(p.id) === docProjectId);
+    const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === docProjectId);
     if (!assigned) {
       return res.status(403).json({ error: 'Not authorised for this project' });
     }
@@ -324,7 +324,7 @@ router.post('/link', requireAuth, asyncHandler(async (req, res) => {
   // Bug B55: audit the link.
   audit.log({ userId: me.id, action: 'document.link',
     entityType: 'approval_document_links', entityId: linkId,
-    details: { project_id: docProjectId, entity_type, entity_id: parseInt(entity_id), document_version_id: parseInt(document_version_id) }, req });
+    details: { project_id: docProjectId, entity_type, entity_id: parseInt(entity_id, 10), document_version_id: parseInt(document_version_id, 10) }, req });
 
   res.json({ success: true, link_id: linkId });
 }));

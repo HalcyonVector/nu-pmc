@@ -1,0 +1,346 @@
+// services/oidc-provider.js
+// ============================================================
+// OIDC Authorization Code + PKCE provider for nu PMC.
+//
+// Purpose: Single Sign-On so staff use their PWA credentials to log
+// in to Element X — no separate Matrix account or password needed.
+// Synapse (via etke.cc) is configured as an OIDC relying party that
+// delegates authentication to this provider.
+//
+// Flow:
+//   1. Staff opens Element X → "Sign in with nu Associates"
+//   2. Element X redirects to /oidc/authorize with client_id + PKCE
+//   3. Staff sees a login form (or auto-approves if PWA session exists)
+//   4. On success → redirect back to Synapse callback with auth code
+//   5. Synapse calls /oidc/token → gets access_token + id_token
+//   6. Synapse calls /oidc/userinfo → gets sub, name, role
+//   7. Synapse creates / maps the Matrix account
+//
+// Key management:
+//   - Set OIDC_PRIVATE_KEY (PEM PKCS#8 RSA-2048) in env for persistence
+//     across restarts. Element X will prompt re-login on restart otherwise.
+//   - If not set, an ephemeral key is generated at startup (tokens survive
+//     only until next restart — fine for development).
+//   - Generate a persistent key once with: node scripts/gen-oidc-key.js
+//
+// ENV VARS:
+//   OIDC_PRIVATE_KEY       — PEM PKCS#8 RSA-2048 private key (required for prod)
+//   OIDC_KEY_ID            — Key ID for JWKS (default: 'nu-pmc-1')
+//   OIDC_CLIENT_ID         — OAuth2 client_id Synapse sends (required)
+//   OIDC_CLIENT_SECRET     — OAuth2 client_secret Synapse sends (required for confidential clients)
+//   OIDC_ALLOWED_REDIRECT_URIS — comma-separated allowed redirect URIs
+//   APP_BASE_URL           — used as OIDC issuer (must match Synapse config)
+// ============================================================
+
+'use strict';
+
+const crypto = require('crypto');
+const db     = require('../middleware/db');
+
+// ── Key management ─────────────────────────────────────────────────────────
+
+let _privateKey = null;
+let _publicKey  = null;
+let _keyId      = null;
+
+function _ensureKeys() {
+  if (_privateKey) return;
+
+  _keyId = process.env.OIDC_KEY_ID || 'nu-pmc-1';
+
+  // Normalize escaped newlines: gen-oidc-key.js / dotenv-quoted values store the
+  // PEM with literal "\n" sequences; createPrivateKey needs real newlines.
+  // (A PEM that already has real newlines is unaffected by this replace.)
+  const privPem = (process.env.OIDC_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  if (privPem) {
+    try {
+      _privateKey = crypto.createPrivateKey(privPem);
+      _publicKey  = crypto.createPublicKey(_privateKey);
+      return;
+    } catch (err) {
+      console.error('[oidc] OIDC_PRIVATE_KEY is set but failed to parse:', err.message);
+      console.error('[oidc] Falling back to ephemeral key — set a valid OIDC_PRIVATE_KEY for production');
+    }
+  } else {
+    console.warn('[oidc] OIDC_PRIVATE_KEY not set — using ephemeral RSA key. ' +
+      'Tokens will be invalidated on every restart. ' +
+      'Run: node scripts/gen-oidc-key.js  to generate a persistent key.');
+  }
+
+  // Ephemeral fallback
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding:  { type: 'spki',   format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8',  format: 'pem' },
+  });
+  _privateKey = crypto.createPrivateKey(privateKey);
+  _publicKey  = crypto.createPublicKey(publicKey);
+}
+
+/**
+ * Return the JWK Set (public keys only). Exposed at /oidc/jwks.
+ */
+function getJwks() {
+  _ensureKeys();
+  const jwk = _publicKey.export({ format: 'jwk' });
+  return {
+    keys: [{ ...jwk, use: 'sig', alg: 'RS256', kid: _keyId }],
+  };
+}
+
+// ── JWT signing ────────────────────────────────────────────────────────────
+
+/**
+ * Sign an ID token (JWT RS256).
+ * @param {object} claims  — payload fields (iss, sub, aud, exp, etc.)
+ * @returns {string}       — signed JWT
+ */
+function signIdToken(claims) {
+  _ensureKeys();
+  const header  = JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: _keyId });
+  const payload = JSON.stringify(claims);
+  const headerB64  = Buffer.from(header).toString('base64url');
+  const payloadB64 = Buffer.from(payload).toString('base64url');
+  const message = `${headerB64}.${payloadB64}`;
+  const sig = crypto.sign('sha256', Buffer.from(message), _privateKey);
+  return `${message}.${sig.toString('base64url')}`;
+}
+
+// ── Env helpers ─────────────────────────────────────────────────────────────
+
+function _issuer() {
+  return (process.env.APP_BASE_URL || 'https://app.nuassociates.in').replace(/\/$/, '');
+}
+
+function _matrixDomain() {
+  const botUser = process.env.MATRIX_BOT_USER_ID || '';
+  const m = botUser.match(/^@[^:]+:(.+)$/);
+  return m ? m[1] : 'nuassociates.in';
+}
+
+/**
+ * Validate a client_id + optional client_secret + redirect_uri.
+ * Throws OidcError on mismatch.
+ */
+function validateClient(clientId, clientSecret, redirectUri) {
+  const allowedClientId     = process.env.OIDC_CLIENT_ID;
+  const allowedClientSecret = process.env.OIDC_CLIENT_SECRET;
+
+  if (!allowedClientId) {
+    throw new OidcError('server_error', 'OIDC_CLIENT_ID not configured on server');
+  }
+  if (clientId !== allowedClientId) {
+    throw new OidcError('invalid_client', 'Unknown client_id');
+  }
+  // client_secret is optional at authorize step (PKCE public clients don't send it),
+  // but required when OIDC_CLIENT_SECRET is set and the caller provides it.
+  if (allowedClientSecret && clientSecret && clientSecret !== allowedClientSecret) {
+    throw new OidcError('invalid_client', 'client_secret mismatch');
+  }
+  // redirect_uri allow-list — REQUIRED for security.
+  // An empty allow-list is a hard error (not a pass-through) to prevent
+  // open redirects where auth codes leak to attacker-controlled URLs.
+  if (redirectUri) {
+    const rawList = (process.env.OIDC_ALLOWED_REDIRECT_URIS || '').trim();
+    if (!rawList) {
+      throw new OidcError('server_error', 'OIDC_ALLOWED_REDIRECT_URIS is not configured. ' +
+        'Set it to the Synapse callback URL before using SSO.');
+    }
+    const allowed = rawList.split(',').map(s => s.trim()).filter(Boolean);
+    if (!allowed.includes(redirectUri)) {
+      throw new OidcError('invalid_request', `redirect_uri '${redirectUri}' is not in the configured allow-list`);
+    }
+  }
+}
+
+// ── Authorization code lifecycle ───────────────────────────────────────────
+
+/**
+ * Create a short-lived authorization code (5-minute TTL).
+ */
+async function createAuthCode({ userId, clientId, redirectUri, scope, codeChallenge, codeChallengeMethod, nonce }) {
+  const code      = crypto.randomBytes(48).toString('base64url');
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+  await db.query(
+    `INSERT INTO oidc_auth_codes
+       (code, user_id, client_id, redirect_uri, scope,
+        code_challenge, code_challenge_method, nonce, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [code, userId, clientId, redirectUri,
+     scope || 'openid profile',
+     codeChallenge || null, codeChallengeMethod || null,
+     nonce || null, expiresAt]
+  );
+  return code;
+}
+
+/**
+ * Exchange an authorization code for user + scope.
+ * Performs PKCE verification when code_challenge was stored.
+ * Marks the code as used (one-time use).
+ */
+async function exchangeCode({ code, codeVerifier, clientId, redirectUri }) {
+  const [[row]] = await db.query(
+    `SELECT * FROM oidc_auth_codes
+      WHERE code = ? AND used_at IS NULL AND expires_at > NOW()
+      LIMIT 1`,
+    [code]
+  );
+
+  if (!row) throw new OidcError('invalid_grant', 'Authorization code invalid, expired, or already used');
+  if (row.client_id   !== clientId)   throw new OidcError('invalid_grant', 'client_id mismatch');
+  if (row.redirect_uri !== redirectUri) throw new OidcError('invalid_grant', 'redirect_uri mismatch');
+
+  // PKCE: verify code_verifier against stored code_challenge
+  if (row.code_challenge) {
+    if (!codeVerifier) {
+      throw new OidcError('invalid_grant', 'code_verifier required (PKCE)');
+    }
+    if (row.code_challenge_method === 'S256') {
+      const expected = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+      if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(row.code_challenge))) {
+        throw new OidcError('invalid_grant', 'code_verifier does not match code_challenge');
+      }
+    }
+    // Plain method not supported — S256 only
+  }
+
+  // Consume code immediately (one-time use)
+  await db.query(`UPDATE oidc_auth_codes SET used_at = NOW() WHERE code = ?`, [code]);
+
+  // Fetch user
+  const [[user]] = await db.query(
+    `SELECT id, username, full_name, role, is_active FROM users WHERE id = ? LIMIT 1`,
+    [row.user_id]
+  );
+  if (!user || !user.is_active) {
+    throw new OidcError('invalid_grant', 'User not found or deactivated');
+  }
+
+  return { user, scope: row.scope, nonce: row.nonce };
+}
+
+// ── Token issuance ─────────────────────────────────────────────────────────
+
+/**
+ * Issue an access_token + id_token for a user.
+ * Stores the access_token in oidc_tokens for introspection / revocation.
+ */
+async function issueTokens({ user, clientId, scope, nonce }) {
+  const iss         = _issuer();
+  const sub         = `@${user.username}:${_matrixDomain()}`;
+  const now         = Math.floor(Date.now() / 1000);
+  const expiresIn   = 3600; // 1 hour
+  const expiresAt   = new Date(Date.now() + expiresIn * 1000);
+  const accessToken = crypto.randomBytes(48).toString('base64url');
+
+  await db.query(
+    `INSERT INTO oidc_tokens (access_token, user_id, client_id, scope, expires_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [accessToken, user.id, clientId, scope, expiresAt]
+  );
+
+  const idTokenClaims = {
+    iss,
+    sub,
+    aud:                clientId,
+    iat:                now,
+    exp:                now + expiresIn,
+    preferred_username: user.username,
+    name:               user.full_name,
+    'nu_pmc:role':      user.role,   // custom claim — Synapse ignores; useful for Element X
+  };
+  if (nonce) idTokenClaims.nonce = nonce;
+
+  const idToken = signIdToken(idTokenClaims);
+
+  return {
+    access_token: accessToken,
+    token_type:   'Bearer',
+    expires_in:   expiresIn,
+    id_token:     idToken,
+    scope,
+  };
+}
+
+// ── Token introspection (userinfo) ─────────────────────────────────────────
+
+/**
+ * Verify an access_token and return the associated user row.
+ * Returns null if the token is invalid, expired, or revoked.
+ */
+async function verifyAccessToken(token) {
+  if (!token) return null;
+  const [[row]] = await db.query(
+    `SELECT t.user_id, t.scope, t.client_id,
+            u.username, u.full_name, u.role, u.is_active
+       FROM oidc_tokens t
+       JOIN users u ON u.id = t.user_id
+      WHERE t.access_token = ?
+        AND t.revoked_at IS NULL
+        AND t.expires_at > NOW()
+      LIMIT 1`,
+    [token]
+  );
+  if (!row || !row.is_active) return null;
+  return row;
+}
+
+// ── Revocation ─────────────────────────────────────────────────────────────
+
+/**
+ * Revoke all active tokens for a user.
+ * Called from user deactivation route so Element X is kicked out immediately.
+ */
+async function revokeUserTokens(userId) {
+  if (!userId) return;
+  await db.query(
+    `UPDATE oidc_tokens SET revoked_at = NOW()
+      WHERE user_id = ? AND revoked_at IS NULL`,
+    [userId]
+  );
+  // Also kill any pending auth codes so an in-flight login can't complete
+  await db.query(
+    `UPDATE oidc_auth_codes SET used_at = NOW()
+      WHERE user_id = ? AND used_at IS NULL`,
+    [userId]
+  );
+}
+
+/**
+ * Revoke a single access token (RFC 7009 token revocation endpoint).
+ */
+async function revokeToken(token) {
+  if (!token) return;
+  await db.query(
+    `UPDATE oidc_tokens SET revoked_at = NOW() WHERE access_token = ?`,
+    [token]
+  );
+}
+
+// ── Error type ─────────────────────────────────────────────────────────────
+
+class OidcError extends Error {
+  constructor(code, description) {
+    super(description);
+    this.name            = 'OidcError';
+    this.oidcCode        = code;
+    this.oidcDescription = description;
+  }
+}
+
+module.exports = {
+  getJwks,
+  signIdToken,
+  validateClient,
+  createAuthCode,
+  exchangeCode,
+  issueTokens,
+  verifyAccessToken,
+  revokeUserTokens,
+  revokeToken,
+  OidcError,
+  _issuer,
+  _matrixDomain,
+};

@@ -1,0 +1,337 @@
+// routes/changes.js
+const express = require('express');
+const db      = require('../../../middleware/db');
+const users = require('../../../services/users-lookup');
+const { requireAuth, requirePrincipal, requireProjectScope, requireScopeFromEntity } = require('../../../middleware/auth');
+const { validators } = require('../../../middleware/validate');
+const asyncHandler = require('../../../middleware/asyncHandler');
+const audit = require('../../../services/audit');
+const { insertWithRetry } = require('../../../services/sequence');
+const router  = express.Router();
+
+// GET /api/changes/all — firm-wide CNs for principals/heads (not status-filtered)
+router.get('/all', requireAuth, asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const firmWide = ['principal','design_principal','pmc_head','design_head','services_head'].includes(me.role);
+    if (!firmWide) return res.status(403).json({ error: 'Not authorised' });
+
+    const [changes] = await db.query(
+      `SELECT cn.*, p.name AS project_name, p.code AS project_code
+       FROM change_notices cn
+       JOIN projects p ON cn.project_id = p.id
+       WHERE cn.status NOT IN ('approved','rejected')
+       ORDER BY cn.raised_at DESC
+       LIMIT 100`
+    );
+    const Auth = require('../../auth/contract');
+    const userIds = changes.flatMap(c => [c.raised_by, c.approved_by, c.sig_pmc].filter(Boolean));
+    const users = await Auth.functions.getUsers(userIds);
+    changes.forEach(c => {
+      c.raised_by_name   = users.get(c.raised_by)?.full_name   || null;
+      c.approved_by_name = users.get(c.approved_by)?.full_name || null;
+      c.sig_pmc_name     = users.get(c.sig_pmc)?.full_name     || null;
+    });
+    res.json({ changes });
+  }));
+
+// GET /api/changes/:project_id
+router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(async (req, res) => {
+    const [changes] = await db.query(
+      `SELECT * FROM change_notices
+       WHERE project_id = ?
+       ORDER BY raised_at DESC`,
+      [req.params.project_id]
+    );
+    const Auth = require('../../auth/contract');
+    const users = await Auth.functions.getUsers(
+      changes.flatMap(c => [c.raised_by, c.approved_by, c.sig_pmc].filter(Boolean))
+    );
+    changes.forEach(c => {
+      c.raised_by_name   = users.get(c.raised_by)?.full_name   || null;
+      c.approved_by_name = users.get(c.approved_by)?.full_name || null;
+      c.sig_pmc_name     = users.get(c.sig_pmc)?.full_name     || null;
+    });
+    res.json({ changes });
+  }));
+
+// POST /api/changes/:project_id — raise change notice
+router.post('/:project_id', requireAuth, requireProjectScope(), requirePrincipal, validators.changeNotice, asyncHandler(async (req, res) => {
+    const pid = req.params.project_id;
+    const { title, description, source, affected_drawings, boq_impact, schedule_impact_days } = req.body;
+
+    // W5: cn_number race — SELECT COUNT(*) → INSERT was unsafe. Two concurrent
+    // creates produced same cn_number, second hit uq_cn_number. Wrap so
+    // ER_DUP_ENTRY auto-retries with a fresh count.
+    let result, cnNumber;
+    await insertWithRetry(async () => {
+      const [[last]] = await db.query(
+        'SELECT COUNT(*) AS cnt FROM change_notices WHERE project_id = ?', [pid]
+      );
+      cnNumber = `CN${String((last?.cnt || 0) + 1).padStart(3, '0')}`;
+
+      const [r] = await db.query(
+        `INSERT INTO change_notices (project_id, cn_number, title, description, source, affected_drawings, boq_impact, schedule_impact_days, raised_by)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [pid, cnNumber, title, description, source, affected_drawings || null,
+         boq_impact ? 1 : 0, schedule_impact_days || 0, req.session.user.id]
+      );
+      result = r;
+    });
+
+    // W6: CNs are contractual — every raise is an auditable event.
+    audit.log({ userId: req.session.user.id, action: 'cn.raise',
+      entityType: 'change_notices', entityId: result.insertId,
+      details: { project_id: parseInt(pid), cn_number: cnNumber, title, source, boq_impact: !!boq_impact, schedule_impact_days: schedule_impact_days || 0 }, req });
+
+    res.json({ success: true, id: result.insertId, cn_number: cnNumber });
+
+  }));
+
+// POST /api/changes/:id/sign — PMC Head, Services Head, or PMC signs.
+// NOT using requireRole() middleware here: a user acting as deputy for
+// design_head/services_head/pmc_head must also be allowed. The deputy
+// lookup below handles both the gate and the dispatch in one pass —
+// splitting them would require two DB queries.
+router.post('/:id/sign', requireAuth, requireScopeFromEntity('change_notices'), asyncHandler(async (req, res) => {
+    const me = req.session.user;
+    const [[cn]] = await db.query('SELECT * FROM change_notices WHERE id = ?', [req.params.id]);
+    if (!cn) return res.status(404).json({ error: 'Not found' });
+
+    const updates = {};
+    const now = new Date();
+
+    // Check if this user is a deputy for design_head/services_head/pmc_head.
+    // Honour time window: NULL bounds = open-ended; otherwise must be within.
+    const [[asDeputyFor]] = await db.query(
+      `SELECT * FROM users
+       WHERE deputy_id = ?
+         AND role IN ('design_head','services_head','pmc_head')
+         AND (deputy_from  IS NULL OR deputy_from  <= CURDATE())
+         AND (deputy_until IS NULL OR deputy_until >= CURDATE())`,
+      [me.id]
+    );
+    const effectiveRole = asDeputyFor ? asDeputyFor.role : me.role;
+
+    if (effectiveRole === 'design_head') {
+      updates.sig_design_head    = 1;
+      updates.sig_design_head_at = now;
+    } else if (effectiveRole === 'services_head') {
+      updates.sig_services_head    = 1;
+      updates.sig_services_head_at = now;
+    } else if (effectiveRole === 'pmc_head') {
+      updates.sig_pmc    = me.id;
+      updates.sig_pmc_at = now;
+    } else if (['principal','design_principal'].includes(me.role)) {
+      // Principals can sign as any
+      updates.sig_design_head      = 1;
+      updates.sig_design_head_at   = now;
+      updates.sig_services_head    = 1;
+      updates.sig_services_head_at = now;
+      updates.sig_pmc              = me.id;
+      updates.sig_pmc_at           = now;
+    } else {
+      return res.status(403).json({ error: 'Not authorised to sign change notices' });
+    }
+
+    // W8: signatory INSERT and signature flag UPDATE were separate. Wrap in tx.
+    const newDesignHead   = updates.sig_design_head   || cn.sig_design_head;
+    const newServicesHead = updates.sig_services_head || cn.sig_services_head;
+    const newPMC          = updates.sig_pmc           || cn.sig_pmc;
+    const allSigned       = newDesignHead && newServicesHead && newPMC;
+
+    await db.tx(async (conn) => {
+      await conn.query(
+        'INSERT IGNORE INTO change_notice_signatories (change_notice_id, user_id) VALUES (?,?)',
+        [cn.id, me.id]
+      );
+      await conn.query(
+        `UPDATE change_notices SET
+           sig_design_head=?, sig_design_head_at=?, sig_services_head=?, sig_services_head_at=?,
+           sig_pmc=?, sig_pmc_at=?
+         WHERE id=?`,
+        [newDesignHead, updates.sig_design_head_at || cn.sig_design_head_at,
+         newServicesHead, updates.sig_services_head_at || cn.sig_services_head_at,
+         newPMC, updates.sig_pmc_at || cn.sig_pmc_at, cn.id]
+      );
+    });
+
+    // W9: contractual signature audit.
+    audit.log({ userId: me.id, action: 'cn.sign',
+      entityType: 'change_notices', entityId: cn.id,
+      details: { cn_number: cn.cn_number, project_id: cn.project_id, effective_role: effectiveRole, all_signed: !!allSigned }, req });
+
+    // Transition to pending_approval once all 3 sigs are in (via state machine)
+    if (allSigned && cn.status === 'draft') {
+      const { changeNotice: cnSM } = require('../../../services/state-machines');
+      await cnSM.transition({
+        id: cn.id, from: 'draft', to: 'pending_approval',
+        audit: { userId: req.session.user.id, req },
+      }).catch(e => {
+        if (e.code !== 'INVALID_STATE_TRANSITION') throw e;
+        // Already transitioned — fine
+      });
+    }
+
+    // Notify on signatures needed / all signed
+    const { notifyCNSignaturesNeeded } = require('../../../services/notifications');
+    if (!allSigned) {
+      notifyCNSignaturesNeeded(cn.cn_number, cn.title).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    }
+    // All sigs collected → trigger the relay sign-off via the gate.
+    // The gate's change_notice workflow builds the approver sequence
+    // dynamically (strip_initiator, below_threshold, is_emergency,
+    // external_origin rules per v5.33). documentRow must include the
+    // fields those predicates read.
+    if (allSigned) {
+      // Surface on central Approvals dashboard
+      const approvals = require('../../../services/approvals');
+      await approvals.register({
+        projectId: cn.project_id, requestType: 'cn_approval',
+        title: `Change Notice ${cn.cn_number}`, details: cn.title,
+        refTable: 'change_notices', refId: cn.id, raisedBy: req.session.user.id,
+      }).catch(err => console.error('[CN approvals.register]', err.message));
+
+      try {
+        const signoffGate = require('../../../services/signoff-gate');
+        await signoffGate.triggerSignoff(
+          'change_notice',
+          cn.id,
+          cn.project_id,
+          {
+            question: `${cn.cn_number} — ${(cn.title || '').substring(0, 60)} — approve change notice?`,
+            documentRow: {
+              id:              cn.id,
+              raised_by:       cn.raised_by,
+              source:          cn.source,
+              cn_origin:       cn.cn_origin,
+              is_emergency:    cn.is_emergency,
+              estimated_value: parseFloat(cn.cost_impact || 0),
+            },
+            initiatorUser: { id: cn.raised_by, role: effectiveRole },
+            triggeredBy:   req.session.user.id,
+          }
+        );
+      } catch (gateErr) {
+        console.error('[changes.sign signoff-gate]', gateErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      all_signed: allSigned,
+      message: allSigned ? 'All signatures collected — sent to Principal/Design Principal for approval.' : 'Signature recorded.'
+    });
+
+  }));
+
+// POST /api/changes/:id/approve — peer approval below ₹1L, principal above
+// requireScopeFromEntity ensures the CN belongs to a project this user can access.
+router.post('/:id/approve', requireAuth, requireScopeFromEntity('change_notices'), async (req, res) => {
+  try {
+    const me = req.session.user;
+    const [[cn]] = await db.query(
+      'SELECT id, project_id, cn_number, title, cost_impact, stream, status FROM change_notices WHERE id = ?',
+      [req.params.id]
+    );
+    if (!cn) return res.status(404).json({ error: 'CN not found' });
+
+    const cnValue   = parseFloat(cn.cost_impact || 0);
+    // CN threshold = 1% of project total sanctioned budget
+    const [[projBudget]] = await db.query(
+      'SELECT COALESCE(SUM(sanctioned),0) AS total FROM budget_cost_heads WHERE project_id=? AND status=?',
+      [cn.project_id, 'approved']
+    );
+    const THRESHOLD = Math.max(parseFloat(projBudget?.total || 0) * 0.01, 10000); // min ₹10K floor
+    const isPrincipal    = ['principal','design_principal'].includes(me.role);
+    const isPMC          = me.role === 'pmc_head';
+    const isDesignHead   = me.role === 'design_head';
+    const isServicesHead = me.role === 'services_head';
+    const cnStream       = cn.stream || 'design';
+
+    if (!isPrincipal) {
+      // Above threshold — must be principal
+      if (cnValue >= THRESHOLD) {
+        return res.status(403).json({
+          error: `CN value ₹${cnValue.toLocaleString('en-IN')} ≥ ₹1,00,000 — Principal or Design Principal required.`,
+        });
+      }
+      // Below threshold — correct head + PMC Head peer required
+      const isCorrectHead = (cnStream === 'design' && isDesignHead) ||
+                            (cnStream === 'services' && isServicesHead) || isPMC;
+      if (!isCorrectHead) {
+        return res.status(403).json({
+          error: `CN below ₹1L requires ${cnStream} head and PMC Head peer approval.`,
+        });
+      }
+      // Check peer has already signed
+      const [sigs] = await db.query(
+        `SELECT id, user_id FROM change_notice_signatories
+         WHERE change_notice_id = ? AND user_id != ?`,
+        [req.params.id, me.id]
+      );
+      const Auth = require('../../auth/contract');
+      const sigUsers = await Auth.functions.getUsers(sigs.map(s => s.user_id));
+      const PEER_ROLES = new Set(['pmc_head', 'design_head', 'services_head']);
+      const peerSig = sigs.find(s => PEER_ROLES.has(sigUsers.get(s.user_id)?.role));
+      if (!peerSig) {
+        return res.status(400).json({
+          error: `Peer signature needed first. CN below ₹1L requires both ${cnStream} head and PMC Head.`,
+          requires_peer: true,
+        });
+      }
+    }
+
+    const { changeNotice: cnSM } = require('../../../services/state-machines');
+    await cnSM.transition({
+      id: parseInt(req.params.id), from: cn.status, to: 'approved',
+      extraCols: { approved_by: me.id, approved_at: new Date() },
+      audit: { userId: me.id, req },
+    });
+
+    // Close matching row on central Approvals dashboard
+    const approvals = require('../../../services/approvals');
+    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id), actionedBy: me.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+
+    if (cn) {
+      try {
+        const { notifyChangeNoticeApproved } = require('../../../services/notifications');
+        notifyChangeNoticeApproved(cn.project_id, cn.cn_number, cn.title).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+      } catch(_e) { /* non-blocking */ }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === 'INVALID_STATE_TRANSITION') {
+      return res.status(400).json({ error: err.message, code: err.code });
+    }
+    console.error('CN approve error:', err.message);
+    res.status(500).json({ error: 'Failed to approve change notice' });
+  }
+});
+
+// POST /api/changes/:id/reject
+router.post('/:id/reject', requireAuth, requirePrincipal, async (req, res) => {
+  try {
+    const { rejection_note } = req.body;
+    const [[cn]] = await db.query('SELECT status FROM change_notices WHERE id = ?', [req.params.id]);
+    if (!cn) return res.status(404).json({ error: 'CN not found' });
+
+    const { changeNotice: cnSM } = require('../../../services/state-machines');
+    await cnSM.transition({
+      id: parseInt(req.params.id), from: cn.status, to: 'rejected',
+      extraCols: { rejection_note: rejection_note || 'No reason given' },
+      audit: { userId: req.session.user.id, req, details: { rejection_note: rejection_note || null } },
+    });
+
+    // Close matching row on central Approvals dashboard
+    const approvals = require('../../../services/approvals');
+    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id), actionedBy: req.session.user.id, rejectionNote: rejection_note || 'No reason given' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === 'INVALID_STATE_TRANSITION') {
+      return res.status(400).json({ error: err.message, code: err.code });
+    }
+    res.status(500).json({ error: 'Failed to reject change notice' });
+  }
+});
+
+module.exports = router;

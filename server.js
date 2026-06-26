@@ -31,6 +31,13 @@ require('./middleware/db'); // initialise connection pool on startup
 
 const app = express();
 
+// Trust the nginx reverse proxy — required so req.ip reflects the real client
+// IP (not 127.0.0.1) for rate limiting, and so req.protocol reflects https
+// (not http) for Twilio webhook signature validation and secure cookie flags.
+// Without this, every user shares the same rate-limit bucket and every Twilio
+// webhook call returns 403 in production.
+app.set('trust proxy', 1);
+
 // Ensure upload directories exist on startup
 const fs = require('fs');
 const pth = require('path');
@@ -38,7 +45,7 @@ const pth = require('path');
   const fp = pth.join(__dirname, dir);
   if (!fs.existsSync(fp)) fs.mkdirSync(fp, { recursive: true });
 });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3100;
 
 // ── SECURITY
 app.use(helmet({
@@ -126,9 +133,9 @@ if (process.env.DISABLE_API_RATE_LIMIT !== '1') {
 console.log(`Login rate limiter is ${process.env.DISABLE_LOGIN_RATE_LIMIT === '1' ? 'DISABLED' : 'ENABLED'}`);
 if (process.env.DISABLE_LOGIN_RATE_LIMIT !== '1') {
   const loginLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000,
-    max: 50,
-    skipSuccessfulRequests: true,      // Don't count successful logins
+    windowMs: 15 * 60 * 1000,          // 15-minute window (matches error message)
+    max: 10,                            // 10 attempts per 15 min per IP (was 50/min — too lax)
+    skipSuccessfulRequests: true,       // don't count successful logins against the limit
     message: { error: 'Too many login attempts — try again in 15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -150,15 +157,13 @@ app.use('/api/whatsapp/send-otp', otpLimiter);
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// ── SESSION SECRET — refuse to boot without one in any non-development env.
-// NODE_ENV values like 'staging', 'production', 'test-live' all require a real secret.
+// ── SESSION SECRET — refuse to boot without one in ALL environments.
+// A hardcoded fallback would allow session forgery if the app is accidentally
+// deployed with NODE_ENV=development. No env value = no start.
 if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
-  if (process.env.NODE_ENV !== 'development') {
-    console.error('✗ FATAL: SESSION_SECRET must be set (min 32 chars) outside NODE_ENV=development.');
-    console.error('   Generate with:  node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
-    process.exit(1);
-  }
-  console.warn('⚠ SESSION_SECRET not set — using dev fallback. NEVER deploy without setting this.');
+  console.error('✗ FATAL: SESSION_SECRET must be set (min 32 chars).');
+  console.error('   Generate with:  node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
 }
 
 // ── SESSION STORE — MySQL-backed (survives restart, supports multi-process)
@@ -170,7 +175,7 @@ if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
 const mysql2 = require('mysql2/promise');
 const sessionPoolConfig = {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 3306,
+  port: parseInt(process.env.DB_PORT, 10) || 3306,
   user: process.env.DB_USER || 'nu_app',
   password: process.env.DB_PASSWORD || process.env.DB_PASS || '',
   database: process.env.DB_NAME || 'nu_pmc',
@@ -187,11 +192,15 @@ const sessionStore = new MySQLStore({
 
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'dev-only-change-in-production-do-not-use',
+  secret: process.env.SESSION_SECRET,   // guaranteed non-empty by the startup check above
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    // Tie `secure` to FORCE_HTTPS=1 (same gate as HSTS) rather than NODE_ENV.
+    // Previously NODE_ENV=production enabled secure cookies but FORCE_HTTPS could
+    // be unset, meaning secure-only cookies were sent over cleartext HTTP.
+    // Both HSTS and the secure cookie flag must be active together or not at all.
+    secure: process.env.FORCE_HTTPS === '1',
     httpOnly: true,                               // XSS protection — JS cannot read cookie
     sameSite: 'strict',                           // CSRF protection
     maxAge: 8 * 60 * 60 * 1000                  // 8 hours — security over convenience
@@ -289,7 +298,7 @@ app.use('/api', csrfMiddleware);
 // only middlewares that know which project a request targets.
 
 // ── TEMPLATE DOWNLOADS — bulk upload Excel templates
-app.get('/api/uploads/template/:type', (req, res) => {
+app.get('/api/uploads/template/:type', require('./middleware/auth').requireAuth, (req, res) => {
   const path2 = require('path');
   const templates = {
     users: 'nu_PMC_BulkUpload_Templates_v1.xlsx',
@@ -356,6 +365,7 @@ app.use('/api/photo-tags', siteContract.routes.photoTags);
 app.use('/api/delegations', systemContract.routes.delegations);
 app.use('/api/weekly-signoff', reportingContract.routes.weeklySignoff);
 app.use('/api/materials', designServicesContract.routes.materials);
+app.use('/api/rfi',      designServicesContract.routes.rfis);
 app.use('/api/approvals', workflowContract.routes.approvals);
 app.use('/api/changes', workflowContract.routes.changes);
 app.use('/api/reports', reportingContract.routes.reports);
@@ -444,20 +454,78 @@ app.get('/api/files/:subdir/:filename', require('./middleware/auth').requireAuth
   res.sendFile(filePath);
 });
 
-// ── HEALTH CHECK — dedicated endpoint for Docker/load-balancer probes.
-// Checks DB connectivity; returns 503 if DB is unreachable so upstream
-// orchestrators take the instance out of rotation before users see errors.
-// Deliberately unauthenticated (must be reachable without a session cookie).
+// ── HEALTH CHECK — dedicated endpoint for Docker/load-balancer probes
+//    and Uptime Kuma monitoring.
+//
+// Checks:
+//   1. DB connectivity  — SELECT 1 against the pool
+//   2. Matrix reachability — GET /health on the homeserver (if configured)
+//      Uses a 3s timeout so the health check never hangs the probe.
+//
+// Response shape:
+//   { status: 'ok' | 'degraded' | 'error', ts, checks: { db, matrix } }
+//
+// HTTP status:
+//   200 — all checks pass (status='ok')
+//   200 — Matrix unreachable but DB fine (status='degraded') — app still
+//         serves requests; Uptime Kuma can alert on 'degraded' if desired
+//   503 — DB unreachable — app cannot serve (status='error')
+//
+// Deliberately unauthenticated.
 app.get('/health', async (req, res) => {
+  const checks = { db: 'ok', matrix: 'not_configured' };
+  let dbOk = false;
+
+  // 1. DB check
   try {
     const db = require('./middleware/db');
     await db.query('SELECT 1');
-    res.json({ status: 'ok', ts: new Date().toISOString() });
+    dbOk = true;
+    checks.db = 'ok';
   } catch (err) {
     console.error('[health] DB check failed:', err.message);
-    res.status(503).json({ status: 'error', reason: 'db_unreachable' });
+    checks.db = 'error';
+    return res.status(503).json({ status: 'error', reason: 'db_unreachable', ts: new Date().toISOString(), checks });
   }
+
+  // 2. Matrix check (best-effort, non-fatal for overall health)
+  const homeserver = process.env.MATRIX_HOMESERVER;
+  if (homeserver && process.env.MATRIX_DISABLED !== '1') {
+    try {
+      const http = require('./services/http');
+      await http.get(`${homeserver}/_matrix/client/versions`, { timeout: 3000 });
+      checks.matrix = 'ok';
+    } catch (err) {
+      console.warn('[health] Matrix check failed:', err.message);
+      checks.matrix = 'unreachable';
+    }
+  }
+
+  const degraded = checks.matrix === 'unreachable';
+  res.json({
+    status: degraded ? 'degraded' : 'ok',
+    ts:     new Date().toISOString(),
+    checks,
+  });
 });
+
+// ── STARTUP CHECKS — catch obvious misconfigurations before they become incidents
+if (process.env.NODE_ENV !== 'development') {
+  const placeholderOidcSecret = 'change-this-to-a-strong-secret';
+  if (process.env.OIDC_CLIENT_SECRET === placeholderOidcSecret) {
+    console.error('✗ FATAL: OIDC_CLIENT_SECRET is still set to the placeholder value. ' +
+      'Set a strong unique secret in .env before deploying.');
+    process.exit(1);
+  }
+}
+
+// ── OIDC PROVIDER — mounted outside /api so CSRF + session guards don't apply.
+// PKCE (RFC 7636) is the OIDC equivalent of CSRF protection.
+// Endpoints: /.well-known/openid-configuration, /oidc/jwks,
+//            /oidc/authorize (GET+POST), /oidc/token, /oidc/userinfo, /oidc/revoke
+// Only active when OIDC_CLIENT_ID is set; routes always load but return
+// config errors when OIDC_CLIENT_ID is absent — makes misconfiguration visible.
+app.use(require('./modules/auth/routes/oidc'));
 
 // ── PWA — serve index.html for all non-API routes
 // Note: /uploads/ is intentionally NOT served statically — all uploaded
@@ -517,7 +585,6 @@ scheduleTask(() => vendorOnboarding.expireOldTokens(), 30 * 60 * 1000, 'vendor-o
 // ── START
 // Optimistic lock: 409 for stale versions — must be BEFORE generic handler
 app.use(olErrorHandler);
-
 // Global error handler — MUST be last middleware
 app.use(require('./middleware/error-handler').errorHandler);
 
@@ -528,12 +595,10 @@ if (require.main === module) {
   });
 
   // Graceful shutdown on SIGTERM (PM2 sends this before SIGKILL).
-  // Stops accepting new connections, waits for in-flight requests to finish,
-  // then exits cleanly. Prevents mid-transaction aborts on deploy restarts.
   process.on('SIGTERM', () => {
     console.log('[SIGTERM] Graceful shutdown initiated');
     server.close(() => {
-      console.log('[SIGTERM] All connections closed — exiting');
+      console.log('[SIGTERM] All connections closed — exiting.');
       process.exit(0);
     });
   });

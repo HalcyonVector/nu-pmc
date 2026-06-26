@@ -141,7 +141,7 @@ router.post('/:project_id/initialise', requireAuth, requireProjectScope(), requi
 
     audit.log({ userId: req.session.user.id, action: 'budget.initialise',
       entityType: 'budget_cost_heads', entityId: null,
-      details: { project_id: parseInt(pid), created, skipped, trades: trades.map(t => t.trade) }, req });
+      details: { project_id: parseInt(pid, 10), created, skipped, trades: trades.map(t => t.trade) }, req });
 
     res.json({ success: true, created, skipped,
       message: `${created} cost heads initialised from BOQ${skipped ? `, ${skipped} already existed` : ''}. Sanctioned amounts auto-set.` });
@@ -218,7 +218,7 @@ router.post('/:project_id/custom-head', requireAuth, requireProjectScope(), requ
 
     audit.log({ userId: me.id, action: 'budget.custom_head_create',
       entityType: 'budget_cost_heads', entityId: result.insertId,
-      details: { project_id: parseInt(req.params.project_id), code: body.code.toUpperCase(), name: body.name, stream: body.stream || 'common', sanctioned: body.sanctioned, status }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), code: body.code.toUpperCase(), name: body.name, stream: body.stream || 'common', sanctioned: body.sanctioned, status }, req });
 
     res.json({
       success: true, id: result.insertId, status,
@@ -241,15 +241,15 @@ router.patch('/cost-heads/:id/approve', requireAuth,
     const sm = require('../../../services/state-machines').budgetCostHead;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'approved',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'approved',
         extraCols: { approved_by: me.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'budget_cost_heads', refId: parseInt(req.params.id), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'budget_cost_heads', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
     audit.log({ userId: me.id, action: 'budget.custom_head_approve',
-      entityType: 'budget_cost_heads', entityId: parseInt(req.params.id),
+      entityType: 'budget_cost_heads', entityId: parseInt(req.params.id, 10),
       details: { approver_role: me.role }, req });
 
     // Notify finance_admin — they're the ones who'll book costs against this
@@ -275,7 +275,7 @@ router.patch('/flags/:id/signoff', requireAuth,
       [me.id, note || null, req.params.id]
     );
     audit.log({ userId: me.id, action: 'budget.flag_signoff',
-      entityType: 'budget_flags', entityId: parseInt(req.params.id),
+      entityType: 'budget_flags', entityId: parseInt(req.params.id, 10),
       details: { note: note || null, signer_role: me.role }, req });
     res.json({ success: true });
   }));

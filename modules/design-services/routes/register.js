@@ -150,7 +150,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
 
     audit.log({ userId: me.id, action: 'drawing_register.upload',
       entityType: 'drawing_register', entityId: null,
-      details: { project_id: parseInt(pid), stream, imported: imported.length, skipped: skipped.length, errors: errors.length }, req });
+      details: { project_id: parseInt(pid, 10), stream, imported: imported.length, skipped: skipped.length, errors: errors.length }, req });
 
     res.json({
       success: true,
@@ -186,7 +186,7 @@ router.post('/:project_id/add', requireAuth, requireProjectScope(), requireRole(
 
     audit.log({ userId: me.id, action: 'drawing_register.add',
       entityType: 'drawing_register', entityId: result.insertId,
-      details: { project_id: parseInt(pid), drawing_number, drawing_name, category, stream }, req });
+      details: { project_id: parseInt(pid, 10), drawing_number, drawing_name, category, stream }, req });
 
     res.json({
       success: true,
@@ -230,7 +230,7 @@ router.post('/:project_id/sign-off', requireAuth, requireProjectScope(), require
 
     audit.log({ userId: me.id, action: 'drawing_register.sign_off',
       entityType: 'drawing_register', entityId: null,
-      details: { project_id: parseInt(pid), stream: stream || 'all', signed_count: result.affectedRows }, req });
+      details: { project_id: parseInt(pid, 10), stream: stream || 'all', signed_count: result.affectedRows }, req });
 
     res.json({
       success: true,
@@ -255,8 +255,8 @@ router.delete('/:project_id/:entry_id', requireAuth, requireProjectScope(), requ
       [me.id, req.params.entry_id]
     );
     audit.log({ userId: me.id, action: 'drawing_register.delete',
-      entityType: 'drawing_register', entityId: parseInt(req.params.entry_id),
-      details: { project_id: parseInt(req.params.project_id), drawing_number: entry.drawing_number, stream: entry.stream }, req });
+      entityType: 'drawing_register', entityId: parseInt(req.params.entry_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), drawing_number: entry.drawing_number, stream: entry.stream }, req });
     res.json({ success: true });
   }));
 

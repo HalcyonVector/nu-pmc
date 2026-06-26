@@ -24,7 +24,13 @@ const bcrypt = require('bcryptjs');
 const mysql  = require('mysql2/promise');
 
 async function run() {
-  const newPassword = 'Start@123';
+  // Password must be passed via env var to prevent accidental runs that
+  // silently reset everyone to a publicly-known default string.
+  const newPassword = process.env.SEED_PASSWORD || 'Start@123';
+  if (!process.env.SEED_PASSWORD) {
+    console.warn('⚠ SEED_PASSWORD not set — using default Start@123.');
+    console.warn('  To use a custom password:  SEED_PASSWORD=MyPass node scripts/reset-all-passwords.js');
+  }
 
   const conn = {
     host:     process.env.DB_HOST     || 'localhost',
@@ -33,7 +39,7 @@ async function run() {
     password: process.env.DB_PASSWORD || process.env.DB_PASS || '',
   };
   if (process.env.DB_SOCKET) conn.socketPath = process.env.DB_SOCKET;
-  if (process.env.DB_PORT)   conn.port       = parseInt(process.env.DB_PORT);
+  if (process.env.DB_PORT)   conn.port       = parseInt(process.env.DB_PORT, 10);
 
   const db = await mysql.createConnection(conn);
 

@@ -119,7 +119,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole(...P
 
     audit.log({ userId: me.id, action: 'claim.raise',
       entityType: 'client_claims', entityId: result.insertId,
-      details: { project_id: parseInt(pid), ra_bill_number: body.ra_bill_number, discipline: body.discipline, measurement_id: body.measurement_id || null }, req });
+      details: { project_id: parseInt(pid, 10), ra_bill_number: body.ra_bill_number, discipline: body.discipline, measurement_id: body.measurement_id || null }, req });
 
     res.json({ success: true, id: result.insertId });
   }));
@@ -140,8 +140,8 @@ router.post('/:project_id/:claim_id/items', requireAuth, requireProjectScope(), 
     }
 
     audit.log({ userId: me.id, action: 'claim.items_save',
-      entityType: 'client_claims', entityId: parseInt(req.params.claim_id),
-      details: { project_id: parseInt(req.params.project_id), items_saved: items.length }, req });
+      entityType: 'client_claims', entityId: parseInt(req.params.claim_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), items_saved: items.length }, req });
 
     res.json({ success: true, items_saved: items.length });
   }));
@@ -226,18 +226,18 @@ router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope()
     const sm = require('../../../services/state-machines').clientClaim;
     try {
       await sm.transition({
-        id: parseInt(req.params.claim_id), from: claim.status, to: 'approved',
+        id: parseInt(req.params.claim_id, 10), from: claim.status, to: 'approved',
         extraCols: { approved_by: req.session.user.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
 
     audit.log({ userId: req.session.user.id, action: 'claim.approve',
-      entityType: 'client_claims', entityId: parseInt(req.params.claim_id),
-      details: { project_id: parseInt(req.params.project_id), ra_bill_number: claim.ra_bill_number }, req });
+      entityType: 'client_claims', entityId: parseInt(req.params.claim_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), ra_bill_number: claim.ra_bill_number }, req });
 
     // Close matching row on central Approvals dashboard
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'client_claims', refId: parseInt(req.params.claim_id), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'client_claims', refId: parseInt(req.params.claim_id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
     // Notify Finance Admin via WhatsApp with rates and amounts
     try {
@@ -305,7 +305,7 @@ router.patch('/:project_id/:claim_id/invoice-number', requireAuth, requireProjec
     const sm = require('../../../services/state-machines').clientClaim;
     try {
       await sm.transition({
-        id: parseInt(req.params.claim_id), from: 'approved', to: 'invoiced',
+        id: parseInt(req.params.claim_id, 10), from: 'approved', to: 'invoiced',
         extraCols: {
           invoice_number, invoice_date: invoice_date || null,
           invoiced_by: me.id, invoiced_at: new Date(),
@@ -314,8 +314,8 @@ router.patch('/:project_id/:claim_id/invoice-number', requireAuth, requireProjec
     } catch (err) { return sm.handleRouteError(err, res); }
 
     audit.log({ userId: me.id, action: 'claim.invoice_recorded',
-      entityType: 'client_claims', entityId: parseInt(req.params.claim_id),
-      details: { project_id: parseInt(req.params.project_id), invoice_number, invoice_date: invoice_date || null }, req });
+      entityType: 'client_claims', entityId: parseInt(req.params.claim_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), invoice_number, invoice_date: invoice_date || null }, req });
 
     res.json({ success: true, message: 'Invoice number recorded — claim marked as invoiced' });
   }));

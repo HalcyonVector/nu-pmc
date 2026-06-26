@@ -11,7 +11,7 @@ async function run() {
     user:     process.env.DB_USER     || 'nu_app',
     password: process.env.DB_PASSWORD || process.env.DB_PASS || '',
   };
-  if (process.env.DB_PORT) conn.port = parseInt(process.env.DB_PORT);
+  if (process.env.DB_PORT) conn.port = parseInt(process.env.DB_PORT, 10);
   const db = await mysql.createConnection(conn);
 
   await db.execute(`

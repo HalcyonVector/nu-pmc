@@ -227,7 +227,7 @@ async function processExcelReport(mediaUrl, user, projectId, today) {
          ORDER BY report_date DESC, id DESC LIMIT 1`,
         [taskId, projectId, today]
       );
-      if (prev && pct < parseInt(prev.pct_complete)) {
+      if (prev && pct < parseInt(prev.pct_complete, 10)) {
         flagged = true;
         flagNote = `REGRESSION: ${prev.pct_complete}% (${prev.report_date}) → ${pct}% — needs PMC review`;
       }

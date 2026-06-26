@@ -92,11 +92,11 @@ router.post('/', requireAuth, validators.clientMaster, asyncHandler(async (req, 
       const prefix = String(gstin).substring(0,2);
       const map = STATE_MAP[prefix];
       if (map) { state_name = state_name || map[0]; state_code = state_code || map[1]; }
-      else     { state_name = state_name || 'Unknown'; state_code = state_code || parseInt(prefix) || 0; }
+      else     { state_name = state_name || 'Unknown'; state_code = state_code || parseInt(prefix, 10) || 0; }
     }
 
     // Determine if IGST or CGST/SGST applies (LLP is in Karnataka, state 29)
-    const is_interstate = parseInt(state_code) !== 29;
+    const is_interstate = parseInt(state_code, 10) !== 29;
 
     const [result] = await db.query(
       `INSERT INTO clients
@@ -147,7 +147,7 @@ router.patch('/:id', requireAuth, asyncHandler(async (req, res) => {
     // Recalculate is_interstate if state_code changes
     if (req.body.state_code) {
       updates.push('is_interstate = ?');
-      values.push(parseInt(req.body.state_code) !== 29 ? 1 : 0);
+      values.push(parseInt(req.body.state_code, 10) !== 29 ? 1 : 0);
     }
 
     values.push(req.params.id);
@@ -319,8 +319,8 @@ router.post('/:id/tally-xml/:claim_id', requireAuth, asyncHandler(async (req, re
     } catch(_e) { /* notification failure — non-blocking */ }
 
     audit.log({ userId: me.id, action: 'tally_xml.generate',
-      entityType: 'client_claims', entityId: parseInt(req.params.claim_id),
-      details: { client_id: parseInt(req.params.id), invoice_number: invNum, project_code: claim.project_code, ra_bill: claim.ra_bill_number, total }, req });
+      entityType: 'client_claims', entityId: parseInt(req.params.claim_id, 10),
+      details: { client_id: parseInt(req.params.id, 10), invoice_number: invNum, project_code: claim.project_code, ra_bill: claim.ra_bill_number, total }, req });
 
     res.json({
       success:        true,
@@ -378,7 +378,7 @@ router.post('/bulk-upload', requireAuth, upload.single('clients'), asyncHandler(
 
       // Derive state from GSTIN prefix
       const statePrefix = gstin.substring(0,2);
-      const [stateName, stateCode] = STATE_MAP[statePrefix] || ['Unknown', parseInt(statePrefix) || 0];
+      const [stateName, stateCode] = STATE_MAP[statePrefix] || ['Unknown', parseInt(statePrefix, 10) || 0];
 
       const [[ex]] = await db.query('SELECT id FROM clients WHERE client_name=?', [name]);
       if (ex) { skipped++; continue; }

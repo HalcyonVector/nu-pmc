@@ -144,9 +144,10 @@ router.post('/login', asyncHandler(async (req, res) => {
       });
     }
 
-    // Must-change-password check: default password still active AND login
-    // count has reached the threshold, OR force_password_change flag is set
-    // (admin-reset). Threshold is 1 — users must change on first login.
+    // Must-change-password check: fires when force_password_change=1 (set by
+    // admin-reset and the bulk password-reset script — this is what guarantees
+    // "change on next login" for every user), OR as a secondary safety net when
+    // the user is still on the default password after FORCE_CHANGE_AFTER logins.
     const FORCE_CHANGE_AFTER = 25;
     await db.query('UPDATE users SET login_count = login_count + 1 WHERE id = ?', [user.id]);
     const [[countRow]] = await db.query('SELECT login_count FROM users WHERE id = ?', [user.id]);
@@ -382,6 +383,13 @@ router.post('/reset-password', requireAuth, asyncHandler(async (req, res) => {
     const isManager   = t.managed_by === me.id;
 
     if (!isPrincipal && !isManager) {
+      return res.status(403).json({ error: 'You cannot reset this user\'s password' });
+    }
+    // Privilege-escalation guard: only a principal may reset a privileged
+    // account (principal / design_principal / it_admin). Prevents a manager
+    // whose managed_by row mistakenly points at a senior account from
+    // taking it over via a reset.
+    if (!isPrincipal && ['principal', 'design_principal', 'it_admin'].includes(t.role)) {
       return res.status(403).json({ error: 'You cannot reset this user\'s password' });
     }
 

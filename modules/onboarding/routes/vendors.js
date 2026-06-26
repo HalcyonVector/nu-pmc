@@ -127,8 +127,8 @@ router.get('/master/check', requireAuth, requireRole(...VENDOR_MASTER_READ_ROLES
 // GET /api/vendors/master/search?trade=Civil&q=ramesh — trade-filtered search for picker
 router.get('/master/search', requireAuth, requireRole(...VENDOR_MASTER_READ_ROLES), asyncHandler(async (req, res) => {
     const { trade, q } = req.query;
-    const limit  = Math.min(parseInt(req.query.limit)  || 50, 100);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const limit  = Math.min(parseInt(req.query.limit, 10)  || 50, 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const [vendors] = await db.query(
       `SELECT id, vendor_name, trade, contact_person, phone, bank_account, bank_ifsc, gst_number AS gstin
        FROM vendors
@@ -327,7 +327,7 @@ router.patch('/master/:id/clear', requireAuth, requireRole('finance_admin','prin
 
       const sm = require('../../../services/state-machines').vendor;
       await sm.transition({
-        id: parseInt(req.params.id), from: 'pending', to: 'cleared',
+        id: parseInt(req.params.id, 10), from: 'pending', to: 'cleared',
         extraCols: {
           cleared_by: me.id, cleared_at: new Date(), rejection_reason: null,
         },
@@ -358,7 +358,7 @@ router.patch('/master/:id/reject', requireAuth, requireRole('finance_admin','pri
     const sm = require('../../../services/state-machines').vendor;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.clearance_status, to: 'rejected',
+        id: parseInt(req.params.id, 10), from: cur.clearance_status, to: 'rejected',
         extraCols: {
           rejection_reason: String(reason).trim(),
           cleared_by: me.id, cleared_at: new Date(),
@@ -411,7 +411,7 @@ router.post('/master/upload', requireAuth, requirePMC, upload.single('vendors'),
       // error so Principal sees which row to fix.
       const phoneRaw = (pick(row, 'Phone', 'Phone (WhatsApp)', 'WhatsApp', 'phone') || '').toString().trim();
       const phone    = phoneRaw ? waLink.normalisePhone(phoneRaw) : null;
-      if (phoneRaw && !phone) { errors.push(`${name}: invalid phone '${phoneRaw}'`); skipped++; continue; }
+      if (phoneRaw && !phone) { report.push({ name, trade, status: 'skipped', reason: `Invalid phone '${phoneRaw}'` }); skipped++; continue; }
       const gstin   = (pick(row, 'GSTIN', 'GST Number', 'gst_number', 'gstin') || '').toUpperCase() || null;
       const pan     = (pick(row, 'PAN', 'pan') || '').toUpperCase() || null;
       const bankAcc = pick(row, 'Bank Account Number', 'Account Number', 'bank_account');
@@ -570,7 +570,7 @@ router.patch('/master/:id', requireAuth, requirePermission('admin.vendor.update'
       // (cleared → pending edge models bank-change re-validation, B36 Layer 1)
       const sm = require('../../../services/state-machines').vendor;
       await sm.transition({
-        id: parseInt(req.params.id), from: 'cleared', to: 'pending',
+        id: parseInt(req.params.id, 10), from: 'cleared', to: 'pending',
         extraCols: { cleared_by: null, cleared_at: null },
       });
       audit.log({ userId: req.session.user.id, action: 'vendor.update_reset_clearance',
@@ -638,7 +638,7 @@ router.post('/master/:id/bank-change/propose',
       const { bank_name, bank_account, bank_ifsc, reason } = req.body || {};
       const result = await vendorBankChange.propose({
         proposer: req.session.user,
-        vendorId: parseInt(req.params.id),
+        vendorId: parseInt(req.params.id, 10),
         changes: { bank_name, bank_account, bank_ifsc },
         reason,
         req,
@@ -660,7 +660,7 @@ router.post('/master/bank-change/:approval_id/approve',
     try {
       const result = await vendorBankChange.approve({
         approver: req.session.user,
-        approvalId: parseInt(req.params.approval_id),
+        approvalId: parseInt(req.params.approval_id, 10),
         req,
       });
       res.json({ success: true, ...result });
@@ -680,7 +680,7 @@ router.post('/master/bank-change/:approval_id/reject',
     try {
       const result = await vendorBankChange.reject({
         approver: req.session.user,
-        approvalId: parseInt(req.params.approval_id),
+        approvalId: parseInt(req.params.approval_id, 10),
         reason: req.body?.reason,
         req,
       });
@@ -700,7 +700,7 @@ router.post('/master/bank-change/:approval_id/cancel',
     try {
       const result = await vendorBankChange.cancel({
         caller: req.session.user,
-        approvalId: parseInt(req.params.approval_id),
+        approvalId: parseInt(req.params.approval_id, 10),
         req,
       });
       res.json({ success: true, ...result });
@@ -940,7 +940,7 @@ router.post('/:project_id/engagements', requireAuth, requireProjectScope(),
     if (req.body.boq_item_id && validContractValue && validContractValue > 0) {
       const budgetResult = await budgetCheck.checkBudget(
         db, req.params.project_id, null,
-        parseInt(req.body.boq_item_id), validContractValue, 'engagement'
+        parseInt(req.body.boq_item_id, 10), validContractValue, 'engagement'
       );
       if (!budgetResult.allowed) {
         return res.status(400).json({
@@ -1014,7 +1014,7 @@ router.patch('/:project_id/engagements/:id/approve', requireAuth, requirePrincip
     const sm = require('../../../services/state-machines').vendorEngagementApproval;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: eng.approval_status, to: 'approved',
+        id: parseInt(req.params.id, 10), from: eng.approval_status, to: 'approved',
         extraCols: { approved_by: me.id, approved_at: new Date(), rejection_reason: null },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
@@ -1047,7 +1047,7 @@ router.patch('/:project_id/engagements/:id/reject', requireAuth, requirePrincipa
     const sm = require('../../../services/state-machines').vendorEngagementApproval;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: eng.approval_status, to: 'rejected',
+        id: parseInt(req.params.id, 10), from: eng.approval_status, to: 'rejected',
         extraCols: {
           approved_by: me.id, approved_at: new Date(),
           rejection_reason: String(reason).trim(),
@@ -1091,12 +1091,12 @@ router.patch('/:project_id/engagements/:id/status', requireAuth, requireRole(...
     const sm = require('../../../services/state-machines').vendorEngagementMobilisation;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.mobilisation_status, to: status, extraCols,
+        id: parseInt(req.params.id, 10), from: cur.mobilisation_status, to: status, extraCols,
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: me.id, action: 'engagement.status_update',
-      entityType: 'vendor_engagements', entityId: parseInt(req.params.id),
-      details: { project_id: parseInt(req.params.project_id), from: cur.mobilisation_status, new_status: status, notes: notes || null, mobilisation_date: extraCols.mobilisation_date || null, completion_date: extraCols.completion_date || null }, req });
+      entityType: 'vendor_engagements', entityId: parseInt(req.params.id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), from: cur.mobilisation_status, new_status: status, notes: notes || null, mobilisation_date: extraCols.mobilisation_date || null, completion_date: extraCols.completion_date || null }, req });
     res.json({ success: true });
   } catch (_err) { res.status(500).json({ error: 'Status update failed' }); }
 });
@@ -1127,7 +1127,7 @@ router.patch('/:project_id/engagements/:id/contract', requireAuth, requireRole(.
     // Bug B40: audit the revision.
     audit.log({ userId: me.id, action: 'engagement.contract_revised',
       entityType: 'vendor_engagements', entityId: engagement.id,
-      details: { project_id: parseInt(req.params.project_id), previous_value: parseFloat(engagement.contract_value), revised_value: parseFloat(revised_value), reason, change_notice_id: change_notice_id || null }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), previous_value: parseFloat(engagement.contract_value), revised_value: parseFloat(revised_value), reason, change_notice_id: change_notice_id || null }, req });
 
     res.json({ success: true, message: 'Contract value revised. History preserved.' });
   }));
@@ -1301,7 +1301,7 @@ router.post('/:project_id/engagements/bulk-upload', requireAuth, requirePMC, upl
 
     audit.log({ userId: req.session.user.id, action: 'engagement.bulk_upload',
       entityType: 'vendor_engagements', entityId: null,
-      details: { project_id: parseInt(pid), engagements_added: result.added, vendors_created: result.created, skipped: skipped + result.localSkipped, file_path: req.file.path }, req });
+      details: { project_id: parseInt(pid, 10), engagements_added: result.added, vendors_created: result.created, skipped: skipped + result.localSkipped, file_path: req.file.path }, req });
 
     res.json({
       success: true,
@@ -1309,6 +1309,92 @@ router.post('/:project_id/engagements/bulk-upload', requireAuth, requirePMC, upl
       skipped: skipped + result.localSkipped,
       vendors_created: result.created,
       message: `${result.added} engagements created, ${result.created} new vendors, ${skipped + result.localSkipped} skipped`,
+    });
+  }));
+
+// ── PATCH /master/:id/matrix-room ─────────────────────────────────────────
+// Register (or clear) the Matrix bridge room for a vendor.
+//
+// Called by IT Admin after the etke.cc WhatsApp bridge provisions a portal
+// room for a vendor who joined via the bridge. Once set, all vendor
+// notification paths (notifyVendorDefectRaised, notifyPaymentConfirmed,
+// notifyVendor) route directly to the Matrix room instead of creating a
+// manual external_comm task.
+//
+// Accepts:
+//   { matrix_room_id: "!abc:matrix.server" }
+//   { matrix_room_id: null }  — clears the room (vendor left / ban / re-invite)
+//
+// matrix_user_id and matrix_status are set automatically:
+//   • On set:   matrix_status = 'joined', matrix_user_id derived from phone
+//   • On clear: matrix_status = 'not_invited', matrix_user_id = null
+router.patch('/master/:id/matrix-room',
+  requireAuth,
+  requireRole('it_admin', 'principal', 'design_principal'),
+  asyncHandler(async (req, res) => {
+    const vendorId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(vendorId) || vendorId < 1) {
+      return res.status(400).json({ error: 'Invalid vendor id' });
+    }
+
+    const { matrix_room_id } = req.body;
+
+    // matrix_room_id must be a valid Matrix room ID or null/empty
+    if (matrix_room_id !== null && matrix_room_id !== undefined && matrix_room_id !== '') {
+      // Matrix room IDs start with ! and contain a colon
+      if (typeof matrix_room_id !== 'string' || !/^![^:]+:.+$/.test(matrix_room_id)) {
+        return res.status(400).json({ error: 'matrix_room_id must be a valid Matrix room ID (e.g. !abc:matrix.server) or null' });
+      }
+    }
+
+    const [[vendor]] = await db.query(
+      `SELECT id, vendor_name, phone FROM vendors WHERE id = ? AND is_active = 1 LIMIT 1`,
+      [vendorId]
+    );
+    if (!vendor) return res.status(404).json({ error: 'Vendor not found or inactive' });
+
+    const clearing = !matrix_room_id;
+
+    if (clearing) {
+      await db.query(
+        `UPDATE vendors SET matrix_room_id = NULL, matrix_user_id = NULL,
+           matrix_status = 'not_invited' WHERE id = ?`,
+        [vendorId]
+      );
+    } else {
+      // Derive a Matrix user ID from the vendor's phone if available.
+      // Pattern: @+<phone>:<homeserver_domain>  (bridge convention for WA bridge).
+      let matrixUserId = null;
+      if (vendor.phone) {
+        const botUser = process.env.MATRIX_BOT_USER_ID || '';
+        const domainMatch = botUser.match(/^@[^:]+:(.+)$/);
+        if (domainMatch) {
+          // Strip leading '+' or country prefix formatting, keep digits
+          const digits = vendor.phone.replace(/\D/g, '');
+          matrixUserId = `@+${digits}:${domainMatch[1]}`;
+        }
+      }
+      await db.query(
+        `UPDATE vendors SET matrix_room_id = ?, matrix_user_id = ?,
+           matrix_status = 'joined' WHERE id = ?`,
+        [matrix_room_id, matrixUserId, vendorId]
+      );
+    }
+
+    audit.log({
+      userId:     req.session.user.id,
+      action:     clearing ? 'vendor.matrix_room.cleared' : 'vendor.matrix_room.set',
+      entityType: 'vendors',
+      entityId:   vendorId,
+      details:    { matrix_room_id: matrix_room_id || null, vendor_name: vendor.vendor_name },
+      req,
+    });
+
+    res.json({
+      success: true,
+      vendor_id:     vendorId,
+      matrix_room_id: clearing ? null : matrix_room_id,
+      matrix_status:  clearing ? 'not_invited' : 'joined',
     });
   }));
 

@@ -160,7 +160,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requireRo
     // project. Must be audited.
     audit.log({ userId: me.id, action: 'client_boq.upload',
       entityType: 'client_boq_versions', entityId: versionId,
-      details: { project_id: parseInt(pid), stream, version_number: nextVer, items_imported: itemsImported }, req });
+      details: { project_id: parseInt(pid, 10), stream, version_number: nextVer, items_imported: itemsImported }, req });
 
     res.json({ success: true, items_imported: itemsImported, version: `v${nextVer}` });
 
@@ -183,8 +183,8 @@ router.patch('/:project_id/items/:item_id/rate', requireAuth, requireProjectScop
 
     // Bug B25: rate change directly affects client billing — must be audited.
     audit.log({ userId: me.id, action: 'client_boq.rate_update',
-      entityType: 'client_boq_items', entityId: parseInt(req.params.item_id),
-      details: { project_id: parseInt(req.params.project_id), client_rate: body.client_rate }, req });
+      entityType: 'client_boq_items', entityId: parseInt(req.params.item_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), client_rate: body.client_rate }, req });
 
     res.json({ success: true });
   }));
@@ -215,9 +215,9 @@ router.patch('/:project_id/items/:item_id/hsn', requireAuth, requireProjectScope
       userId: me.id,
       action: 'client_boq.hsn_update',
       entityType: 'client_boq_items',
-      entityId: parseInt(req.params.item_id),
+      entityId: parseInt(req.params.item_id, 10),
       details: {
-        project_id: parseInt(req.params.project_id),
+        project_id: parseInt(req.params.project_id, 10),
         hsn_code: hsn_code || null,
         note: note || null,
         actor: me.full_name,

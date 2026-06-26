@@ -134,7 +134,7 @@ module.exports = { buildForReport };
 
 // CLI usage — node scripts/build-weekly-pdf.js 42
 if (require.main === module) {
-  const id = parseInt(process.argv[2] || '0');
+  const id = parseInt(process.argv[2] || '0', 10);
   if (!id) { console.error('Usage: node build-weekly-pdf.js <report_id>'); process.exit(1); }
   buildForReport(id).then(p => { console.log('PDF written:', p); process.exit(0); })
     .catch(e => { console.error(e); process.exit(1); });

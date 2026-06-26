@@ -283,7 +283,6 @@ const APPROVER_RESOLVERS = {
   recipient:        { strategy: 'from_doc' },   // defaults: users via raised_by/created_by/user_id
   vendor_rep:       { strategy: 'from_doc', docField: 'vendor_id', table: 'vendors', activeCol: 'is_active', selectShape: 'vendor' },
   client_rep:       { strategy: 'from_client_master' },
-  principal:           { strategy: 'role_global_any', roles: ['principal','design_principal'] },
   pmc:              { strategy: 'role_in_project', role: 'pmc_head' },
   pmc_head:         { strategy: 'role_in_project', role: 'pmc_head' },
   site_manager:     { strategy: 'role_in_project', role: 'site_manager' },
@@ -784,7 +783,7 @@ async function _dispatchPoll({ approver, question, options, logTag, attachImage,
   // the poll.
   if (attachImage) {
     try {
-      const mxcUrl = await matrixAdapter.uploadMedia(attachImage, attachMime || 'image/jpeg');
+      const mxcUrl = await matrixAdapter.uploadMedia(attachImage, { filename: 'attachment.jpg', contentType: attachMime || 'image/jpeg' });
       await matrixAdapter.sendImage({
         roomId, mxcUrl,
         caption: 'Reference attachment for the poll below',

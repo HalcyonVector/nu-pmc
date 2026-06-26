@@ -104,7 +104,7 @@ router.post('/:id/approve', requireAuth, requirePrincipal, async (req, res) => {
       );
       const sm = require('../../../services/state-machines').userPending;
       await sm.transition({
-        id: parseInt(req.params.id), from: 'pending', to: 'approved',
+        id: parseInt(req.params.id, 10), from: 'pending', to: 'approved',
         extraCols: { reviewed_by: req.session.user.id, reviewed_at: new Date() },
         conn,
       });
@@ -118,7 +118,7 @@ router.post('/:id/approve', requireAuth, requirePrincipal, async (req, res) => {
       action:     'user.approve',
       entityType: 'users',
       entityId:   userId,
-      details:    { pending_id: parseInt(req.params.id), username: pending.username, role: pending.role },
+      details:    { pending_id: parseInt(req.params.id, 10), username: pending.username, role: pending.role },
       req,
     });
 
@@ -145,7 +145,7 @@ router.post('/:id/reject', requireAuth, requirePrincipal, async (req, res) => {
     let result;
     try {
       result = await sm.transition({
-        id: parseInt(req.params.id), from: 'pending', to: 'rejected',
+        id: parseInt(req.params.id, 10), from: 'pending', to: 'rejected',
         extraCols: {
           reviewed_by: req.session.user.id, reviewed_at: new Date(),
           rejection_reason: rejection_reason || null,
@@ -167,7 +167,7 @@ router.post('/:id/reject', requireAuth, requirePrincipal, async (req, res) => {
       userId:     req.session.user.id,
       action:     'user.reject',
       entityType: 'user_pending',
-      entityId:   parseInt(req.params.id),
+      entityId:   parseInt(req.params.id, 10),
       details:    { reason: rejection_reason || null },
       req,
     });

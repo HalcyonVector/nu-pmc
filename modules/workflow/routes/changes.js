@@ -81,7 +81,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requirePrincipal
     // W6: CNs are contractual — every raise is an auditable event.
     audit.log({ userId: req.session.user.id, action: 'cn.raise',
       entityType: 'change_notices', entityId: result.insertId,
-      details: { project_id: parseInt(pid), cn_number: cnNumber, title, source, boq_impact: !!boq_impact, schedule_impact_days: schedule_impact_days || 0 }, req });
+      details: { project_id: parseInt(pid, 10), cn_number: cnNumber, title, source, boq_impact: !!boq_impact, schedule_impact_days: schedule_impact_days || 0 }, req });
 
     res.json({ success: true, id: result.insertId, cn_number: cnNumber });
 
@@ -225,7 +225,8 @@ router.post('/:id/sign', requireAuth, requireScopeFromEntity('change_notices'), 
   }));
 
 // POST /api/changes/:id/approve — peer approval below ₹1L, principal above
-router.post('/:id/approve', requireAuth, async (req, res) => {
+// requireScopeFromEntity ensures the CN belongs to a project this user can access.
+router.post('/:id/approve', requireAuth, requireScopeFromEntity('change_notices'), async (req, res) => {
   try {
     const me = req.session.user;
     const [[cn]] = await db.query(
@@ -282,14 +283,14 @@ router.post('/:id/approve', requireAuth, async (req, res) => {
 
     const { changeNotice: cnSM } = require('../../../services/state-machines');
     await cnSM.transition({
-      id: parseInt(req.params.id), from: cn.status, to: 'approved',
+      id: parseInt(req.params.id, 10), from: cn.status, to: 'approved',
       extraCols: { approved_by: me.id, approved_at: new Date() },
       audit: { userId: me.id, req },
     });
 
     // Close matching row on central Approvals dashboard
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id), actionedBy: me.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id, 10), actionedBy: me.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
     if (cn) {
       try {
@@ -316,14 +317,14 @@ router.post('/:id/reject', requireAuth, requirePrincipal, async (req, res) => {
 
     const { changeNotice: cnSM } = require('../../../services/state-machines');
     await cnSM.transition({
-      id: parseInt(req.params.id), from: cn.status, to: 'rejected',
+      id: parseInt(req.params.id, 10), from: cn.status, to: 'rejected',
       extraCols: { rejection_note: rejection_note || 'No reason given' },
       audit: { userId: req.session.user.id, req, details: { rejection_note: rejection_note || null } },
     });
 
     // Close matching row on central Approvals dashboard
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id), actionedBy: req.session.user.id, rejectionNote: rejection_note || 'No reason given' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id, rejectionNote: rejection_note || 'No reason given' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     res.json({ success: true });
   } catch (err) {
     if (err.code === 'INVALID_STATE_TRANSITION') {

@@ -34,7 +34,7 @@ const SLA_DEFAULTS = {
 async function loadSLAMap() {
   const [rows] = await db.query('SELECT project_id, item_type, sla_days FROM project_slas');
   const m = new Map();
-  for (const r of rows) m.set(`${r.project_id}|${r.item_type}`, parseInt(r.sla_days));
+  for (const r of rows) m.set(`${r.project_id}|${r.item_type}`, parseInt(r.sla_days, 10));
   return m;
 }
 function slaFor(slaMap, projectId, itemType) {
@@ -50,7 +50,7 @@ async function getSLA(projectId, itemType) {
     'SELECT sla_days FROM project_slas WHERE project_id = ? AND item_type = ?',
     [projectId, itemType]
   );
-  return row ? parseInt(row.sla_days) : SLA_DEFAULTS[itemType];
+  return row ? parseInt(row.sla_days, 10) : SLA_DEFAULTS[itemType];
 }
 
 // ─── Age helpers ────────────────────────────────────────────────────

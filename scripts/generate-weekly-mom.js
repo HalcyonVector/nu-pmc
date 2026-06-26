@@ -97,4 +97,4 @@ async function generateWeeklyMOM(reportId) {
 
 const reportId = process.argv[2];
 if (!reportId) { console.error('Usage: node generate-weekly-mom.js <report_id>'); process.exit(1); }
-generateWeeklyMOM(parseInt(reportId)).catch(err => { console.error(err); process.exit(1); });
+generateWeeklyMOM(parseInt(reportId, 10)).catch(err => { console.error(err); process.exit(1); });

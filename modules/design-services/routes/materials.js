@@ -252,7 +252,7 @@ router.post('/:project_id/requests', requireAuth, requireProjectScope(),
 
     audit.log({ userId: req.session.user.id, action: 'material_request.create',
       entityType: 'material_requests', entityId: result.insertId,
-      details: { project_id: parseInt(req.params.project_id), boq_item_id: parseInt(boq_item_id), quantity_needed, needed_by_date }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), boq_item_id: parseInt(boq_item_id, 10), quantity_needed, needed_by_date }, req });
 
     res.json({ success: true, id: result.insertId });
 
@@ -280,12 +280,12 @@ router.patch('/requests/:id/status', requireAuth, requirePMC, asyncHandler(async
     const sm = require('../../../services/state-machines').materialRequest;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: status, extraCols,
+        id: parseInt(req.params.id, 10), from: cur.status, to: status, extraCols,
       });
     } catch (err) { return sm.handleRouteError(err, res); }
 
     audit.log({ userId: req.session.user.id, action: 'material_request.status_change',
-      entityType: 'material_requests', entityId: parseInt(req.params.id),
+      entityType: 'material_requests', entityId: parseInt(req.params.id, 10),
       details: { from: cur.status, new_status: status }, req });
 
     res.json({ success: true });

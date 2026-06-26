@@ -2,7 +2,13 @@ const globals = require('globals');
 
 module.exports = [
   {
-    files: ['server.js', 'routes/**/*.js', 'middleware/**/*.js', 'scripts/**/*.js', 'services/**/*.js'],
+    files: [
+      'server.js',
+      'modules/**/*.js',
+      'middleware/**/*.js',
+      'scripts/**/*.js',
+      'services/**/*.js',
+    ],
     languageOptions: {
       ecmaVersion: 2021,
       globals: { ...globals.node, URLSearchParams: 'readonly' }
@@ -18,6 +24,21 @@ module.exports = [
       }],
       'no-console': 'off',
       'no-empty':   'warn',
+      'radix':      'error',
+    }
+  },
+  {
+    // Test files use the Jest global API (describe/test/expect/jest/beforeEach…).
+    // Without these globals, no-undef reports ~1000 false errors across
+    // modules/**/tests and tests/. This block applies in addition to the
+    // Node block above (flat-config objects merge in order for matching files).
+    files: ['**/tests/**/*.js', '**/*.test.js'],
+    languageOptions: {
+      ecmaVersion: 2021,
+      globals: { ...globals.node, ...globals.jest },
+    },
+    rules: {
+      'radix': 'off',
     }
   },
   {

@@ -35,7 +35,7 @@ async function run() {
     password: process.env.DB_PASSWORD || '',
   };
   if (process.env.DB_SOCKET)  conn.socketPath = process.env.DB_SOCKET;
-  if (process.env.DB_PORT)    conn.port       = parseInt(process.env.DB_PORT);
+  if (process.env.DB_PORT)    conn.port       = parseInt(process.env.DB_PORT, 10);
   const db = await mysql.createConnection(conn);
 
   const admin = {

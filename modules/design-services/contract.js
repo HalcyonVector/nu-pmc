@@ -411,6 +411,7 @@ module.exports = {
     schedule:  require('./routes/schedule'),
     materials: require('./routes/materials'),
     scheduleQuick: require('./routes/schedule-quick'),
+    rfis:      require('./routes/rfis'),
   },
 
   tables: [

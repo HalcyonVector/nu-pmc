@@ -100,7 +100,7 @@ router.post('/:report_id/edit-section', requireAuth, asyncHandler(async (req, re
     );
 
     audit.log({ userId: me.id, action: 'weekly_report.edit_section',
-      entityType: 'weekly_reports', entityId: parseInt(req.params.report_id),
+      entityType: 'weekly_reports', entityId: parseInt(req.params.report_id, 10),
       details: { project_id: report.project_id, section, signoff_voided: true, content_length: (content || '').length }, req });
 
     res.json({ success: true });
@@ -141,7 +141,7 @@ router.post('/:report_id/sign', requireAuth, asyncHandler(async (req, res) => {
     if (allSigned && r.status === 'draft') {
       const { weeklyReport: wrSM } = require('../../../services/state-machines');
       await wrSM.transition({
-        id: parseInt(req.params.report_id), from: 'draft', to: 'pending_approval',
+        id: parseInt(req.params.report_id, 10), from: 'draft', to: 'pending_approval',
         audit: { userId: req.session.user.id, req, details: { source: 'stream_signoff' } },
       }).catch(e => {
         if (e.code !== 'INVALID_STATE_TRANSITION') throw e;
@@ -166,7 +166,7 @@ router.post('/:report_id/principal-approve', requireAuth, requireRole(...PRINCIP
 
     const { weeklyReport: wrSM } = require('../../../services/state-machines');
     await wrSM.transition({
-      id: parseInt(req.params.report_id), from: report.status, to: 'approved',
+      id: parseInt(req.params.report_id, 10), from: report.status, to: 'approved',
       extraCols: { approved_by: me.id, approved_at: new Date() },
       audit: { userId: me.id, req, details: { source: 'principal_approve' } },
     });

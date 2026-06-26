@@ -49,7 +49,7 @@ router.patch('/engagements/:id/po-flag', requireAuth, requirePMC, asyncHandler(a
     [po_required ? 1 : 0, req.params.id]
   );
   audit.log({ userId: req.session.user.id, action: 'engagement.po_flag',
-    entityType: 'vendor_engagements', entityId: parseInt(req.params.id),
+    entityType: 'vendor_engagements', entityId: parseInt(req.params.id, 10),
     details: { po_required: !!po_required }, req });
   res.json({ success: true });
 }));

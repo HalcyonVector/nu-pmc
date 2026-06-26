@@ -644,7 +644,7 @@ router.post('/:id/assign', requireAuth, requirePrincipal, async (req, res) => {
     );
     audit.log({ userId: req.session.user.id, action: 'project.assign',
       entityType: 'project_assignments', entityId: null,
-      details: { project_id: parseInt(req.params.id), assigned_user_id: user_id, assignment_role: role || 'member' }, req });
+      details: { project_id: parseInt(req.params.id, 10), assigned_user_id: user_id, assignment_role: role || 'member' }, req });
     res.json({ success: true });
   } catch (_err) { res.status(500).json({ error: 'Assign failed' }); }
 });
@@ -676,7 +676,7 @@ router.post('/:id/assign-site-manager', requireAuth, requirePMC, asyncHandler(as
 
     audit.log({ userId: req.session.user.id, action: 'project.assign_site_manager',
       entityType: 'project_assignments', entityId: null,
-      details: { project_id: parseInt(project_id), user_id: parseInt(user_id), site_manager_role: user.role }, req });
+      details: { project_id: parseInt(project_id, 10), user_id: parseInt(user_id, 10), site_manager_role: user.role }, req });
 
     res.json({ success: true });
 
@@ -698,7 +698,7 @@ router.post('/:id/leave', requireAuth, requirePMC, asyncHandler(async (req, res)
     });
     audit.log({ userId: req.session.user.id, action: 'project.site_manager_leave_recorded',
       entityType: 'site_manager_leave', entityId: null,
-      details: { project_id: parseInt(req.params.id), user_id: parseInt(user_id), leave_from, leave_to, reason: reason || null }, req });
+      details: { project_id: parseInt(req.params.id, 10), user_id: parseInt(user_id, 10), leave_from, leave_to, reason: reason || null }, req });
     res.json({ success: true, message: 'Leave recorded — alerts suppressed for this period' });
   }));
 

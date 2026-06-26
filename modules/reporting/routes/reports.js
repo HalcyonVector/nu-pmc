@@ -97,7 +97,17 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requirePMC, asyn
       [req.params.project_id, week_ending, week_number, summary, issues_for_client, req.session.user.id]
     );
 
-    const reportId = result.insertId || result.insertId;
+    // On a fresh INSERT, insertId is the new row id. On the ON DUPLICATE KEY
+    // UPDATE path, insertId is 0 — re-select the existing row via the unique
+    // key (project_id, week_ending) so photo links / approval don't target 0.
+    let reportId = result.insertId;
+    if (!reportId) {
+      const [[existing]] = await db.query(
+        'SELECT id FROM weekly_reports WHERE project_id = ? AND week_ending = ? LIMIT 1',
+        [req.params.project_id, week_ending]
+      );
+      reportId = existing?.id || null;
+    }
 
     // Link photos if provided
     if (photo_ids?.length) {
@@ -199,7 +209,7 @@ router.post('/:id/approve', requireAuth, requirePMC, async (req, res) => {
 
     const { weeklyReport: wrSM } = require('../../../services/state-machines');
     await wrSM.transition({
-      id: parseInt(req.params.id), from: wr.status, to: 'approved',
+      id: parseInt(req.params.id, 10), from: wr.status, to: 'approved',
       extraCols: { approved_by: req.session.user.id, approved_at: new Date() },
       audit: { userId: req.session.user.id, req },
     });
@@ -225,7 +235,7 @@ router.post('/:id/mark-sent', requireAuth, requirePrincipal, async (req, res) =>
 
     const { weeklyReport: wrSM } = require('../../../services/state-machines');
     await wrSM.transition({
-      id: parseInt(req.params.id), from: wr.status, to: 'sent',
+      id: parseInt(req.params.id, 10), from: wr.status, to: 'sent',
       extraCols: { sent_by: req.session.user.id, sent_at: new Date() },
       audit: { userId: req.session.user.id, req },
     });
@@ -512,7 +522,7 @@ router.patch('/weekly/:id/mitigation', requireAuth, requirePMC, asyncHandler(asy
     );
     const { weeklyReport: wrSM } = require('../../../services/state-machines');
     await wrSM.transition({
-      id: parseInt(req.params.id), from: 'draft', to: 'pending_approval',
+      id: parseInt(req.params.id, 10), from: 'draft', to: 'pending_approval',
       audit: { userId: req.session.user.id, req, details: { reason: 'drag_ack' } },
     }).catch(e => {
       if (e.code !== 'INVALID_STATE_TRANSITION') throw e;

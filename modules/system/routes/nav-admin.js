@@ -231,7 +231,7 @@ router.get('/drafts', requireAuth, requireRole('principal','design_principal','i
 router.post('/:draft_group_id/approve', requireAuth, requireRole('principal','design_principal'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const draftGroupId = parseInt(req.params.draft_group_id);
+    const draftGroupId = parseInt(req.params.draft_group_id, 10);
     if (!draftGroupId) return res.status(400).json({ error: 'Invalid draft_group_id' });
 
     const conn = await db.getConnection();
@@ -309,7 +309,7 @@ router.post('/:draft_group_id/approve', requireAuth, requireRole('principal','de
 router.post('/:draft_group_id/reject', requireAuth, requireRole('principal','design_principal'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const draftGroupId = parseInt(req.params.draft_group_id);
+    const draftGroupId = parseInt(req.params.draft_group_id, 10);
     const reason = (req.body && req.body.reason) || null;
     if (!draftGroupId) return res.status(400).json({ error: 'Invalid draft_group_id' });
 

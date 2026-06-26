@@ -3,7 +3,7 @@ const express = require('express');
 const db      = require('../../../middleware/db');
 const users = require('../../../services/users-lookup');
 const storage = require('../../../services/file-storage');
-const { requireAuth, requireProjectScope } = require('../../../middleware/auth');
+const { requireAuth, requireProjectScope, requireScopeFromEntity } = require('../../../middleware/auth');
 const { upload, compressPhoto, getFileSize } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
@@ -151,7 +151,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
     // v2: trigger AI tagging async for every photo just uploaded (respond quickly)
     audit.log({ userId: me.id, action: 'photo.upload',
       entityType: 'project_photos', entityId: null,
-      details: { project_id: parseInt(pid), count: saved.length, ids: saved, task_id: task_id || null, source: source || 'app' }, req });
+      details: { project_id: parseInt(pid, 10), count: saved.length, ids: saved, task_id: task_id || null, source: source || 'app' }, req });
 
     res.json({ success: true, count: saved.length, ids: saved, ai_tagging: 'scheduled' });
 
@@ -265,13 +265,16 @@ router.post('/:project_id/documents/upload', requireAuth, requireProjectScope(),
 
     audit.log({ userId: me.id, action: 'document.upload_via_photos',
       entityType: 'project_documents', entityId: result?.documentId || null,
-      details: { project_id: parseInt(req.params.project_id), doc_type: req.body.doc_type || 'other' }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), doc_type: req.body.doc_type || 'other' }, req });
 
     res.json({ success: true });
   }));
 
 // POST /api/photos/:photo_id/mark-progress — mark a photo as progress
-router.post('/:photo_id/mark-progress', requireAuth, asyncHandler(async (req, res) => {
+// Scope guard: resolve the photo's project from project_photos and enforce
+// project membership — otherwise any authenticated user could retag a photo
+// on a project they're not assigned to by enumerating photo_id.
+router.post('/:photo_id/mark-progress', requireAuth, requireScopeFromEntity('project_photos', 'photo_id'), asyncHandler(async (req, res) => {
     const { photo_id } = req.params;
     const me = req.session.user;
     // Update existing current tag to 'progress', or insert one if none exists

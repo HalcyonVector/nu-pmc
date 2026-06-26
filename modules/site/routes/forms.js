@@ -76,14 +76,14 @@ router.patch('/templates/:id/approve', requireAuth, requireRole(...PMC_ROLES), a
     const sm = require('../../../services/state-machines').formTemplate;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'approved',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'approved',
         extraCols: { approved_by: me.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'form_templates', refId: parseInt(req.params.id), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'form_templates', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     audit.log({ userId: me.id, action: 'form_template.approve',
-      entityType: 'form_templates', entityId: parseInt(req.params.id),
+      entityType: 'form_templates', entityId: parseInt(req.params.id, 10),
       details: { approver_role: me.role }, req });
     res.json({ success: true, message: 'Template approved — available for use on all projects.' });
   }));
@@ -124,7 +124,7 @@ router.post('/:project_id/submit', requireAuth, requireProjectScope(), upload.si
     );
     audit.log({ userId: req.session.user.id, action: 'form_submission.create',
       entityType: 'form_submissions', entityId: r.insertId,
-      details: { project_id: parseInt(req.params.project_id), template_id: parseInt(template_id), template_version: template.version }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), template_id: parseInt(template_id, 10), template_version: template.version }, req });
     res.json({ success: true, message: 'Form submitted.' });
   }));
 

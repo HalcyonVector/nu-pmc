@@ -5,6 +5,7 @@
 // ============================================================
 
 const express = require('express');
+const crypto  = require('crypto');
 const db      = require('../../../middleware/db');
 const { requireAuth } = require('../../../middleware/auth');
 const asyncHandler = require('../../../middleware/asyncHandler');
@@ -40,8 +41,11 @@ router.post('/ses-webhook', async (req, res) => {
       console.error('[SES-Webhook] SES_WEBHOOK_SECRET not set — refusing');
       return res.status(503).json({ error: 'Webhook not configured' });
     }
-    const got = req.get('X-Webhook-Secret') || req.query.secret;
-    if (got !== expected) {
+    const got = req.get('X-Webhook-Secret') || req.query.secret || '';
+    // Constant-time comparison — prevents timing side-channel on the shared secret.
+    const secretsMatch = got.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));
+    if (!secretsMatch) {
       console.warn('[SES-Webhook] Bad/missing secret');
       return res.status(401).send('Unauthorised');
     }
@@ -57,7 +61,16 @@ router.post('/ses-webhook', async (req, res) => {
 
     if (body?.Type === 'SubscriptionConfirmation') {
       const { SubscribeURL } = body;
-      if (SubscribeURL) await require('../../../services/http').get(SubscribeURL).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+      // SSRF guard — only follow SNS confirmation URLs on amazonaws.com
+      if (SubscribeURL) {
+        let urlHost;
+        try { urlHost = new URL(SubscribeURL).hostname; } catch { urlHost = ''; }
+        if (!urlHost.endsWith('.amazonaws.com')) {
+          console.warn('[SES-Webhook] SubscribeURL hostname not amazonaws.com — blocked SSRF attempt:', urlHost);
+          return res.status(200).send('OK');
+        }
+        await require('../../../services/http').get(SubscribeURL).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+      }
       return res.status(200).send('OK');
     }
 
@@ -99,7 +112,7 @@ router.post('/ses-webhook', async (req, res) => {
 
 // POST /notifications/:id/read — mark a single notification read  (B7 deep-link support)
 router.post('/:id/read', requireAuth, asyncHandler(async (req, res) => {
-  const id  = parseInt(req.params.id);
+  const id  = parseInt(req.params.id, 10);
   const uid = req.session.user.id;
   await db.query(
     `UPDATE whatsapp_notifications SET read_at = NOW()

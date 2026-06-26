@@ -1,9 +1,10 @@
 // middleware/upload.js — File upload handling with compression
-const multer = require('multer');
-const sharp  = require('sharp');
-const path   = require('path');
-const fs     = require('fs');
-const crypto = require('crypto');
+const multer   = require('multer');
+const sharp    = require('sharp');
+const path     = require('path');
+const fs       = require('fs');
+const crypto   = require('crypto');
+const fileType = require('file-type');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
 
@@ -42,16 +43,130 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.xlsx', '.xls', '.dwg', '.dxf'];
-  const ext = path.extname(file.originalname).toLowerCase(); // used in allowed check below
+  const ext = path.extname(file.originalname).toLowerCase();
   if (allowed.includes(ext)) return cb(null, true);
   cb(new Error(`File type ${ext} not allowed`));
 };
 
-const upload = multer({
+// Internal multer instance — not exported directly. Routes use the `upload`
+// wrapper below which transparently injects magic-byte validation.
+const _multer = multer({
   storage,
   fileFilter,
-  limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB) || 20) * 1024 * 1024 }
+  limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 20) * 1024 * 1024 }
 });
+
+// ── Magic-byte MIME map ───────────────────────────────────────────────────
+// Maps file extensions to the MIME types file-type should detect from
+// the first bytes of the actual file content.
+//
+// Why this matters: fileFilter() only checks the extension from
+// originalname (attacker-controlled). An attacker can rename exploit.php
+// to invoice.pdf and bypass the extension check. Magic-byte validation
+// reads the actual file header after it lands on disk and rejects any
+// file whose content does not match its claimed type.
+//
+// DXF is plain ASCII text, no reliable magic bytes, skip check.
+// DWG uses AC10..AC27 header, mapped to application/x-autocad.
+const MAGIC_MIME_MAP = {
+  '.pdf':  new Set(['application/pdf']),
+  '.jpg':  new Set(['image/jpeg']),
+  '.jpeg': new Set(['image/jpeg']),
+  '.png':  new Set(['image/png']),
+  // XLSX is a ZIP (PK header); XLS is OLE2 (D0CF header)
+  '.xlsx': new Set(['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']),
+  '.xls':  new Set(['application/vnd.ms-excel', 'application/x-cfb']),
+  '.dwg':  new Set(['application/x-autocad', 'image/x-dwg', 'application/acad']),
+  // .dxf -- ASCII text, no magic bytes, skip (extension-only check is fine)
+};
+
+/**
+ * Validate a freshly-uploaded file's magic bytes against its extension.
+ * Deletes the file and throws if the content does not match.
+ *
+ * @param {string} filePath  absolute path to the uploaded file on disk
+ * @returns {Promise<void>}
+ * @throws {Error}  with .code = 'INVALID_MAGIC_BYTES' on mismatch
+ */
+async function validateMagicBytes(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const allowedMimes = MAGIC_MIME_MAP[ext];
+
+  // Extension not in the map (e.g. .dxf) -- skip magic check
+  if (!allowedMimes) return;
+
+  let detected;
+  try {
+    detected = await fileType.fromFile(filePath);
+  } catch (err) {
+    // Can't read the file -- delete it and reject
+    try { fs.unlinkSync(filePath); } catch (_e) { /* ignore */ }
+    const e = new Error('Could not read uploaded file for type detection: ' + err.message);
+    e.code = 'INVALID_MAGIC_BYTES';
+    throw e;
+  }
+
+  // file-type returns null/undefined for plain-text files and some edge cases.
+  // If we could not detect a type, reject -- a PDF/JPEG/PNG always has detectable magic.
+  const mime = detected && detected.mime ? detected.mime : '';
+
+  // XLSX: file-type often returns application/zip for valid .xlsx files
+  // because XLSX is just a renamed ZIP. Accept both.
+  if (!allowedMimes.has(mime)) {
+    try { fs.unlinkSync(filePath); } catch (_e) { /* ignore */ }
+    const e = new Error(
+      'File content does not match extension ' + ext + '. ' +
+      'Detected: ' + (mime || 'unknown') + '. Upload rejected.'
+    );
+    e.code = 'INVALID_MAGIC_BYTES';
+    e.status = 400;
+    throw e;
+  }
+}
+
+// ── Magic-check Express middleware ────────────────────────────────────────
+// Runs after multer writes the file. Validates content against extension.
+// Handles req.file (single), req.files array (array), req.files object (fields).
+function _magicCheck(req, res, next) {
+  const files = [];
+  if (req.file) {
+    files.push(req.file);
+  } else if (req.files) {
+    if (Array.isArray(req.files)) {
+      files.push(...req.files);
+    } else {
+      Object.values(req.files).forEach(function(arr) {
+        files.push(...(Array.isArray(arr) ? arr : [arr]));
+      });
+    }
+  }
+  if (!files.length) return next();
+
+  Promise.all(files.map(function(f) { return validateMagicBytes(f.path); }))
+    .then(function() { next(); })
+    .catch(function(err) {
+      // validateMagicBytes already deleted the offending file.
+      // Clean up any other files from this same upload.
+      files.forEach(function(f) {
+        try { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); } catch (_e) { /* ignore */ }
+      });
+      res.status(err.status || 400).json({ error: err.message || 'Invalid file content' });
+    });
+}
+
+// ── Public upload API ─────────────────────────────────────────────────────
+// Wraps multer methods so every upload route gets magic-byte validation
+// automatically. Express accepts arrays as middleware, so:
+//   router.post('/x', upload.single('photo'), handler)
+// works identically whether upload.single() returns a function or [fn, fn].
+// Zero changes needed in any route file.
+const upload = {
+  single: function() { return [_multer.single.apply(_multer, arguments), _magicCheck]; },
+  array:  function() { return [_multer.array.apply(_multer, arguments),  _magicCheck]; },
+  fields: function() { return [_multer.fields.apply(_multer, arguments), _magicCheck]; },
+  none:   function() { return _multer.none(); },
+  any:    function() { return _multer.any();  },
+};
 
 // Compress photo after upload
 async function compressPhoto(filePath) {
@@ -75,9 +190,9 @@ async function compressPhoto(filePath) {
 function getFileSize(filePath) {
   try {
     return Math.round(fs.statSync(filePath).size / 1024);
-  } catch {
+  } catch (_e) {
     return 0;
   }
 }
 
-module.exports = { upload, compressPhoto, getFileSize, UPLOAD_DIR };
+module.exports = { upload, compressPhoto, validateMagicBytes, getFileSize, UPLOAD_DIR };

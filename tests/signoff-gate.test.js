@@ -324,7 +324,7 @@ describe('triggerSignoff', () => {
       attachMime:  'image/jpeg',
     });
 
-    expect(adapter.uploadMedia).toHaveBeenCalledWith('/tmp/thumb.jpg', 'image/jpeg');
+    expect(adapter.uploadMedia).toHaveBeenCalledWith('/tmp/thumb.jpg', { filename: 'attachment.jpg', contentType: 'image/jpeg' });
     expect(adapter.sendImage).toHaveBeenCalledTimes(1);
     expect(adapter.sendImage.mock.calls[0][0].roomId).toBe('!d:s');
     expect(adapter.sendImage.mock.calls[0][0].mxcUrl).toBe('mxc://server/abc123');

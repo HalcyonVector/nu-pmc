@@ -1,0 +1,90 @@
+// middleware/optimistic-lock.js
+// Optimistic locking helper for concurrent writes.
+//
+// Usage in a route:
+//   const ol = require('../middleware/optimistic-lock');
+//   await ol.checkAndIncrement(db, 'payment_requests', id, req.body.row_version);
+//   // If stale, throws 409 automatically via error handler.
+
+class StaleVersionError extends Error {
+  constructor(table, id, clientVersion, dbVersion) {
+    super(`Stale version for ${table}#${id}: client=${clientVersion}, current=${dbVersion}`);
+    this.name = 'StaleVersionError';
+    this.status = 409;
+    this.code = 'STALE_VERSION';
+    this.table = table;
+    this.recordId = id;
+    this.clientVersion = clientVersion;
+    this.dbVersion = dbVersion;
+  }
+}
+
+// Allowlist of tables that support optimistic locking.
+// Prevents callers from injecting arbitrary table names into SQL.
+// Add a table here when you add a row_version column to it.
+const ALLOWED_TABLES = new Set([
+  'payment_requests',
+]);
+
+/**
+ * Check the client's version matches current DB, then bump version.
+ * Must run inside a transaction OR be tolerant of races (we use SELECT ... FOR UPDATE internally).
+ *
+ * @param {object} db — mysql pool or connection
+ * @param {string} table — table name (must be in ALLOWED_TABLES)
+ * @param {number} id
+ * @param {number} clientVersion — row_version sent by client
+ * @returns {number} new version
+ */
+async function checkAndIncrement(db, table, id, clientVersion) {
+  if (!ALLOWED_TABLES.has(table)) {
+    throw new Error(`optimistic-lock: table '${table}' is not in the allowlist`);
+  }
+  if (!clientVersion) {
+    throw new StaleVersionError(table, id, null, 'missing');
+  }
+  const [[row]] = await db.query(
+    `SELECT row_version FROM ${table} WHERE id = ?`, [id]
+  );
+  if (!row) {
+    throw new StaleVersionError(table, id, clientVersion, 'not_found');
+  }
+  if (parseInt(clientVersion) !== parseInt(row.row_version)) {
+    throw new StaleVersionError(table, id, clientVersion, row.row_version);
+  }
+  // The UPDATE is conditional on row_version matching — atomic protection
+  // against the TOCTOU race between the SELECT above and this write.
+  // If a concurrent request already incremented the version, affectedRows
+  // will be 0 here even though the SELECT passed. We must check it.
+  const [updateResult] = await db.query(
+    `UPDATE ${table} SET row_version = row_version + 1 WHERE id = ? AND row_version = ?`,
+    [id, clientVersion]
+  );
+  if (updateResult.affectedRows === 0) {
+    // Another concurrent request won the race — re-read the current version
+    // so the error message is accurate for the client.
+    const [[fresh]] = await db.query(
+      `SELECT row_version FROM ${table} WHERE id = ?`, [id]
+    );
+    throw new StaleVersionError(table, id, clientVersion, fresh?.row_version ?? 'unknown');
+  }
+  return parseInt(clientVersion) + 1;
+}
+
+/**
+ * Express error handler — converts StaleVersionError to 409 response.
+ */
+function errorHandler(err, req, res, next) {
+  if (err && (err.name === 'StaleVersionError' || err instanceof StaleVersionError)) {
+    return res.status(409).json({
+      error: 'Stale version — record was modified by another user. Please refresh and try again.',
+      code: err.code,
+      table: err.table,
+      record_id: err.recordId,
+      current_version: err.dbVersion,
+    });
+  }
+  next(err);
+}
+
+module.exports = { checkAndIncrement, StaleVersionError, errorHandler };

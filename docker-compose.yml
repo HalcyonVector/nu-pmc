@@ -8,7 +8,7 @@
 #
 # Usage:
 #   First-time setup:
-#     cp .env.docker.example .env
+#     cp .env.example .env
 #     # edit .env — set DB_PASSWORD, SESSION_SECRET to real values
 #     docker compose up -d db
 #     docker compose run --rm seed          # one-shot: apply migrations + seed
@@ -106,11 +106,17 @@ services:
       DB_NAME:         ${DB_NAME:-nu_pmc}
       SESSION_SECRET:  ${SESSION_SECRET:?SESSION_SECRET must be set in .env}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3100}
-      # Optional integrations — leave blank to disable
-      WA_ACCOUNT_SID:    ${WA_ACCOUNT_SID:-}
-      WA_AUTH_TOKEN:     ${WA_AUTH_TOKEN:-}
-      WA_FROM_NUMBER:    ${WA_FROM_NUMBER:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Optional integrations — leave blank to disable.
+      # NOTE: these names must match what the code reads (services/whatsapp*.js,
+      # services/matrix-adapter.js); the old WA_* keys were read by nothing.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN:  ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WA_NUMBER:   ${TWILIO_WA_NUMBER:-}
+      MATRIX_HOMESERVER:  ${MATRIX_HOMESERVER:-}
+      MATRIX_BOT_TOKEN:   ${MATRIX_BOT_TOKEN:-}
+      MATRIX_BOT_USER_ID: ${MATRIX_BOT_USER_ID:-}
+      NOTIFICATIONS:      ${NOTIFICATIONS:-matrix}
+      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
     ports:
       - "${APP_PORT:-3100}:3100"
     volumes:

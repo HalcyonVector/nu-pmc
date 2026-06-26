@@ -83,6 +83,17 @@ router.post('/:project_id', requireAuth, requireProjectScope(),
       entityType: 'measurements', entityId: result.insertId,
       details: { project_id: parseInt(pid), ra_bill_number, discipline, measurement_date }, req });
 
+    // Notify PMC Head — measurement created and pending technical sign-off.
+    const Auth = require('../../auth/contract');
+    const notif = require('../../../services/notifications');
+    Auth.functions.getUsersByRole('pmc_head', pid).then(async heads => {
+      for (const h of heads) {
+        await notif.notify(h.id, 'measurement',
+          `Measurement recorded — RA Bill ${ra_bill_number} (${discipline}) by ${me.full_name}. Pending technical sign-off.`
+        );
+      }
+    }).catch(e => console.warn('[measurements] PMC notify swallowed:', e.message));
+
     res.json({ success: true, id: result.insertId });
   }));
 

@@ -258,7 +258,7 @@ function requireProjectScope(getProjectId) {
     }
 
     // user.projects is populated at login and refreshed on a 5-min TTL above.
-    const assigned = (me.projects || []).some(p => parseInt(p.id) === pid);
+    const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === pid);
     if (!assigned) {
       return res.status(403).json({
         error: 'Not assigned to this project',
@@ -303,6 +303,7 @@ const SCOPE_ENTITY_TABLES = new Set([
   'drawing_versions',
   'submittals',
   'payment_requests',
+  'project_photos',
 ]);
 
 // Variant that checks scope based on a SQL lookup — for endpoints that
@@ -364,7 +365,7 @@ function requireScopeFromEntity(table, idParam = 'id') {
     }
 
     if (!row) return res.status(404).json({ error: 'Record not found' });
-    const pid = parseInt(row.project_id);
+    const pid = parseInt(row.project_id, 10);
 
     req._projectId = pid;
     req._projectStatus = row.status;
@@ -375,7 +376,7 @@ function requireScopeFromEntity(table, idParam = 'id') {
     // Firm-wide roles bypass the assignment check (but still got the closure check above).
     if (!PROJECT_SCOPED_ROLES.includes(me.role)) return next();
 
-    const assigned = (me.projects || []).some(p => parseInt(p.id) === pid);
+    const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === pid);
     if (!assigned) {
       return res.status(403).json({
         error: 'Not assigned to this project',

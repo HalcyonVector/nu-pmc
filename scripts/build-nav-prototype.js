@@ -37,7 +37,7 @@ if (!navBlock) throw new Error('role_nav INSERT not found in pv90-loaded.sql');
 const rows = [];
 for (const m of navBlock[1].matchAll(/\((\d+),'([^']+)','([^']+)','([^']+)',(\d+),(\d+)/g)) {
   if (m[6] !== '1') continue;
-  rows.push({ role: m[2], bucket: m[3], item: m[4], sort: parseInt(m[5]) });
+  rows.push({ role: m[2], bucket: m[3], item: m[4], sort: parseInt(m[5], 10) });
 }
 const nav = {};
 for (const r of rows) {

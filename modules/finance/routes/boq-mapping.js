@@ -188,8 +188,8 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requirePMC, asyn
     }
 
     audit.log({ userId: req.session.user.id, action: 'boq_mapping.save',
-      entityType: 'vendor_boq_mapping', entityId: parseInt(engagement_id),
-      details: { project_id: parseInt(req.params.project_id), engagement_id, saved, boq_item_count: boq_item_ids.length, split_pct: split_pct || null, ai_suggested: !!ai_suggested }, req });
+      entityType: 'vendor_boq_mapping', entityId: parseInt(engagement_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10), engagement_id, saved, boq_item_count: boq_item_ids.length, split_pct: split_pct || null, ai_suggested: !!ai_suggested }, req });
 
     res.json({ success: true, saved, message: `${saved} BOQ item${saved>1?'s':''} mapped` });
   }));
@@ -201,8 +201,8 @@ router.delete('/:project_id/:mapping_id', requireAuth, requireProjectScope(), re
       [req.session.user.id, req.params.mapping_id, req.params.project_id]
     );
     audit.log({ userId: req.session.user.id, action: 'boq_mapping.delete',
-      entityType: 'vendor_boq_mapping', entityId: parseInt(req.params.mapping_id),
-      details: { project_id: parseInt(req.params.project_id) }, req });
+      entityType: 'vendor_boq_mapping', entityId: parseInt(req.params.mapping_id, 10),
+      details: { project_id: parseInt(req.params.project_id, 10) }, req });
     res.json({ success: true });
   }));
 

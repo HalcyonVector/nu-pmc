@@ -56,7 +56,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
     if (!engCheck) {
       return res.status(400).json({ error: 'Vendor engagement not found' });
     }
-    if (parseInt(engCheck.project_id) !== parseInt(req.params.project_id)) {
+    if (parseInt(engCheck.project_id, 10) !== parseInt(req.params.project_id, 10)) {
       return res.status(400).json({ error: 'Engagement does not belong to this project' });
     }
     if (engCheck.is_active === 0) {
@@ -125,7 +125,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
 
     audit.log({ userId: req.session.user.id, action: 'grn.create',
       entityType: 'grns', entityId: grnId,
-      details: { project_id: parseInt(req.params.project_id), grn_number: num, engagement_id: body.engagement_id, quantity_received: validQty, unit_rate: validUnitRate, is_unplanned: !!isUnplanned }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), grn_number: num, engagement_id: body.engagement_id, quantity_received: validQty, unit_rate: validUnitRate, is_unplanned: !!isUnplanned }, req });
 
     // Vendor confirmation poll (F3, friction-reduction brief — v6.02 update)
     // Vendor confirms delivery matches GRN. Poll: ✅ Confirmed / ❌ Disputed
@@ -215,14 +215,14 @@ router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requir
     const sm = require('../../../services/state-machines').grn;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: grn.status, to: 'approved',
+        id: parseInt(req.params.id, 10), from: grn.status, to: 'approved',
         extraCols: { approved_by: me.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'grns', refId: parseInt(req.params.id), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'grns', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     audit.log({ userId: me.id, action: 'grn.approve',
-      entityType: 'grns', entityId: parseInt(req.params.id),
+      entityType: 'grns', entityId: parseInt(req.params.id, 10),
       details: { from: grn.status, to: 'approved', approver_role: me.role }, req });
     res.json({ success: true });
   }));
@@ -234,7 +234,7 @@ router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), require
     const sm = require('../../../services/state-machines').grn;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'rejected',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'rejected',
         extraCols: {
           approved_by: req.session.user.id, approved_at: new Date(),
           rejection_reason: rejection_reason || null,
@@ -242,9 +242,9 @@ router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), require
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'grns', refId: parseInt(req.params.id), actionedBy: req.session.user.id, rejectionNote: req.body.reason || 'Rejected' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    await approvals.close({ refTable: 'grns', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id, rejectionNote: req.body.reason || 'Rejected' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     audit.log({ userId: req.session.user.id, action: 'grn.reject',
-      entityType: 'grns', entityId: parseInt(req.params.id),
+      entityType: 'grns', entityId: parseInt(req.params.id, 10),
       details: { rejection_reason: rejection_reason || null }, req });
     res.json({ success: true });
   }));
@@ -342,7 +342,7 @@ router.patch('/:id/flag-nonconformance', requireAuth,
     await db.tx(async (conn) => {
       const sm = require('../../../services/state-machines').grn;
       await sm.transition({
-        id: parseInt(req.params.id), from: grn.status, to: 'rejected',
+        id: parseInt(req.params.id, 10), from: grn.status, to: 'rejected',
         extraCols: {
           rejection_reason: 'NON-CONFORMANCE: ' + reason,
           approved_by: me.id, approved_at: new Date(),

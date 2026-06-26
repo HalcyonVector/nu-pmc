@@ -55,23 +55,23 @@ module.exports = {
             (SELECT COUNT(*) FROM payment_requests WHERE status='pending_pmc'${scope}) +
             (SELECT COUNT(*) FROM grns             WHERE status='pending'${scope}) AS total`,
             [...params, ...params, ...params, ...params]);
-          count = parseInt(r.total || 0);
+          count = parseInt(r.total || 0, 10);
         } else if (['principal','design_principal'].includes(role)) {
           const [[r]] = await db.query(`SELECT
             (SELECT COUNT(*) FROM payment_requests WHERE status='pmc_approved'${scope}) +
             (SELECT COUNT(*) FROM schedule_versions WHERE status='pending_approval'${scope}) AS total`,
             [...params, ...params]);
-          count = parseInt(r.total || 0);
+          count = parseInt(r.total || 0, 10);
         } else if (['site_manager','senior_site_manager'].includes(role)) {
           const [[r]] = await db.query(`SELECT
             (SELECT COUNT(*) FROM grns WHERE status='pending'${scope}) AS total`,
             [...params]);
-          count = parseInt(r.total || 0);
+          count = parseInt(r.total || 0, 10);
         } else if (role === 'audit') {
           const [[r]] = await db.query(`SELECT
             (SELECT COUNT(*) FROM payment_requests WHERE status IN ('pending_pmc','pending_principal','pmc_approved')${scope}) AS total`,
             [...params]);
-          count = parseInt(r.total || 0);
+          count = parseInt(r.total || 0, 10);
         }
         return { userId, role, count };
       } catch (e) {

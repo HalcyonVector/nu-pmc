@@ -6,11 +6,25 @@ on:
       - main
 
 jobs:
-  deploy:
+  # ── Gate: run the jest suite + module-boundary check on every push.
+  #    Uses a GitHub-hosted runner with the DB mocked (no infra needed), so it
+  #    is fast and self-contained. The deploy job below only runs if this passes.
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: SSH into EC2, test, then deploy
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:ci
+
+  deploy:
+    needs: test            # ← deploy is blocked unless `test` is green
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into EC2, pull, install, restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -22,3 +36,8 @@ jobs:
             git pull origin main
             npm install --production
             pm2 restart all
+
+# ── NOT run here (need a live MySQL + running server): the DB-integration
+#    harness (tests/modules, `npm run test:integration`) and the Playwright
+#    e2e suite (tests/e2e, `npm run test:e2e`). Those belong against a staging
+#    environment — see .github/workflows/integration.yml (manual trigger).

@@ -19,17 +19,27 @@ class StaleVersionError extends Error {
   }
 }
 
+// Allowlist of tables that support optimistic locking.
+// Prevents callers from injecting arbitrary table names into SQL.
+// Add a table here when you add a row_version column to it.
+const ALLOWED_TABLES = new Set([
+  'payment_requests',
+]);
+
 /**
  * Check the client's version matches current DB, then bump version.
  * Must run inside a transaction OR be tolerant of races (we use SELECT ... FOR UPDATE internally).
  *
  * @param {object} db — mysql pool or connection
- * @param {string} table — table name
+ * @param {string} table — table name (must be in ALLOWED_TABLES)
  * @param {number} id
  * @param {number} clientVersion — row_version sent by client
  * @returns {number} new version
  */
 async function checkAndIncrement(db, table, id, clientVersion) {
+  if (!ALLOWED_TABLES.has(table)) {
+    throw new Error(`optimistic-lock: table '${table}' is not in the allowlist`);
+  }
   if (!clientVersion) {
     throw new StaleVersionError(table, id, null, 'missing');
   }
@@ -39,14 +49,26 @@ async function checkAndIncrement(db, table, id, clientVersion) {
   if (!row) {
     throw new StaleVersionError(table, id, clientVersion, 'not_found');
   }
-  if (parseInt(clientVersion) !== parseInt(row.row_version)) {
+  if (parseInt(clientVersion, 10) !== parseInt(row.row_version, 10)) {
     throw new StaleVersionError(table, id, clientVersion, row.row_version);
   }
-  await db.query(
+  // The UPDATE is conditional on row_version matching — atomic protection
+  // against the TOCTOU race between the SELECT above and this write.
+  // If a concurrent request already incremented the version, affectedRows
+  // will be 0 here even though the SELECT passed. We must check it.
+  const [updateResult] = await db.query(
     `UPDATE ${table} SET row_version = row_version + 1 WHERE id = ? AND row_version = ?`,
     [id, clientVersion]
   );
-  return parseInt(clientVersion) + 1;
+  if (updateResult.affectedRows === 0) {
+    // Another concurrent request won the race — re-read the current version
+    // so the error message is accurate for the client.
+    const [[fresh]] = await db.query(
+      `SELECT row_version FROM ${table} WHERE id = ?`, [id]
+    );
+    throw new StaleVersionError(table, id, clientVersion, fresh?.row_version ?? 'unknown');
+  }
+  return parseInt(clientVersion, 10) + 1;
 }
 
 /**

@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+ 
 // routes/issues.js — Issue log, five types, type-based routing, 1/2 day escalation
 const express = require('express');
 const db      = require('../../../middleware/db');
@@ -187,7 +187,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), upload.single('p
 
     audit.log({ userId: req.session.user.id, action: 'issue.create',
       entityType: 'issues', entityId: result.insertId,
-      details: { project_id: parseInt(req.params.project_id), issue_type: body.issue_type, issue_number: issueNumber, status: initialStatus, assigned_to: assignedTo }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), issue_type: body.issue_type, issue_number: issueNumber, status: initialStatus, assigned_to: assignedTo }, req });
 
     // Vendor acknowledgement poll (F5, friction-reduction brief)
     // Fires when issue has a vendor assigned — drift notes, CN notes, quality.
@@ -218,7 +218,7 @@ router.patch('/:id/confirm', requireAuth, requireScopeFromEntity('issues'), requ
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: issue.status, to: 'open',
+        id: parseInt(req.params.id, 10), from: issue.status, to: 'open',
         extraCols: {
           confirmed_by: req.session.user.id,
           confirmed_at: new Date(),
@@ -247,7 +247,7 @@ router.patch('/:id/confirm', requireAuth, requireScopeFromEntity('issues'), requ
     }
 
     audit.log({ userId: req.session.user.id, action: 'issue.confirm',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { project_id: issue.project_id, assigned_to: assigned_to || issue.assigned_to, assigned_vendor_id: assigned_vendor_id || issue.assigned_vendor_id }, req });
 
     res.json({ success: true, message: `Issue ${issue.issue_number} confirmed — entered into register.` });
@@ -263,14 +263,14 @@ router.patch('/:id/rfi-respond', requireAuth, requireScopeFromEntity('issues'), 
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'resolved',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'resolved',
         extraCols: {
           rfi_response, rfi_responded_by: me.id, rfi_responded_at: new Date(),
         },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: me.id, action: 'issue.rfi_respond',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { response_length: rfi_response.length }, req });
     res.json({ success: true, message: 'RFI response recorded — issue resolved.' });
   }));
@@ -299,7 +299,7 @@ router.patch('/:id/resolve', requireAuth, requireScopeFromEntity('issues'), asyn
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: issue.status, to: 'resolved',
+        id: parseInt(req.params.id, 10), from: issue.status, to: 'resolved',
         extraCols: {
           resolved_by: me.id, resolved_at: new Date(),
           resolution_note: resolution_note || null,
@@ -307,7 +307,7 @@ router.patch('/:id/resolve', requireAuth, requireScopeFromEntity('issues'), asyn
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: me.id, action: 'issue.resolve',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { from: issue.status, to: 'resolved' }, req });
     res.json({ success: true });
   }));
@@ -328,12 +328,12 @@ router.patch('/:id/close',
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: 'resolved', to: 'closed',
+        id: parseInt(req.params.id, 10), from: 'resolved', to: 'closed',
         extraCols: { closed_by: me.id, closed_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: me.id, action: 'issue.close',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { from: 'resolved', to: 'closed' }, req });
     res.json({ success: true });
   }));
@@ -361,7 +361,7 @@ router.patch('/:id/reopen',
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: issue.status, to: 'open',
+        id: parseInt(req.params.id, 10), from: issue.status, to: 'open',
         extraCols: {
           resolution_note: newNote.trim(),
           resolved_by: null, resolved_at: null,
@@ -370,7 +370,7 @@ router.patch('/:id/reopen',
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: me.id, action: 'issue.reopen',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { from: issue.status, to: 'open', reason: reason.trim() }, req });
     res.json({ success: true });
   }));
@@ -424,13 +424,13 @@ router.post('/:project_id/photo-rfi', requireAuth, requireProjectScope(), asyncH
         body: `📋 Photo requested — ${title.substring(0,60)}` +
               (location ? `\nLocation: ${location.substring(0,30)}` : '') +
               `\nNeeded by: ${deadline}\n${pwaUrl}`,
-        recipientUid: parseInt(assigned_to_site),
+        recipientUid: parseInt(assigned_to_site, 10),
       }).catch(e => console.warn('[issues.photo-rfi] Matrix DM failed:', e.message));
     }
 
     audit.log({ userId: me.id, action: 'issue.photo_rfi.create',
       entityType: 'issues', entityId: issueId,
-      details: { project_id: parseInt(req.params.project_id), issue_number: issueNumber, assigned_to_site, deadline_date }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), issue_number: issueNumber, assigned_to_site, deadline_date }, req });
 
     res.json({
       success: true, id: issueId, issue_number: issueNumber,
@@ -461,12 +461,12 @@ router.patch('/:id/dismiss', requireAuth, requireScopeFromEntity('issues'), requ
   const sm = require('../../../services/state-machines').issue;
   try {
     await sm.transition({
-      id: parseInt(req.params.id), from: cur.status, to: 'closed',
+      id: parseInt(req.params.id, 10), from: cur.status, to: 'closed',
       extraCols: { closed_by: me.id, closed_at: new Date() },
     });
   } catch (err) { return sm.handleRouteError(err, res); }
   audit.log({ userId: me.id, action: 'issue.dismiss',
-    entityType: 'issues', entityId: parseInt(req.params.id),
+    entityType: 'issues', entityId: parseInt(req.params.id, 10),
     details: { from: cur.status, to: 'closed', reason: 'dismissed by PMC' }, req });
   res.json({ success: true });
 }));
@@ -608,7 +608,7 @@ router.post('/rfi/:project_id', requireAuth, requireProjectScope(), asyncHandler
 
     audit.log({ userId: me.id, action: 'issue.rfi.create',
       entityType: 'issues', entityId: insertId,
-      details: { project_id: parseInt(req.params.project_id), issue_number: issueNumber, drawing_version_id: drawingVersionId, stream, auto_assigned: !!autoAssignee }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), issue_number: issueNumber, drawing_version_id: drawingVersionId, stream, auto_assigned: !!autoAssignee }, req });
 
     res.json({ success: true, id: insertId, issue_number: issueNumber, auto_assigned: !!autoAssignee });
   }));
@@ -624,8 +624,8 @@ router.post('/rfi/:id/assign', requireAuth, requireScopeFromEntity('issues'), as
       [assigned_to, req.params.id]
     );
     audit.log({ userId: me.id, action: 'issue.rfi.assign',
-      entityType: 'issues', entityId: parseInt(req.params.id),
-      details: { assigned_to: parseInt(assigned_to) || null }, req });
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
+      details: { assigned_to: parseInt(assigned_to, 10) || null }, req });
     res.json({ success: true });
   }));
 
@@ -638,14 +638,14 @@ router.post('/rfi/:id/answer', requireAuth, requireScopeFromEntity('issues'), re
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'resolved',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'resolved',
         extraCols: {
           rfi_response: answer, rfi_responded_by: req.session.user.id, rfi_responded_at: new Date(),
         },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: req.session.user.id, action: 'issue.rfi.answer',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { answer_length: answer.length }, req });
     res.json({ success: true });
   }));
@@ -664,7 +664,7 @@ router.post('/rfi/:id/close', requireAuth,
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'closed',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'closed',
         extraCols: {
           resolution_note: resolution_note || null,
           closed_by: req.session.user.id, closed_at: new Date(),
@@ -681,7 +681,7 @@ router.post('/rfi/:id/close', requireAuth,
       await notif.notifyRFIClosed(issue.project_id, dv?.drawing_number || '', resolution_note).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     }
     audit.log({ userId: req.session.user.id, action: 'issue.rfi.close',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { resolution_note: resolution_note || null }, req });
     res.json({ success: true });
   }));
@@ -752,13 +752,13 @@ router.post('/ncr/:project_id', requireAuth, requirePMC, asyncHandler(async (req
 
     audit.log({ userId: me.id, action: 'issue.ncr.create',
       entityType: 'issues', entityId: insertId,
-      details: { project_id: parseInt(req.params.project_id), ncr_number: ncrNumber, vendor_id: body.vendor_id || null, due_date: body.due_date || null }, req });
+      details: { project_id: parseInt(req.params.project_id, 10), ncr_number: ncrNumber, vendor_id: body.vendor_id || null, due_date: body.due_date || null }, req });
 
     // Principal endorsement poll — NCR requires Principal to formally endorse
     // before it is actioned. Poll: ✅ Endorsed / ❌ Rejected
     try {
       const signoffGate = require('../../../services/signoff-gate');
-      await signoffGate.triggerSignoff('ncr_endorsement', insertId, parseInt(req.params.project_id), {
+      await signoffGate.triggerSignoff('ncr_endorsement', insertId, parseInt(req.params.project_id, 10), {
         question: `NCR ${ncrNumber} raised — ${body.title}. Endorse to proceed with rectification.`,
         triggeredBy: me.id,
       });
@@ -777,7 +777,7 @@ router.patch('/ncr/:id/resolve', requireAuth, requirePMC, asyncHandler(async (re
     const sm = require('../../../services/state-machines').issue;
     try {
       await sm.transition({
-        id: parseInt(req.params.id), from: cur.status, to: 'resolved',
+        id: parseInt(req.params.id, 10), from: cur.status, to: 'resolved',
         extraCols: {
           resolution_note: resolution_note || null,
           rectification_date: rectification_date || null,
@@ -786,7 +786,7 @@ router.patch('/ncr/:id/resolve', requireAuth, requirePMC, asyncHandler(async (re
       });
     } catch (err) { return sm.handleRouteError(err, res); }
     audit.log({ userId: req.session.user.id, action: 'issue.ncr.resolve',
-      entityType: 'issues', entityId: parseInt(req.params.id),
+      entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { resolution_note: resolution_note || null, rectification_date: rectification_date || null }, req });
     res.json({ success: true });
   }));
@@ -875,7 +875,7 @@ router.post('/:project_id/snags',
       let next = 1;
       if (last?.issue_number) {
         const m = last.issue_number.match(/SNAG-(\d+)/);
-        if (m) next = parseInt(m[1]) + 1;
+        if (m) next = parseInt(m[1], 10) + 1;
       }
       issueNumber = `SNAG-${String(next).padStart(4, '0')}`;
 
@@ -1097,7 +1097,7 @@ router.post('/:project_id/snag-from-photo',
       let next = 1;
       if (last?.issue_number) {
         const m = last.issue_number.match(/SNAG-(\d+)/);
-        if (m) next = parseInt(m[1]) + 1;
+        if (m) next = parseInt(m[1], 10) + 1;
       }
       issueNumber = `SNAG-${String(next).padStart(4, '0')}`;
       const title = `${trade || 'Other'}: ${description.trim().slice(0, 200)}`;
