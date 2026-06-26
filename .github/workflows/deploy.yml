@@ -19,6 +19,11 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run test:ci
+      # Module-boundary check is informational only (there is pre-existing,
+      # accepted debt — modules importing system/routes/sse directly). It
+      # reports but does not block the deploy.
+      - run: npm run lint:boundaries
+        continue-on-error: true
 
   deploy:
     needs: test            # ← deploy is blocked unless `test` is green

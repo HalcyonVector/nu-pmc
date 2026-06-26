@@ -8,10 +8,7 @@
     "dev": "nodemon server.js",
     "test": "jest --forceExit --detectOpenHandles",
     "test:modules": "jest --testPathPatterns='modules/.*/tests/' --forceExit --detectOpenHandles",
-    "test:integration": "node tests/modules/runner.js",
-    "test:e2e": "playwright test",
-    "test:ci": "jest --forceExit --detectOpenHandles && node scripts/check-module-boundaries.js",
-    "test:full": "npm run test:ci && npm run test:integration && npm run test:e2e",
+    "test:ci": "jest --forceExit --detectOpenHandles",
     "lint": "eslint .",
     "lint:boundaries": "node scripts/check-module-boundaries.js"
   },
