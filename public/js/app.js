@@ -11521,7 +11521,7 @@ APP._updateTopbar = function() {
 // Selecting a role sudoes into it; selecting Principal again returns home.
 APP.IMPERSONATABLE_ROLES = [
   'principal','design_principal','design_head','team_lead','services_head',
-  'team_lead','jr_architect','jr_engineer','services_engineer','coordinator',
+  'jr_architect','jr_engineer','services_engineer','coordinator',
   'pmc_head','site_manager','senior_site_manager','finance_admin','trainee',
   'audit','it_admin'
 ];
