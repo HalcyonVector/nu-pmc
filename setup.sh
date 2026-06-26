@@ -46,9 +46,25 @@ FLUSH PRIVILEGES;
 SQL
   ok "Database and user created"
 
-  # Run schema
+  # Run schema (structure for all tables)
   mysql -u "${DB_USER:-nu_app}" -p"${DB_PASSWORD}" "${DB_NAME:-nu_pmc}" < schema.sql
   ok "Schema loaded — $(mysql -u "${DB_USER:-nu_app}" -p"${DB_PASSWORD}" "${DB_NAME:-nu_pmc}" -se "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME:-nu_pmc}'" 2>/dev/null) tables created"
+
+  # Baseline config for tables NOT driven by governance sheets
+  # (role_nav, signoff_workflows, security_config, external_comm_config, etc.)
+  mysql -u "${DB_USER:-nu_app}" -p"${DB_PASSWORD}" "${DB_NAME:-nu_pmc}" < seed-config.sql \
+    && ok "Baseline config seeded" || warn "seed-config.sql failed — load manually"
+
+  # Load the permission matrix + workflows + notification triggers from the
+  # committed governance sheets. THIS IS REQUIRED: middleware/permissions.js
+  # refuses to serve (all 403) if role_permissions is empty.
+  node scripts/load-governance-sheets.js \
+    && ok "Permission matrix loaded from governance sheets" \
+    || warn "Governance load FAILED — app will 403 until you run: node scripts/load-governance-sheets.js"
+
+  # OPTIONAL: nu's own firm data (LLP entities, thresholds, cost heads).
+  # Uncomment for nu's own re-deploy; leave commented for a fresh customer install.
+  # mysql -u "${DB_USER:-nu_app}" -p"${DB_PASSWORD}" "${DB_NAME:-nu_pmc}" < seed-firm.sql && ok "Firm data seeded"
 else
   warn "MySQL root login failed — skipping DB setup. Run manually:"
   warn "  mysql -u root -p < setup-db.sql"

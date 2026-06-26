@@ -376,7 +376,6 @@ nu-pmc/
 │
 ├── middleware/                # Express middleware (auth, permissions, CSRF, upload…)
 ├── services/                  # Shared services (Matrix, WhatsApp, email, state machines…)
-├── routes/                    # Legacy routes (being migrated to modules)
 ├── public/                    # PWA frontend — HTML, JS, CSS
 ├── governance_sheets/         # Excel sheets that drive role_permissions in DB
 ├── scripts/                   # One-off scripts, seed helpers, verify scripts

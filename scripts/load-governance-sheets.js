@@ -21,6 +21,11 @@
 
 const path = require('path');
 const fs   = require('fs');
+// Load .env before requiring middleware/db — db.js reads process.env at module
+// load time, so the env must be populated first. Required for standalone runs
+// (node scripts/load-governance-sheets.js) and for setup.sh; the app's entry
+// point loads dotenv on its own, and dotenv won't override already-set vars.
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const XLSX = require(path.join(__dirname, '..', 'node_modules', 'xlsx'));
 const db   = require(path.join(__dirname, '..', 'middleware', 'db'));
 

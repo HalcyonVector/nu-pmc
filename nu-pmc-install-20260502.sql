@@ -1,3 +1,15 @@
+-- ============================================================================
+-- ⛔  DO NOT RUN THIS FILE AGAINST ANY POPULATED DATABASE.  ⛔
+-- ----------------------------------------------------------------------------
+-- This is a STALE point-in-time snapshot kept ONLY as a fixture for
+-- tests/v6_02-audit-decisions.test.js. It contains DROP/CREATE statements that
+-- will WIPE business tables. It is NOT the install path.
+--
+-- To install a fresh nu PMC database, use:  bash setup.sh
+--   (loads schema.sql → seed-config.sql → governance sheets via the loader)
+-- See README / setup.sh for the canonical procedure.
+-- ============================================================================
+
 -- ============================================================
 -- nu PMC — Complete Database Install
 -- Version: v5.41 (consolidated)

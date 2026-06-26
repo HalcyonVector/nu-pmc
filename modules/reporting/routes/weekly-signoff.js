@@ -183,7 +183,7 @@ router.post('/:report_id/principal-approve', requireAuth, requireRole(...PRINCIP
     // PDF generation scheduled (actual PDF is built by a script — see scripts/build-weekly-pdf.js)
     setImmediate(async () => {
       try {
-        const builder = require('../scripts/build-weekly-pdf');
+        const builder = require('../../../scripts/build-weekly-pdf');
         await builder.buildForReport(req.params.report_id).catch(e => console.error('PDF build:', e.message));
       } catch (e) { console.warn('[weekly-signoff]', e.message); }
     });
