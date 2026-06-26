@@ -47,7 +47,10 @@ function notify(userIds, event, data) {
   }
 }
 
-// Broadcast to ALL connected users (for firm-wide events)
+// Broadcast to ALL connected users (for genuinely firm-wide events).
+// NOTE: prefer notifyProject() for anything carrying a project_id — broadcast()
+// reaches every connected user including project-scoped roles (site managers,
+// trainees) who are not on that project.
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const [, set] of clients) {
@@ -57,6 +60,32 @@ function broadcast(event, data) {
   }
 }
 
+// Project-scoped broadcast — only firm-wide roles (principal, DP, PMC/design/
+// services head, finance_admin, audit) and users assigned to the project receive
+// the event. Mirrors the PROJECT_SCOPED_ROLES visibility model in
+// modules/auth/middleware/auth.js. Fails closed: on lookup error it sends to
+// nobody rather than leaking a project event firm-wide.
+async function notifyProject(projectId, event, data) {
+  if (!projectId) return;
+  try {
+    const db = require('../../../middleware/db');
+    const { PROJECT_SCOPED_ROLES } = require('../../auth/middleware/auth');
+    const ph = PROJECT_SCOPED_ROLES.map(() => '?').join(',');
+    const [rows] = await db.query(
+      `SELECT id FROM users
+         WHERE is_active = 1
+           AND ( role NOT IN (${ph})
+                 OR id IN (SELECT user_id FROM project_assignments
+                            WHERE project_id = ? AND is_active = 1) )`,
+      [...PROJECT_SCOPED_ROLES, projectId]
+    );
+    notify(rows.map(r => r.id), event, data);
+  } catch (_e) {
+    // fail closed — do not fall back to a firm-wide broadcast
+  }
+}
+
 router.notify = notify;
 router.broadcast = broadcast;
+router.notifyProject = notifyProject;
 module.exports = router;

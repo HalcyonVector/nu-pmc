@@ -323,7 +323,7 @@ router.post('/:project_id/update', requireAuth, requireProjectScope(), validator
       details: { project_id: parseInt(req.params.project_id), task_id: parseInt(task_id), pct_complete: pct, regression: !!regressionFlag, report_date: today }, req });
 
     // SSE real-time notification
-    try { require('../../system/routes/sse').broadcast('task_update', { project_id: req.params.project_id, task_id }); } catch(_e) {}
+    try { require('../../system/routes/sse').notifyProject(req.params.project_id, 'task_update', { project_id: req.params.project_id, task_id }); } catch(_e) {}
 
     // Notify PMC Head when a task is explicitly flagged or regression-flagged.
     if (regressionFlag) {

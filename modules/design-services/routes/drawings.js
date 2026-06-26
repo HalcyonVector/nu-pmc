@@ -372,7 +372,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
     });
 
     // SSE real-time notification
-    try { require('../../system/routes/sse').broadcast('drawing_issued', { project_id: req.params.project_id, drawing_id: drawing.id }); } catch(_e) {}
+    try { require('../../system/routes/sse').notifyProject(req.params.project_id, 'drawing_issued', { project_id: req.params.project_id, drawing_id: drawing.id }); } catch(_e) {}
 
     // Drawing approval poll to Design/Services Head (D1, friction-reduction brief)
     // Fires only when drawing needs approval — not when issued directly by head/principal.

@@ -3880,3 +3880,74 @@ CREATE TABLE `workflow_transitions` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-06-27  1:30:37
+
+-- ============================================================================
+-- Folded-in migration tables (not in the local snapshot but required by code):
+--   lessons_learned, lessons_learned_inputs  → Feature 12 (/api/lessons)
+--   oidc_auth_codes, oidc_tokens             → OIDC SSO (Element X / Synapse)
+-- ============================================================================
+SET FOREIGN_KEY_CHECKS=0;
+
+CREATE TABLE IF NOT EXISTS `lessons_learned` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `project_id` int unsigned NOT NULL,
+  `ai_draft` text COLLATE utf8mb4_general_ci,
+  `ai_drafted_at` datetime DEFAULT NULL,
+  `published_content` text COLLATE utf8mb4_general_ci,
+  `published_at` datetime DEFAULT NULL,
+  `published_by` int unsigned DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_lessons_project` (`project_id`),
+  KEY `published_by` (`published_by`),
+  CONSTRAINT `lessons_learned_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `lessons_learned_ibfk_2` FOREIGN KEY (`published_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `lessons_learned_inputs` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `project_id` int unsigned NOT NULL,
+  `user_id` int unsigned NOT NULL,
+  `input_text` text COLLATE utf8mb4_general_ci NOT NULL,
+  `category` enum('what_went_well','improvement','recommendation','other') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'other',
+  `signoff` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_lessons_input_user` (`project_id`,`user_id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `lessons_inputs_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `lessons_inputs_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS oidc_auth_codes (
+  code                   VARCHAR(86)  NOT NULL PRIMARY KEY,   -- 64 random bytes → base64url ≈ 86 chars
+  user_id                INT UNSIGNED NOT NULL,
+  client_id              VARCHAR(255) NOT NULL,
+  redirect_uri           TEXT         NOT NULL,
+  scope                  VARCHAR(500) NOT NULL DEFAULT 'openid profile',
+  code_challenge         VARCHAR(256) NULL,     -- PKCE S256 challenge
+  code_challenge_method  VARCHAR(10)  NULL,     -- 'S256' or NULL
+  nonce                  VARCHAR(255) NULL,     -- passed through into id_token
+  expires_at             DATETIME     NOT NULL,
+  used_at                DATETIME     NULL,
+  created_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_codes (user_id, expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS oidc_tokens (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  access_token  VARCHAR(86)  NOT NULL UNIQUE,  -- 64 random bytes → base64url
+  user_id       INT UNSIGNED NOT NULL,
+  client_id     VARCHAR(255) NOT NULL,
+  scope         VARCHAR(500) NOT NULL,
+  expires_at    DATETIME     NOT NULL,
+  revoked_at    DATETIME     NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_tokens (user_id, revoked_at),
+  INDEX idx_expires     (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SET FOREIGN_KEY_CHECKS=1;

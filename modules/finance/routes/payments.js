@@ -265,7 +265,7 @@ router.patch('/:project_id/payments/:id/approve', requireAuth, requireProjectSco
       entityType: 'vendor_payments', entityId: parseInt(req.params.id, 10),
       details: { project_id: parseInt(req.params.project_id, 10), amount_requested: parseFloat(vp.amount_requested), actual_amount: validActual, adjustment_reason: adjustment_reason || null, adjusted: Math.abs(validActual - parseFloat(vp.amount_requested)) > 0.01 }, req });
     res.json({ success: true, message: 'Payment approved — ready for ICICI upload.' });
-    try { require('../../../modules/system/routes/sse').broadcast('payment_update', { project_id: req.params.project_id }); } catch(_e) {}
+    try { require('../../../modules/system/routes/sse').notifyProject(req.params.project_id, 'payment_update', { project_id: req.params.project_id }); } catch(_e) {}
   }));
 
 // ── POST generate ICICI bulk payment Excel

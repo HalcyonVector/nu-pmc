@@ -510,11 +510,13 @@ app.get('/health', async (req, res) => {
 });
 
 // ── STARTUP CHECKS — catch obvious misconfigurations before they become incidents
-if (process.env.NODE_ENV !== 'development') {
+if (process.env.NODE_ENV !== 'development' && process.env.OIDC_CLIENT_ID) {
+  // Only enforce when OIDC is actually enabled (OIDC_CLIENT_ID configured).
+  // Otherwise a non-OIDC deploy with no secret set would fatal-exit on boot.
   const placeholderOidcSecret = 'change-this-to-a-strong-secret';
-  if (process.env.OIDC_CLIENT_SECRET === placeholderOidcSecret) {
-    console.error('✗ FATAL: OIDC_CLIENT_SECRET is still set to the placeholder value. ' +
-      'Set a strong unique secret in .env before deploying.');
+  if (!process.env.OIDC_CLIENT_SECRET || process.env.OIDC_CLIENT_SECRET === placeholderOidcSecret) {
+    console.error('✗ FATAL: OIDC is enabled (OIDC_CLIENT_ID is set) but OIDC_CLIENT_SECRET is ' +
+      'missing or still the placeholder. Set a strong unique secret in .env before deploying.');
     process.exit(1);
   }
 }
