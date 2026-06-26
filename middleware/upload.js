@@ -90,6 +90,28 @@ const MAGIC_MIME_MAP = {
  */
 async function validateMagicBytes(filePath) {
   const ext = path.extname(filePath).toLowerCase();
+
+  // DWG: the file-type library does NOT detect AutoCAD DWG, so the generic
+  // check below would reject every .dwg as "Detected: unknown" — including
+  // genuine CAD files. Validate by the well-defined DWG version header instead
+  // (ASCII "AC1NNN", e.g. AC1015/AC1027/AC1032).
+  if (ext === '.dwg') {
+    let head = '';
+    try {
+      const fd = fs.openSync(filePath, 'r');
+      const b  = Buffer.alloc(6);
+      fs.readSync(fd, b, 0, 6, 0);
+      fs.closeSync(fd);
+      head = b.toString('ascii');
+    } catch (_e) { /* unreadable -> reject below */ }
+    if (/^AC1\d{3}$/.test(head)) return;            // valid AutoCAD DWG header
+    try { fs.unlinkSync(filePath); } catch (_e) { /* ignore */ }
+    const e = new Error('File content does not match extension .dwg (not a valid AutoCAD DWG). Upload rejected.');
+    e.code = 'INVALID_MAGIC_BYTES';
+    e.status = 400;
+    throw e;
+  }
+
   const allowedMimes = MAGIC_MIME_MAP[ext];
 
   // Extension not in the map (e.g. .dxf) -- skip magic check
