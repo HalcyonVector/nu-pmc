@@ -78,18 +78,24 @@ describe('Environment variable completeness', () => {
   });
 
   test('all process.env references in routes are in .env.example', () => {
-    const routeDir = path.join(__dirname, '../routes');
+    const moduleRoot = path.join(__dirname, '../modules');
     const example  = fs.readFileSync(ENV_EXAMPLE, 'utf8');
     const missing  = [];
 
-    fs.readdirSync(routeDir)
-      .filter(f => f.endsWith('.js'))
-      .forEach(f => {
-        const content = fs.readFileSync(path.join(routeDir, f), 'utf8');
-        const vars = [...content.matchAll(/process\.env\.(\w+)/g)].map(m => m[1]);
-        vars.forEach(v => {
-          if (!example.includes(v) && v !== 'NODE_ENV') missing.push(`${f}: ${v}`);
-        });
+    fs.readdirSync(moduleRoot)
+      .filter(d => fs.statSync(path.join(moduleRoot, d)).isDirectory())
+      .forEach(mod => {
+        const rd = path.join(moduleRoot, mod, 'routes');
+        if (!fs.existsSync(rd)) return;
+        fs.readdirSync(rd)
+          .filter(f => f.endsWith('.js'))
+          .forEach(f => {
+            const content = fs.readFileSync(path.join(rd, f), 'utf8');
+            const vars = [...content.matchAll(/process\.env\.(\w+)/g)].map(m => m[1]);
+            vars.forEach(v => {
+              if (!example.includes(v) && v !== 'NODE_ENV') missing.push(`${mod}/${f}: ${v}`);
+            });
+          });
       });
 
     expect(missing).toEqual([]);
@@ -133,14 +139,20 @@ describe('SQL placeholder count validation', () => {
   }
 
   test('SQL placeholder counts match parameter counts in all routes', () => {
-    const routeDir = path.join(__dirname, '../routes');
+    const moduleRoot = path.join(__dirname, '../modules');
     const mismatches = [];
 
-    fs.readdirSync(routeDir)
-      .filter(f => f.endsWith('.js'))
-      .forEach(f => {
-        const issues = extractQueries(path.join(routeDir, f));
-        mismatches.push(...issues);
+    fs.readdirSync(moduleRoot)
+      .filter(d => fs.statSync(path.join(moduleRoot, d)).isDirectory())
+      .forEach(mod => {
+        const rd = path.join(moduleRoot, mod, 'routes');
+        if (!fs.existsSync(rd)) return;
+        fs.readdirSync(rd)
+          .filter(f => f.endsWith('.js'))
+          .forEach(f => {
+            const issues = extractQueries(path.join(rd, f));
+            mismatches.push(...issues);
+          });
       });
 
     if (mismatches.length > 0) {
@@ -365,13 +377,19 @@ describe('Response shape consistency', () => {
   }
 
   test('all route responses have consistent shape', () => {
-    const routeDir = path.join(__dirname, '../routes');
+    const moduleRoot = path.join(__dirname, '../modules');
     const issues   = [];
 
-    fs.readdirSync(routeDir)
-      .filter(f => f.endsWith('.js'))
-      .forEach(f => {
-        issues.push(...extractResponseShapes(path.join(routeDir, f)));
+    fs.readdirSync(moduleRoot)
+      .filter(d => fs.statSync(path.join(moduleRoot, d)).isDirectory())
+      .forEach(mod => {
+        const rd = path.join(moduleRoot, mod, 'routes');
+        if (!fs.existsSync(rd)) return;
+        fs.readdirSync(rd)
+          .filter(f => f.endsWith('.js'))
+          .forEach(f => {
+            issues.push(...extractResponseShapes(path.join(rd, f)));
+          });
       });
 
     if (issues.length > 0) console.log('Shape issues:', issues);
@@ -398,13 +416,19 @@ describe('SQL injection surface', () => {
   }
 
   test('no raw req.query/params/body interpolation in SQL strings', () => {
-    const routeDir = path.join(__dirname, '../routes');
+    const moduleRoot = path.join(__dirname, '../modules');
     const issues   = [];
 
-    fs.readdirSync(routeDir)
-      .filter(f => f.endsWith('.js'))
-      .forEach(f => {
-        issues.push(...findDynamicSQL(path.join(routeDir, f)));
+    fs.readdirSync(moduleRoot)
+      .filter(d => fs.statSync(path.join(moduleRoot, d)).isDirectory())
+      .forEach(mod => {
+        const rd = path.join(moduleRoot, mod, 'routes');
+        if (!fs.existsSync(rd)) return;
+        fs.readdirSync(rd)
+          .filter(f => f.endsWith('.js'))
+          .forEach(f => {
+            issues.push(...findDynamicSQL(path.join(rd, f)));
+          });
       });
 
     if (issues.length > 0) {
@@ -414,23 +438,27 @@ describe('SQL injection surface', () => {
   });
 
   test('all user input uses parameterised queries', () => {
-    const routeDir = path.join(__dirname, '../routes');
+    const moduleRoot = path.join(__dirname, '../modules');
     const unparameterised = [];
 
-    fs.readdirSync(routeDir)
-      .filter(f => f.endsWith('.js'))
-      .forEach(f => {
-        const fc = fs.readFileSync(path.join(routeDir, f), 'utf8');
-        // Find db.query calls WITHOUT a params array
-        // Pattern: db.query(`sql`) or db.query('sql') — no second argument
-        const noParamPattern = /db\.query\(\s*[`'][^`']*(?:req\.(?:body|params|query))[^`']*[`']\s*\)/g;
-        let m;
-        while ((m = noParamPattern.exec(fc)) !== null) {
-          unparameterised.push(`${f}: ${m[0].substring(0, 80)}`);
-        }
+    fs.readdirSync(moduleRoot)
+      .filter(d => fs.statSync(path.join(moduleRoot, d)).isDirectory())
+      .forEach(mod => {
+        const rd = path.join(moduleRoot, mod, 'routes');
+        if (!fs.existsSync(rd)) return;
+        fs.readdirSync(rd)
+          .filter(f => f.endsWith('.js'))
+          .forEach(f => {
+            const fc = fs.readFileSync(path.join(rd, f), 'utf8');
+            // Find db.query calls WITHOUT a params array
+            const noParamPattern = /db\.query\(\s*[`'][^`']*(?:req\.(?:body|params|query))[^`']*[`']\s*\)/g;
+            let m;
+            while ((m = noParamPattern.exec(fc)) !== null) {
+              unparameterised.push(`${mod}/${f}: ${m[0].substring(0, 80)}`);
+            }
+          });
       });
 
-    // Any query interpolating req.* directly without params is a risk
     if (unparameterised.length > 0) console.log('Unparameterised:', unparameterised);
     expect(unparameterised).toEqual([]);
   });
@@ -800,3 +828,4 @@ describe('Required file existence', () => {
     });
   });
 });
+
