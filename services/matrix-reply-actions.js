@@ -465,9 +465,10 @@ async function processVotes(db) {
  * server's view is consistent.
  *
  * Note: this is the time-based close path. Quorum-based close happens
- * inside processVotesForRoom when the Nth vote lands (TODO: not yet
- * implemented for relay/multi-approver polls; current registration
- * model is single-vote so quorum=1 triggers immediately on dispatch).
+ * inside triggerNextRelayStep when the Nth approve vote lands — it
+ * counts signoff_votes against signoff_workflows.quorum_required and
+ * completes with 'approved' if quorum is met, or 'no_quorum' if the
+ * relay exhausts approvers without reaching quorum.
  *
  * @returns {Promise<{expired:number, closed:number, errors:Array<string>}>}
  */
@@ -487,14 +488,29 @@ async function expireOverdue(db) {
     return { expired: 0, closed: 0, errors: [] };
   }
 
-  // 2. Mark expired before matrix-side calls (idempotent if re-run).
-  await db.query(
-    `UPDATE signoff_instances
-        SET status = 'completed', result = 'timed_out', completed_at = NOW()
-      WHERE status = 'in_progress'
-        AND closes_at IS NOT NULL
-        AND closes_at <= NOW()`
-  );
+  // 2. Mark expired — distinguish no_quorum (got some votes but not enough)
+  //    from timed_out (no votes at all or single-approver).
+  for (const row of overdue) {
+    const [[voteInfo]] = await db.query(
+      `SELECT COUNT(*) AS vote_count FROM signoff_votes WHERE signoff_instance_id = ?`,
+      [row.id]
+    );
+    const [[wf]] = await db.query(
+      `SELECT quorum_required FROM signoff_workflows sw
+       JOIN signoff_instances si ON si.workflow_type = sw.workflow_type
+      WHERE si.id = ? LIMIT 1`,
+      [row.id]
+    );
+    const quorum = wf?.quorum_required || 1;
+    const votes  = voteInfo?.vote_count || 0;
+    const result = (quorum > 1 && votes > 0) ? 'no_quorum' : 'timed_out';
+    await db.query(
+      `UPDATE signoff_instances
+          SET status = 'completed', result = ?, completed_at = NOW()
+        WHERE id = ? AND status = 'in_progress'`,
+      [result, row.id]
+    );
+  }
 
   // 3. Close each poll on Matrix + react ✅. Best-effort.
   let closed = 0;

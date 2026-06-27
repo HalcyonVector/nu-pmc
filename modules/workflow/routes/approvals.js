@@ -184,12 +184,13 @@ router.post('/:id/approve', requireAuth, requirePrincipal, asyncHandler(async (r
         promoted = await DS.functions.promoteScheduleVersion(ar.ref_id, ar.project_id, req.session.user.id, conn);
       }
 
-      // Weekly report — fetch payload inside tx so the read is consistent
-      if (ar.action_type === 'weekly_report') {
-        const [wrRows] = await conn.query('SELECT summary, issues_for_client, week_number FROM weekly_reports WHERE id = ?', [ar.ref_id||0]);
-        weeklyReportData = wrRows?.[0] || null;
-      }
     });
+
+    // Weekly report — fetch payload AFTER tx (read-only, no need for tx consistency)
+    if (ar.action_type === 'weekly_report') {
+      const Reporting = require('../../reporting/contract');
+      weeklyReportData = await Reporting.functions.getWeeklyReportById(ar.ref_id || 0);
+    }
 
     // Audit AFTER tx commits — record reflects the actual committed state
     audit.log({ userId: req.session.user.id, action: 'approval.approve',

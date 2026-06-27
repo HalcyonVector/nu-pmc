@@ -386,10 +386,15 @@ describe('triggerNextRelayStep', () => {
       // SELECT instance
       .mockResolvedValueOnce([[{
         id: 7, status: 'in_progress', workflow_id: 1, project_id: 5,
+        workflow_type: 'change_notice',
         remaining_approvers: '[22, 33]',
         question: 'CN-1 — approve?',
         options: '[{"id":"yes","text":"✅"},{"id":"no","text":"❌"}]',
       }]])
+      // Quorum check: SELECT quorum_required
+      .mockResolvedValueOnce([[{ quorum_required: 3 }]])
+      // Quorum check: SELECT COUNT approves
+      .mockResolvedValueOnce([[{ approves: 1 }]])
       // _userById(22) — next approver
       .mockResolvedValueOnce([[{ id: 22, full_name: 'P', role: 'principal', matrix_room_id: '!p:s' }]])
       // SELECT workflow row (destination_kind/qualifier)
@@ -426,6 +431,10 @@ describe('triggerNextRelayStep', () => {
         document_id: 1,
         remaining_approvers: '[]',
       }]])
+      // Quorum check: SELECT quorum_required
+      .mockResolvedValueOnce([[{ quorum_required: 1 }]])
+      // Quorum check: SELECT COUNT approves (quorum met → approved)
+      .mockResolvedValueOnce([[{ approves: 1 }]])
       // UPDATE completed/approved
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       // Re-fetch for hook firing
@@ -603,6 +612,10 @@ describe('POST_COMPLETION_HOOKS', () => {
           document_id: 7,
           remaining_approvers: '[]',
         }]])
+        // Quorum check: SELECT quorum_required
+        .mockResolvedValueOnce([[{ quorum_required: 1 }]])
+        // Quorum check: SELECT COUNT approves (quorum met → approved)
+        .mockResolvedValueOnce([[{ approves: 1 }]])
         // UPDATE completed/approved
         .mockResolvedValueOnce([{ affectedRows: 1 }])
         // Re-fetch for hook firing

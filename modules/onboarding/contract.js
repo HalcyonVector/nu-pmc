@@ -127,9 +127,10 @@ module.exports = {
      * projects implicitly — this helper checks the explicit assignment table
      * only, so callers must combine with role checks for firm-wide access.
      */
-    async isUserAssignedToProject(userId, projectId) {
+    async isUserAssignedToProject(userId, projectId, conn = null) {
       if (!userId || !projectId) return false;
-      const [rows] = await db.query(
+      const runner = conn || db;
+      const [rows] = await runner.query(
         `SELECT id FROM project_assignments
          WHERE project_id = ? AND user_id = ? AND is_active = 1`,
         [projectId, userId]

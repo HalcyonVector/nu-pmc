@@ -54,7 +54,9 @@ const db = require('../middleware/db');
 // schedule_change, vendor_payment, claim_invoice, budget_cost_head,
 // handover_closure, weekly_report) include heads + finance + PMC in their
 // signer lists — and those roles legitimately approve across all projects.
-const { PROJECT_SCOPED_ROLES } = require('../modules/auth/contract');
+const AuthContract = require('../modules/auth/contract');
+const { PROJECT_SCOPED_ROLES } = AuthContract;
+const Onboarding = require('../modules/onboarding/contract');
 function isFirmWideRole(role) {
   return !PROJECT_SCOPED_ROLES.includes(role);
 }
@@ -307,12 +309,8 @@ async function vote(opts) {
     // wouldn't normally appear in project_assignments rows.
     if (cfg.scope === 'project' && a.project_id) {
       if (!isFirmWideRole(signerRole)) {
-        const [[m]] = await conn.query(
-          `SELECT 1 AS ok FROM project_assignments
-            WHERE project_id = ? AND user_id = ? AND is_active = 1 LIMIT 1`,
-          [a.project_id, signerId]
-        );
-        if (!m) {
+        const assigned = await Onboarding.functions.isUserAssignedToProject(signerId, a.project_id, conn);
+        if (!assigned) {
           throw new ApprovalError(
             `Signer is not assigned to project ${a.project_id}`,
             { code: 'NOT_ON_PROJECT', status: 403 }
@@ -501,24 +499,29 @@ async function get(approvalId) {
 
   const [[a]] = await db.query(
     `SELECT a.*, atc.label, atc.quorum, atc.scope, atc.signer_roles_json,
-            atc.requires_vendor_confirm, atc.expires_after_hours,
-            ru.full_name AS raised_by_name
+            atc.requires_vendor_confirm, atc.expires_after_hours
        FROM approvals a
        LEFT JOIN approval_type_config atc ON atc.approval_type = a.approval_type
-       LEFT JOIN users ru ON ru.id = a.raised_by
       WHERE a.id = ?`,
     [approvalId]
   );
   if (!a) return null;
 
   const [signoffs] = await db.query(
-    `SELECT s.*, u.full_name AS signer_name
+    `SELECT s.*
        FROM approval_signoffs s
-       LEFT JOIN users u ON u.id = s.signer_id
       WHERE s.approval_id = ?
       ORDER BY s.voted_at`,
     [approvalId]
   );
+
+  // Hydrate user names via Auth contract (replaces direct users table JOINs)
+  const userIds = [a.raised_by, ...signoffs.map(s => s.signer_id)].filter(Boolean);
+  const userMap = await AuthContract.functions.getUsers(userIds);
+  a.raised_by_name = userMap.get(a.raised_by)?.full_name || null;
+  for (const s of signoffs) {
+    s.signer_name = userMap.get(s.signer_id)?.full_name || null;
+  }
 
   // Parse signer_roles_json once
   const signerRoles = a.signer_roles_json
@@ -567,13 +570,18 @@ async function pendingForUser({ userId, role, projectIds = [] }) {
     `SELECT a.id, a.approval_type, a.ref_table, a.ref_id, a.project_id,
             a.raised_by, a.raised_by_role, a.raised_at, a.title, a.details,
             a.expires_at, a.vendor_id,
-            atc.label, atc.quorum, atc.scope, atc.signer_roles_json,
-            ru.full_name AS raised_by_name
+            atc.label, atc.quorum, atc.scope, atc.signer_roles_json
        FROM approvals a
        JOIN approval_type_config atc ON atc.approval_type = a.approval_type
-       LEFT JOIN users ru ON ru.id = a.raised_by
       WHERE a.status = 'pending' AND atc.active = 1`
   );
+
+  // Hydrate raised_by names via Auth contract
+  const raiserIds = [...new Set(rows.map(r => r.raised_by).filter(Boolean))];
+  const raiserMap = await AuthContract.functions.getUsers(raiserIds);
+  for (const r of rows) {
+    r.raised_by_name = raiserMap.get(r.raised_by)?.full_name || null;
+  }
 
   const projectSet = new Set(projectIds);
 

@@ -96,6 +96,22 @@ module.exports = {
     },
 
     /**
+     * Fetch a single weekly report by id. Used by workflow/approvals to get
+     * report payload for post-approval notifications (replaces direct
+     * weekly_reports table query that violated module boundaries).
+     */
+    async getWeeklyReportById(reportId) {
+      if (!reportId) return null;
+      const [rows] = await db.query(
+        `SELECT id, project_id, week_ending, week_number, summary,
+                issues_for_client, status, approved_at
+         FROM weekly_reports WHERE id = ?`,
+        [reportId]
+      );
+      return rows[0] || null;
+    },
+
+    /**
      * Triggers AI lessons-learned draft generation for a project retrospective.
      */
     async generateAIDraftForProject(projectId) {

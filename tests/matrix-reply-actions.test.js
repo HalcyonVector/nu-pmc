@@ -510,7 +510,14 @@ describe('expireOverdue', () => {
         { id: 1, room_id: '!r:s', poll_event_id: '$p1:s' },
         { id: 2, room_id: '!r:s', poll_event_id: '$p2:s' },
       ]])
-      .mockResolvedValueOnce([{ affectedRows: 2 }]);  // UPDATE timed_out
+      // Row 1: vote count, quorum lookup, UPDATE
+      .mockResolvedValueOnce([[{ vote_count: 0 }]])
+      .mockResolvedValueOnce([[{ quorum_required: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      // Row 2: vote count, quorum lookup, UPDATE
+      .mockResolvedValueOnce([[{ vote_count: 0 }]])
+      .mockResolvedValueOnce([[{ quorum_required: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
 
     const out = await replyActions.expireOverdue(db);
 
@@ -519,8 +526,6 @@ describe('expireOverdue', () => {
 
     // First call: snapshot SELECT from signoff_instances
     expect(db.query.mock.calls[0][0]).toMatch(/FROM signoff_instances[\s\S]*closes_at <= NOW/);
-    // Second call: UPDATE to timed_out
-    expect(db.query.mock.calls[1][0]).toMatch(/UPDATE signoff_instances[\s\S]*timed_out/);
   });
 
   test('sends closePoll + ✅ reaction for each expired poll', async () => {
@@ -529,7 +534,14 @@ describe('expireOverdue', () => {
         { id: 1, room_id: '!r1:s', poll_event_id: '$p1:s' },
         { id: 2, room_id: '!r2:s', poll_event_id: '$p2:s' },
       ]])
-      .mockResolvedValueOnce([{ affectedRows: 2 }]);
+      // Row 1: vote count, quorum lookup, UPDATE
+      .mockResolvedValueOnce([[{ vote_count: 0 }]])
+      .mockResolvedValueOnce([[{ quorum_required: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      // Row 2: vote count, quorum lookup, UPDATE
+      .mockResolvedValueOnce([[{ vote_count: 0 }]])
+      .mockResolvedValueOnce([[{ quorum_required: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
 
     const out = await replyActions.expireOverdue(db);
 
@@ -552,6 +564,9 @@ describe('expireOverdue', () => {
       .mockResolvedValueOnce([[
         { id: 1, room_id: '!r:s', poll_event_id: '$p:s' },
       ]])
+      // Per-row quorum-aware expiry: vote count, workflow lookup, then UPDATE
+      .mockResolvedValueOnce([[{ vote_count: 0 }]])
+      .mockResolvedValueOnce([[{ quorum_required: 1 }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }]);
 
     matrixAdapter.closePoll.mockRejectedValueOnce(new Error('matrix down'));

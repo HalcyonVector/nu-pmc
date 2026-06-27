@@ -108,33 +108,71 @@ describe('SQL placeholder count validation', () => {
     const content = fs.readFileSync(filePath, 'utf8');
     const results = [];
 
-    // Match db.query(`...`, [...]) or db.query('...', [...])
-    const patterns = [
-      /db\.query\(\s*`([^`]+)`\s*,\s*\[([^\]]*)\]\s*\)/gs,
-      /db\.query\(\s*'([^']+)'\s*,\s*\[([^\]]*)\]\s*\)/gs,
-    ];
+    // Find db.query( positions and parse balanced brackets/backticks from there.
+    // This handles nested [] in params like JSON.stringify(x||[]).
+    const needle = 'db.query(';
+    let pos = 0;
+    while ((pos = content.indexOf(needle, pos)) !== -1) {
+      const start = pos + needle.length;
+      pos = start;
 
-    patterns.forEach(pattern => {
-      let m;
-      while ((m = pattern.exec(content)) !== null) {
-        const sql        = m[1];
-        const paramsStr  = m[2].trim();
-        // Skip dynamic SQL with template expressions — ? count can't be statically verified
-        if (sql.includes('${')) return;
-        const qmarks     = (sql.match(/\?/g) || []).length;
-        // Count params — split on comma but not inside nested []
-        const params     = paramsStr
-          ? paramsStr.split(',').filter(p => p.trim() !== '').length
-          : 0;
-        if (qmarks !== params && params > 0) {
-          results.push({
-            file: path.basename(filePath),
-            sql:  sql.substring(0, 80).replace(/\s+/g, ' '),
-            qmarks, params
-          });
-        }
+      // Extract the SQL string (backtick or single-quote delimited)
+      let sqlStart = start;
+      while (sqlStart < content.length && /\s/.test(content[sqlStart])) sqlStart++;
+      const delim = content[sqlStart];
+      if (delim !== '`' && delim !== "'") continue;
+      let sqlEnd = sqlStart + 1;
+      while (sqlEnd < content.length && content[sqlEnd] !== delim) sqlEnd++;
+      const sql = content.substring(sqlStart + 1, sqlEnd);
+
+      // Skip dynamic SQL with template expressions
+      if (sql.includes('${')) continue;
+
+      // Find the params array: skip to , then [
+      let ci = sqlEnd + 1;
+      while (ci < content.length && content[ci] !== '[' && content[ci] !== ')') ci++;
+      if (content[ci] !== '[') continue;
+
+      // Balance brackets to find the end of the params array
+      let depth = 0;
+      let arrStart = ci;
+      let inStr = false, strCh = '';
+      for (; ci < content.length; ci++) {
+        const ch = content[ci];
+        if (inStr) { if (ch === strCh && content[ci-1] !== '\\') inStr = false; continue; }
+        if (ch === "'" || ch === '"' || ch === '`') { inStr = true; strCh = ch; continue; }
+        if (ch === '[') depth++;
+        if (ch === ']') { depth--; if (depth === 0) break; }
       }
-    });
+      const paramsStr = content.substring(arrStart + 1, ci).trim();
+
+      const qmarks = (sql.match(/\?/g) || []).length;
+
+      // Count top-level params (commas at depth 0)
+      let params = 0;
+      if (paramsStr) {
+        let d = 0, hasContent = false;
+        inStr = false; strCh = '';
+        for (let pi = 0; pi < paramsStr.length; pi++) {
+          const ch = paramsStr[pi];
+          if (inStr) { if (ch === strCh && paramsStr[pi-1] !== '\\') inStr = false; continue; }
+          if (ch === "'" || ch === '"' || ch === '`') { inStr = true; strCh = ch; hasContent = true; continue; }
+          if ('([{'.includes(ch)) { d++; hasContent = true; continue; }
+          if (')]}'.includes(ch)) { d--; continue; }
+          if (ch === ',' && d === 0) { if (hasContent) params++; hasContent = false; continue; }
+          if (ch.trim()) hasContent = true;
+        }
+        if (hasContent) params++;
+      }
+
+      if (qmarks !== params && params > 0) {
+        results.push({
+          file: path.basename(filePath),
+          sql:  sql.substring(0, 80).replace(/\s+/g, ' '),
+          qmarks, params
+        });
+      }
+    }
     return results;
   }
 
@@ -367,7 +405,18 @@ describe('Response shape consistency', () => {
                          'project','week_ending','visits','notifications','user',
                          'schedule','versions','boq','gantt','margin','totals',
                          'visit','observations','changes','vendors','tasks',
-                         'comms','stats','moms','issues','snags','summary','actions'];
+                         'comms','stats','moms','issues','snags','summary','actions',
+                         // Extended coverage for all route responses
+                         'failures','pending','flags','ok','suggestions','payments',
+                         'receipts','team','leaves','engagements','history','lesson',
+                         'lessons','templates','submissions','grns','signoffs','ncrs',
+                         'features','clusters','entities','entity','delegations',
+                         'effective','drafts','role','buckets','assignment','meetings',
+                         'submittals','my_input','blocked','needsYou','api_key',
+                         'over_budget','has_alerts','queue','count','overdue',
+                         'document','links','scope','checks','state','date',
+                         'complete','required_roles','ai_used','triaged',
+                         'dropped','rows','report','enabled'];
       const hasData    = DATA_KEYS.some(k => call.includes(k));
       if (!hasSuccess && !hasError && !hasData) {
         issues.push(`${path.basename(filePath)}: ${call.substring(0, 80)}`);

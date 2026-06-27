@@ -1032,8 +1032,21 @@ async function triggerNextRelayStep(instanceId) {
 
   const remaining = JSON.parse(inst.remaining_approvers || '[]');
 
-  // No more approvers → relay complete (approved).
-  if (!remaining.length) {
+  // ── Quorum check: count approve votes so far ──────────────────────
+  const [[wfRow]] = await db.query(
+    `SELECT quorum_required FROM signoff_workflows WHERE workflow_type = ? LIMIT 1`,
+    [inst.workflow_type]
+  );
+  const quorum = wfRow?.quorum_required || 1;
+  const [[voteCount]] = await db.query(
+    `SELECT COUNT(*) AS approves FROM signoff_votes
+      WHERE signoff_instance_id = ? AND vote_answer_id IN ('yes', 'approve')`,
+    [instanceId]
+  );
+  const approves = voteCount?.approves || 0;
+
+  // Quorum reached → complete with approved (regardless of remaining approvers)
+  if (approves >= quorum) {
     await db.query(
       `UPDATE signoff_instances
           SET status = 'completed', result = 'approved',
@@ -1041,9 +1054,23 @@ async function triggerNextRelayStep(instanceId) {
         WHERE id = ? AND status = 'in_progress'`,
       [instanceId]
     );
-    // Fire follow-up workflows (e.g. emergency CN → design ratification).
-    // Re-fetch the row so the hook sees the terminal status it'll
-    // predicate on.
+    const [[completed]] = await db.query(
+      `SELECT * FROM signoff_instances WHERE id = ? LIMIT 1`,
+      [instanceId]
+    );
+    if (completed) await _runPostCompletionHooks(completed);
+    return { advanced: false, completed: true, nextApproverId: null };
+  }
+
+  // No more approvers but quorum not reached → no_quorum
+  if (!remaining.length) {
+    await db.query(
+      `UPDATE signoff_instances
+          SET status = 'completed', result = 'no_quorum',
+              completed_at = NOW(), updated_at = NOW()
+        WHERE id = ? AND status = 'in_progress'`,
+      [instanceId]
+    );
     const [[completed]] = await db.query(
       `SELECT * FROM signoff_instances WHERE id = ? LIMIT 1`,
       [instanceId]

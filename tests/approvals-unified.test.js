@@ -445,8 +445,12 @@ describe('approvals.get()', () => {
       }]])
       .mockResolvedValueOnce([[
         { id: 1, approval_id: 50, signer_id: 11, signer_role: 'principal',
-          vote: 'approve', comment: null, voted_at: new Date(),
-          signer_name: 'Principal' },
+          vote: 'approve', comment: null, voted_at: new Date() },
+      ]])
+      // getUsers hydration (raised_by=10, signer_id=11)
+      .mockResolvedValueOnce([[
+        { id: 10, full_name: 'Pia', role: 'pmc_head' },
+        { id: 11, full_name: 'Principal', role: 'principal' },
       ]]);
 
     const r = await approvals.get(50);
@@ -496,6 +500,8 @@ describe('approvals.pendingForUser()', () => {
           quorum: 1, scope: 'project',
           signer_roles_json: JSON.stringify(['site_manager','principal']) },
       ]])
+      // getUsers hydration for raised_by names
+      .mockResolvedValueOnce([[{ id: 50, full_name: 'X', role: 'pmc_head' }]])
       // SELECT votes — user has not voted on any of the survivors
       .mockResolvedValueOnce([[]]);
 
@@ -515,6 +521,8 @@ describe('approvals.pendingForUser()', () => {
           quorum: 1, scope: 'project',
           signer_roles_json: JSON.stringify(['pmc_head','principal']) },
       ]])
+      // getUsers hydration for raised_by names
+      .mockResolvedValueOnce([[{ id: 50, full_name: 'X', role: 'principal' }]])
       // user already voted on 13
       .mockResolvedValueOnce([[{ approval_id: 13 }]]);
 
@@ -533,6 +541,8 @@ describe('approvals.pendingForUser()', () => {
           quorum: 1, scope: 'project',
           signer_roles_json: JSON.stringify(['principal','design_principal']) },
       ]])
+      // getUsers hydration
+      .mockResolvedValueOnce([[{ id: 50, full_name: 'X', role: 'pmc_head' }]])
       .mockResolvedValueOnce([[]]);
     const r = await approvals.pendingForUser({
       userId: 99, role: 'principal', projectIds: [],
@@ -553,6 +563,8 @@ describe('approvals.pendingForUser()', () => {
           quorum: 1, scope: 'project',
           signer_roles_json: JSON.stringify(['pmc_head','principal']) },
       ]])
+      // getUsers hydration
+      .mockResolvedValueOnce([[{ id: 50, full_name: 'X', role: 'principal' }]])
       .mockResolvedValueOnce([[]]);
     const r = await approvals.pendingForUser({
       userId: 99, role: 'pmc_head', projectIds: [],
@@ -570,6 +582,8 @@ describe('approvals.pendingForUser()', () => {
           quorum: 1, scope: 'project',
           signer_roles_json: JSON.stringify(['site_manager','principal']) },
       ]])
+      // getUsers hydration
+      .mockResolvedValueOnce([[{ id: 50, full_name: 'X', role: 'principal' }]])
       .mockResolvedValueOnce([[]]);
     const r = await approvals.pendingForUser({
       userId: 99, role: 'site_manager', projectIds: [7],  // not on project 42
@@ -586,6 +600,8 @@ describe('approvals.pendingForUser()', () => {
           quorum: 1, scope: 'global',
           signer_roles_json: JSON.stringify(['principal','design_principal','finance_admin']) },
       ]])
+      // getUsers hydration
+      .mockResolvedValueOnce([[{ id: 50, full_name: 'X', role: 'finance_admin' }]])
       .mockResolvedValueOnce([[]]);
     const r = await approvals.pendingForUser({
       userId: 99, role: 'principal', projectIds: [],
