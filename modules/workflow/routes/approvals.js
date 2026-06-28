@@ -9,64 +9,20 @@ const router  = express.Router();
 
 // GET /api/approvals — all pending approvals visible to this user.
 //
-// Build-commit lock #8: ONE endpoint reads from BOTH wa_pending_actions
-// (legacy single-approval) AND approvals (unified single + multi-signer).
-// Each row carries a `source` field ('legacy' | 'unified') so the frontend
-// knows which POST endpoint to dispatch the approve/reject action to.
+// Two sources are merged:
+//   UNIFIED  — approvals table, filtered by services/approvals.pendingForUser()
+//              (role gate against signer_roles_json + project membership)
+//   SIGNOFF  — signoff_instances where current user is current_approver
+//              (Matrix relay safety net for when a poll is missed)
 //
-// User filtering rules:
-//   LEGACY: principals see all pending; pmc_head sees own + all pending;
-//           others see only own.
-//   UNIFIED: filtered by services/approvals.pendingForUser() — role gate
-//           against signer_roles_json + project membership for project-scoped.
+// Legacy wa_pending_actions source has been retired. All new approval
+// workflows go through approvals.open() / approval_type_config.
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const isPrincipal = ['principal','design_principal'].includes(me.role);
-    const isPMC       = me.role === 'pmc_head';
 
-    // ── LEGACY: wa_pending_actions ──────────────────────────────────────
-    let where = '';
-    const params = [];
-
-    if (isPrincipal) {
-      where = "WHERE ar.status = 'pending'";
-    } else if (isPMC) {
-      where = "WHERE ar.user_id = ? OR ar.status = 'pending'";
-      params.push(me.id);
-    } else {
-      where = "WHERE ar.user_id = ?";
-      params.push(me.id);
-    }
-
-    const [legacyRows] = await db.query(
-      `SELECT ar.* FROM wa_pending_actions ar
-       WHERE ar.channel IN ('app','both')${where ? ' AND ' + where.replace(/^\s*WHERE\s+/i, '') : ''}
-       ORDER BY ar.status ASC, ar.raised_at DESC`,
-      params
-    );
-    const Onboarding = require('../../onboarding/contract');
-    const projs = await Onboarding.functions.getProjectsByIds(legacyRows.map(a => a.project_id));
-    legacyRows.forEach(a => {
-      a.project_name = projs.get(a.project_id)?.name || null;
-      a.project_code = projs.get(a.project_id)?.code || null;
-    });
-    const Auth = require('../../auth/contract');
-    const userMap = await Auth.functions.getUsers(
-      legacyRows.flatMap(a => [a.user_id, a.raised_by].filter(Boolean))
-    );
-    legacyRows.forEach(a => {
-      a.user_id_name      = userMap.get(a.raised_by)?.full_name     || null;
-      a.actioned_by_name  = ['approved','rejected','acted'].includes(a.status) ? (userMap.get(a.user_id)?.full_name || null) : null;
-    });
-
-    // ── UNIFIED: approvals (build-commit lock #7) ───────────────────────
-    // pendingForUser already handles role/project/self-vote/already-voted
-    // filtering. We map its rows to a shape consistent with legacyRows so
-    // the frontend can render one merged list.
-    //
-    // session.user.projects is shaped [{id, code, name, ...}] (from
-    // loadProjectsForUser in modules/auth/routes/auth.js) — NOT {project_id}.
+    // ── UNIFIED: approvals ───────────────────────────────────────────────
     const approvalsService = require('../../../services/approvals');
+    const Onboarding = require('../../onboarding/contract');
     const projectIds = (me.projects || []).map(p => p.id).filter(Boolean);
     const unifiedRaw = await approvalsService.pendingForUser({
       userId: me.id, role: me.role, projectIds,
@@ -74,7 +30,6 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     // Hydrate project name on unified rows (pendingForUser doesn't join projects)
     const unifiedProjs = await Onboarding.functions.getProjectsByIds(unifiedRaw.map(u => u.project_id));
     const unifiedRows = unifiedRaw.map(u => ({
-      // Common shape (matches legacy fields the frontend already reads)
       id: u.id,
       action_type: u.approval_type,
       title: u.title,
@@ -86,27 +41,55 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       status: 'pending',
       user_id: u.raised_by,
       user_id_name: u.raised_by_name || null,
-      // Unified-specific
       label: u.label,
       quorum: u.quorum,
       expires_at: u.expires_at,
       vendor_id: u.vendor_id,
       ref_table: u.ref_table,
       ref_id: u.ref_id,
+      source: 'unified',
     }));
 
-    // ── Tag source so the frontend dispatches POST to the correct endpoint
-    legacyRows.forEach(r => { r.source = 'legacy'; });
-    unifiedRows.forEach(r => { r.source = 'unified'; });
+    // ── SIGNOFF-GATE: signoff_instances (Matrix relay safety net) ─────
+    // Surfaced here so the pending tab catches items where Matrix is down
+    // or a poll was missed. Actions are still taken via Matrix; no in-app
+    // approve/reject buttons are rendered for signoff rows.
+    const [signoffRows] = await db.query(
+      `SELECT si.id, si.workflow_type, si.document_id, si.project_id,
+              si.question, si.status AS si_status, si.current_approver_id,
+              si.closes_at, si.created_at,
+              sw.quorum_required
+         FROM signoff_instances si
+         JOIN signoff_workflows sw ON sw.workflow_type = si.workflow_type AND sw.active = 1
+        WHERE si.current_approver_id = ?
+          AND si.status IN ('pending', 'in_progress')
+        ORDER BY si.created_at DESC`,
+      [me.id]
+    );
+    const signoffProjs = signoffRows.length
+      ? await Onboarding.functions.getProjectsByIds(signoffRows.map(s => s.project_id))
+      : new Map();
+    const signoffMapped = signoffRows.map(s => ({
+      id: `signoff_${s.id}`,
+      action_type: s.workflow_type,
+      title: s.question || `${s.workflow_type} — document #${s.document_id}`,
+      details: null,
+      project_id: s.project_id,
+      project_name: s.project_id ? (signoffProjs.get(s.project_id)?.name || null) : null,
+      project_code: s.project_id ? (signoffProjs.get(s.project_id)?.code || null) : null,
+      raised_at: s.created_at,
+      status: 'pending',
+      user_id: null,
+      user_id_name: null,
+      signoff_instance_id: s.id,
+      document_id: s.document_id,
+      closes_at: s.closes_at,
+      quorum: s.quorum_required,
+      source: 'signoff',
+    }));
 
-    // ── Merge + sort by raised_at desc (newest first); pendings ahead of
-    // resolved-but-still-visible legacy rows. Unified rows are always
-    // pending (pendingForUser filtered out resolved).
-    const merged = [...legacyRows, ...unifiedRows].sort((a, b) => {
-      // status: pending (any non-pending = '') first, then by raised_at desc
-      const aPending = a.status === 'pending' ? 0 : 1;
-      const bPending = b.status === 'pending' ? 0 : 1;
-      if (aPending !== bPending) return aPending - bPending;
+    // ── Merge + sort newest-pending first
+    const merged = [...unifiedRows, ...signoffMapped].sort((a, b) => {
       const aTs = new Date(a.raised_at || 0).getTime();
       const bTs = new Date(b.raised_at || 0).getTime();
       return bTs - aTs;
@@ -115,132 +98,40 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     res.json({ approvals: merged });
   }));
 
-// POST /api/approvals — raise approval request
-// W3: tightened to roles that legitimately raise approval requests (heads,
-// PMC, finance, principals). Previously any auth user could spawn rows in
-// wa_pending_actions — a spam vector even though it didn't escalate.
+// POST /api/approvals — raise approval request via unified approvals table.
+// Previously wrote to wa_pending_actions; now uses approvals.open() so the
+// item is visible in the GET /api/approvals unified list and actionable via
+// POST /api/approvals/v2/:id/vote.
 //
-// D1 NOTE: this endpoint writes to the legacy wa_pending_actions table.
-// Currently called from the PMC "Raise Schedule Change / Raise Weekly Report"
-// buttons in the approvals view (public/js/app.js showRaiseApproval). When
-// the unified approvals API gains config rows for these workflows (Principal
-// must approve signer/quorum), migrate the frontend to /approvals/v2 and
-// then this endpoint can be deleted.
+// approval_type_config must have an active row for the given action_type
+// (schedule_change and weekly_report are seeded in seed-config.sql).
 const APPROVAL_RAISERS = ['principal','design_principal','pmc_head','design_head','services_head','finance_admin'];
 router.post('/', requireAuth, requireRole(...APPROVAL_RAISERS), asyncHandler(async (req, res) => {
+    const me = req.session.user;
     const { project_id, action_type, message_sent, drift_days } = req.body;
     if (!project_id || !action_type || !message_sent) return res.status(400).json({ error: 'Missing required fields' });
 
-    const [result] = await db.query(
-      'INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, user_id, raised_by, message_sent, expires_at, channel) VALUES (?,?,?,?,?,?,?,DATE_ADD(NOW(), INTERVAL 7 DAY),?)',
-      [action_type, 0, 'general', '', null, req.session.user.id, message_sent, 'app']
-    );
+    const approvalsService = require('../../../services/approvals');
+    const result = await approvalsService.open({
+      approvalType:  action_type,
+      refTable:      'projects',
+      refId:         parseInt(project_id, 10),
+      projectId:     parseInt(project_id, 10),
+      raisedBy:      me.id,
+      raisedByRole:  me.role,
+      title:         message_sent,
+      details:       drift_days ? `Drift: +${drift_days}d` : null,
+    });
 
-    audit.log({ userId: req.session.user.id, action: 'approval.create',
-      entityType: 'wa_pending_actions', entityId: result.insertId,
+    audit.log({ userId: me.id, action: 'approval.create',
+      entityType: 'approvals', entityId: result.id,
       details: { action_type, project_id: parseInt(project_id, 10), drift_days: drift_days || null }, req });
 
-    // Notify principals
     const { notifyApprovalNeeded } = require('../../../services/notifications');
     const proj = { name: await users.projectName(project_id) };
     notifyApprovalNeeded(action_type, message_sent, proj?.name||'').catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
-    res.json({ success: true, id: result.insertId });
-
-  }));
-
-// POST /api/approvals/:id/approve
-router.post('/:id/approve', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
-    const [[ar]] = await db.query(`SELECT * FROM wa_pending_actions WHERE channel IN ('app','both') AND id = ?`, [req.params.id]);
-    if (!ar) return res.status(404).json({ error: 'Not found' });
-
-    // W3: state guard — block re-approval / late-approval of already-actioned requests.
-    if (ar.status === 'approved') {
-      return res.status(400).json({ error: 'Already approved', current_status: ar.status });
-    }
-    if (ar.status === 'rejected') {
-      return res.status(400).json({ error: 'Already rejected — cannot approve', current_status: ar.status });
-    }
-
-    // W1: approval status UPDATE + (for schedule_change) promoteScheduleVersion's
-    // own two UPDATEs were three separate writes. A failure between them left
-    // the approval recorded as 'approved' but no schedule version current, OR
-    // demoted-old-without-elevating-new. All three writes now share one tx so
-    // the whole approval either commits or rolls back. promoteScheduleVersion
-    // accepts an optional `conn` (added in v5.14 contract change) — when not
-    // a schedule_change, the second-and-third writes are skipped, the tx
-    // wraps just the one approval status UPDATE.
-    let promoted = null;
-    let weeklyReportData = null;
-    await db.tx(async (conn) => {
-      await conn.query(
-        'UPDATE wa_pending_actions SET status = ?, user_id = ?, actioned_at = NOW() WHERE id = ?',
-        ['approved', req.session.user.id, req.params.id]
-      );
-
-      // Schedule change — promote the new schedule version inside the same tx
-      if (ar.action_type === 'schedule_change' && ar.ref_table === 'schedule_versions' && ar.ref_id) {
-        const DS = require('../../design-services/contract');
-        promoted = await DS.functions.promoteScheduleVersion(ar.ref_id, ar.project_id, req.session.user.id, conn);
-      }
-
-    });
-
-    // Weekly report — fetch payload AFTER tx (read-only, no need for tx consistency)
-    if (ar.action_type === 'weekly_report') {
-      const Reporting = require('../../reporting/contract');
-      weeklyReportData = await Reporting.functions.getWeeklyReportById(ar.ref_id || 0);
-    }
-
-    // Audit AFTER tx commits — record reflects the actual committed state
-    audit.log({ userId: req.session.user.id, action: 'approval.approve',
-      entityType: 'wa_pending_actions', entityId: parseInt(req.params.id, 10),
-      details: { action_type: ar.action_type, ref_table: ar.ref_table, ref_id: ar.ref_id, project_id: ar.project_id }, req });
-
-    // Side-effects after tx — notifications, checklist flags. These do not
-    // need to be atomic with the approval write.
-    if (ar.action_type === 'schedule_change' && promoted) {
-      const Onboarding = require('../../onboarding/contract');
-      await Onboarding.functions.setChecklistFlag(ar.project_id, 'checklist_schedule').catch(e => console.warn('[checklist setChecklistFlag] swallowed:', e.message));
-      try {
-        const { notifyScheduleApproved } = require('../../../services/notifications');
-        notifyScheduleApproved(ar.project_id, promoted?.label||'', promoted?.drift_days||0).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
-      } catch(_e) { /* notification failure — non-blocking */ }
-    }
-    if (ar.action_type === 'weekly_report' && weeklyReportData) {
-      try {
-        const { notifyWeeklyReportApproved } = require('../../../services/notifications');
-        notifyWeeklyReportApproved(ar.project_id, weeklyReportData.week_number, weeklyReportData.summary||'', weeklyReportData.issues_for_client||'').catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
-      } catch(_e) { /* notification failure — non-blocking */ }
-    }
-
-    res.json({ success: true });
-
-  }));
-
-// POST /api/approvals/:id/reject
-router.post('/:id/reject', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
-    const { rejection_note } = req.body;
-    const [[ar]] = await db.query(`SELECT action_type, ref_table, ref_id, project_id, status FROM wa_pending_actions WHERE id = ?`, [req.params.id]);
-    if (!ar) return res.status(404).json({ error: 'Not found' });
-
-    // W2: state guard — match the approve endpoint. Rejecting an already-actioned
-    // request was silently overwriting status; now blocked.
-    if (ar.status === 'rejected') {
-      return res.status(400).json({ error: 'Already rejected', current_status: ar.status });
-    }
-    if (ar.status === 'approved') {
-      return res.status(400).json({ error: 'Already approved — cannot reject', current_status: ar.status });
-    }
-
-    await db.query(
-      'UPDATE wa_pending_actions SET status = ?, user_id = ?, actioned_at = NOW(), rejection_note = ? WHERE id = ?',
-      ['rejected', req.session.user.id, rejection_note || 'No reason given', req.params.id]
-    );
-    audit.log({ userId: req.session.user.id, action: 'approval.reject',
-      entityType: 'wa_pending_actions', entityId: parseInt(req.params.id, 10),
-      details: { action_type: ar?.action_type, ref_table: ar?.ref_table, ref_id: ar?.ref_id, project_id: ar?.project_id, rejection_note: rejection_note || 'No reason given' }, req });
-    res.json({ success: true });
+    res.json({ success: true, id: result.id });
   }));
 
 module.exports = router;
@@ -343,4 +234,43 @@ router.post('/v2/:id/cancel', requireAuth, asyncHandler(async (req, res) => {
     req,
   });
   res.json({ success: true, ...r });
+}));
+
+// POST /api/approvals/:id/approve — legacy principal approval route (schedule_change).
+// New unified approvals use POST /api/approvals/v2/:id/vote instead.
+router.post('/:id/approve', requirePrincipal, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const me = req.session.user;
+
+  const [[approval]] = await db.query(
+    `SELECT id, request_type, project_id, ref_table, ref_id
+       FROM wa_pending_actions WHERE id = ? AND status = 'pending'`,
+    [id]
+  );
+  if (!approval) return res.status(404).json({ error: 'Approval not found' });
+
+  if (approval.ref_table === 'schedule_versions') {
+    const [[ver]] = await db.query(
+      `SELECT label, drift_days FROM schedule_versions WHERE id = ?`,
+      [approval.ref_id]
+    );
+    await db.query(
+      `UPDATE schedule_versions SET is_current = 0 WHERE project_id = ? AND id != ?`,
+      [approval.project_id, approval.ref_id]
+    );
+    await db.query(
+      `UPDATE schedule_versions SET is_current = 1, approved_by = ?, approved_at = NOW() WHERE id = ?`,
+      [me.id, approval.ref_id]
+    );
+    await db.query(
+      `UPDATE project_checklists SET schedule_approved = 1 WHERE project_id = ?`,
+      [approval.project_id]
+    );
+  }
+
+  await db.query(
+    `SELECT id FROM users WHERE role IN ('principal','design_principal') AND active = 1`
+  );
+
+  res.json({ success: true });
 }));

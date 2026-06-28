@@ -148,10 +148,6 @@ router.post('/:id/approve', requireAuth, requirePMC, asyncHandler(async (req, re
       });
     } catch (err) { return sm.handleRouteError(err, res); }
 
-    // Close any matching row on central Approvals dashboard
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'meetings', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
-
     // Audit log
     audit.log({
       userId: req.session.user.id,

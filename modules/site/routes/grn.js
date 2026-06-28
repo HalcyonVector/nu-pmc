@@ -219,8 +219,6 @@ router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requir
         extraCols: { approved_by: me.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'grns', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     audit.log({ userId: me.id, action: 'grn.approve',
       entityType: 'grns', entityId: parseInt(req.params.id, 10),
       details: { from: grn.status, to: 'approved', approver_role: me.role }, req });
@@ -241,8 +239,6 @@ router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), require
         },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'grns', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id, rejectionNote: req.body.reason || 'Rejected' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     audit.log({ userId: req.session.user.id, action: 'grn.reject',
       entityType: 'grns', entityId: parseInt(req.params.id, 10),
       details: { rejection_reason: rejection_reason || null }, req });
@@ -382,16 +378,8 @@ router.patch('/:id/flag-nonconformance', requireAuth,
       req
     });
 
-    // Internal notifications (queue to DB)
-    const pmcHeads = await users.pmcHeads();
-    for (const p of pmcHeads) {
-      await notif.notify(p.id, 'ncr', `Non-conformance flagged at GRN ${grn.grn_number} — ${grn.vendor_name}. Reason: ${reason}`);
-    }
-    const headRole = material_type === 'services' ? 'services_head' : 'design_head';
-    const [heads] = await db.query('SELECT id FROM users WHERE role=? AND is_active=1', [headRole]);
-    for (const h of heads) {
-      await notif.notify(h.id, 'ncr', `Non-conformance flagged — ${grn.vendor_name} / ${grn.grn_number}. NCR raised. Your review needed.`);
-    }
+    // Internal notifications via event-based routing
+    await notif.notifyNcrRaised(grn.project_id, grn.grn_number, grn.vendor_name, reason, material_type);
 
     // External send to vendor — surface result
     let vendorNotified = false;

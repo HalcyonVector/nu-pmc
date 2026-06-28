@@ -21,7 +21,7 @@ const paymentRequest = createStateMachine({
   name:  'payment_request',
   table: 'payment_requests',
   transitions: {
-    pending_pmc:     ['pmc_approved', 'pending_principal', 'principal_approved', 'pmc_rejected'],
+    pending_pmc:     ['pmc_approved', 'pending_principal', 'principal_approved', 'pmc_rejected', 'principal_rejected'],
     pmc_approved:    ['principal_approved', 'paid'],
     pending_principal:  ['principal_approved', 'principal_rejected'],
     principal_approved: ['paid'],

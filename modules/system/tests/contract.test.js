@@ -64,7 +64,7 @@ describe('M7 System — getNavForRole', () => {
     expect(r).toEqual([]);
   });
 
-  test('detailing_head navigation logic loads properly', async () => {
+  test('team_lead navigation logic loads properly', async () => {
     const mockNavRows = [
       { role: 'team_lead', bucket: 'home', tab_key: 'dashboard', sort_order: 1, is_visible: 1 }
     ];

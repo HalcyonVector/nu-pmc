@@ -1370,6 +1370,11 @@ CREATE TABLE `issues` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `project_id` int unsigned NOT NULL,
   `issue_number` varchar(20) COLLATE utf8mb4_general_ci NOT NULL,
+  `rfi_number` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `rfi_direction` varchar(30) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'contractor_to_pmc | pmc_to_contractor',
+  `response_deadline` date DEFAULT NULL,
+  `contractor_ref` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Contractor own reference number',
+  `rfi_discipline` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `issue_type` enum('safety','quality','design','rfi','compliance') COLLATE utf8mb4_general_ci NOT NULL,
   `title` varchar(300) COLLATE utf8mb4_general_ci NOT NULL,
   `description` text COLLATE utf8mb4_general_ci NOT NULL,
@@ -1413,6 +1418,7 @@ CREATE TABLE `issues` (
   `file_path` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_issue_project_number` (`project_id`,`issue_number`),
+  UNIQUE KEY `idx_rfi_number` (`project_id`,`rfi_number`),
   KEY `raised_by` (`raised_by`),
   KEY `confirmed_by` (`confirmed_by`),
   KEY `assigned_to` (`assigned_to`),
@@ -1597,6 +1603,19 @@ CREATE TABLE `matrix_outbox` (
   CONSTRAINT `matrix_outbox_ibfk_1` FOREIGN KEY (`recipient_uid`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `matrix_reader_cursor`
+-- v5.42: per-room read-position tracking for the poll reader
+--
+
+DROP TABLE IF EXISTS `matrix_reader_cursor`;
+CREATE TABLE `matrix_reader_cursor` (
+  `room_id` varchar(255) NOT NULL,
+  `last_seen_ts` bigint unsigned NOT NULL DEFAULT '0',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`room_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Table structure for table `matrix_rooms`
@@ -3133,7 +3152,7 @@ CREATE TABLE `users` (
   `username` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `full_name` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-  `role` enum('principal','design_principal','design_head','services_head','pmc_head','detailing_head','team_lead','jr_architect','jr_engineer','detailing','services_engineer','coordinator','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin') COLLATE utf8mb4_general_ci NOT NULL,
+  `role` enum('principal','design_principal','design_head','services_head','pmc_head','team_lead','jr_architect','jr_engineer','detailing','services_engineer','coordinator','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin') COLLATE utf8mb4_general_ci NOT NULL,
   `stream` enum('design','services','pmc','site','all') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'all',
   `phone` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `matrix_user_id` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -3641,7 +3660,6 @@ CREATE TABLE `wa_pending_actions` (
   `ref_id` int unsigned DEFAULT NULL,
   `ref_table` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `phone` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `user_id` int unsigned DEFAULT NULL,
   `message_sent` text COLLATE utf8mb4_general_ci,
   `sent_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `reply_received` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -3655,12 +3673,10 @@ CREATE TABLE `wa_pending_actions` (
   PRIMARY KEY (`id`),
   KEY `raised_by` (`raised_by`),
   KEY `actioned_by` (`actioned_by`),
-  KEY `user_id` (`user_id`),
   KEY `idx_wa_pending_actions_proj_status` (`project_id`,`status`),
   CONSTRAINT `wa_pending_actions_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wa_pending_actions_ibfk_2` FOREIGN KEY (`raised_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `wa_pending_actions_ibfk_3` FOREIGN KEY (`actioned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `wa_pending_actions_ibfk_4` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  CONSTRAINT `wa_pending_actions_ibfk_3` FOREIGN KEY (`actioned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

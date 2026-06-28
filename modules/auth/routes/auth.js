@@ -96,6 +96,13 @@ if (process.env.NODE_ENV === 'development') {
     const user = rows[0];
     const projects = await loadProjectsForUser(user);
 
+    // Session fixation defence: regenerate session ID on user switch
+    // (same pattern as /login — Bug #31). Without this the old session ID
+    // carries over to the new user, leaking nav/state from the prior role.
+    await new Promise((resolve, reject) => {
+      req.session.regenerate(err => err ? reject(err) : resolve());
+    });
+
     req.session.user = {
       id: user.id, username: user.username, full_name: user.full_name,
       role: user.role, stream: user.stream, managed_by: user.managed_by,

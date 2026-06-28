@@ -35,7 +35,7 @@ async function getProjectThreshold(projectId) {
   return parseFloat(p?.payment_approval_threshold || 25000);
 }
 
-async function notifyWhatsApp(userId, message, messageType = 'payment_request') {
+async function notifyUser(userId, message, messageType = 'payment_request') { // channel-aware: routes via services/notifications → Matrix DM or WA
   try {
     const notif = require('../../../services/notifications');
     await notif.notify(userId, messageType, message);
@@ -46,7 +46,7 @@ async function notifyRole(role, message, projectId) {
   try {
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsersByRole(role, projectId);
-    for (const u of users) await notifyWhatsApp(u.id, message);
+    for (const u of users) await notifyUser(u.id, message);
   } catch (e) { console.warn('[payment-requests]', e.message); }
 }
 
@@ -231,32 +231,8 @@ router.post('/:project_id', requireAuth, requireProjectScope(),
       return id;
     });
 
-    // Notify M/P
-    await notifyRole('pmc_head',
-      `Payment request raised by ${me.full_name} — ₹${validAmount.toLocaleString('en-IN')} — ${body.reason.slice(0,50)}. Review in app.`,
-      req.params.project_id
-    );
-
-    // Notify Finance Admin — payment request created (C1, friction-reduction brief)
-    // Finance sees every new request so they can plan the batch.
-    // Poll: ✅ Noted — add to next batch / ❌ Hold — need more info
-    try {
-      const signoffGate = require('../../../services/signoff-gate');
-      await signoffGate.triggerSignoff(
-        'payment_request_finance_review',
-        prId,
-        parseInt(req.params.project_id, 10),
-        {
-          question: `Payment request — ${body.reason?.slice(0, 60) || 'new request'} — ₹${validAmount.toLocaleString('en-IN')}`,
-          documentRow: { id: prId, raised_by: me.id },
-          triggeredBy: me.id,
-        }
-      );
-    } catch (e) {
-      console.warn('[payment-requests] finance review poll failed:', e.message);
-    }
-
-    // Urgent payment — auto-approve if below petty cash threshold
+    // Urgent payment — auto-approve if below petty cash threshold.
+    // Must check BEFORE triggering the relay so auto-approved PRs skip it.
     const pettyCashThreshold = parseInt(process.env.PETTY_CASH_THRESHOLD || '25000', 10);
     if (body.is_urgent && validAmount <= pettyCashThreshold) {
       const { paymentRequest: prSM } = require('../../../services/state-machines');
@@ -269,10 +245,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(),
         },
         audit: { userId: me.id, req, details: { source: 'urgent_auto_approve' } },
       }).catch(e => { throw e; });
-      // Notify PMC via signoff-gate. Phase 3: replaced WhatsApp dispatch +
-      // waReply.registerPendingAction with single triggerSignoff. Per
-      // signoff_workflows seed, urgent_payment_fyi is a single-poll FYI
-      // to the project's PMC head with a 4-hour close window.
+      // FYI poll to PMC head — not the approval relay
       try {
         const Onboarding = require('../../onboarding/contract');
         const vendorMap = await Onboarding.functions.getVendorsByIds([vendor_id]);
@@ -294,7 +267,45 @@ router.post('/:project_id', requireAuth, requireProjectScope(),
         message: `Urgent payment auto-approved — ₹${validAmount.toLocaleString('en-IN')}. PMC notified.` });
     }
 
-    res.json({ success: true, id: prId, message: 'Payment request raised. PMC notified.', warning: sanity.warning || undefined });
+    // ── Payment batch relay: PMC Head → Principal → Finance ──────────
+    // The signoff-gate relay fires polls sequentially; the post-completion
+    // hook (payment_batch in signoff-gate.js) transitions the PR status
+    // on final approval/rejection.
+    try {
+      const signoffGate = require('../../../services/signoff-gate');
+      await signoffGate.triggerSignoff(
+        'payment_batch',
+        prId,
+        parseInt(req.params.project_id, 10),
+        {
+          question: `Payment request — ${body.reason?.slice(0, 60) || 'new request'} — ₹${validAmount.toLocaleString('en-IN')}. Approve?`,
+          documentRow: { id: prId, raised_by: me.id },
+          triggeredBy: me.id,
+        }
+      );
+    } catch (e) {
+      console.warn('[payment-requests] payment_batch signoff failed:', e.message);
+    }
+
+    // Finance FYI poll — separate from the approval relay.
+    // Finance sees every new request so they can plan the batch.
+    try {
+      const signoffGate = require('../../../services/signoff-gate');
+      await signoffGate.triggerSignoff(
+        'payment_request_finance_review',
+        prId,
+        parseInt(req.params.project_id, 10),
+        {
+          question: `Payment request — ${body.reason?.slice(0, 60) || 'new request'} — ₹${validAmount.toLocaleString('en-IN')}`,
+          documentRow: { id: prId, raised_by: me.id },
+          triggeredBy: me.id,
+        }
+      );
+    } catch (e) {
+      console.warn('[payment-requests] finance review poll failed:', e.message);
+    }
+
+    res.json({ success: true, id: prId, message: 'Payment request raised. Approval relay started.', warning: sanity.warning || undefined });
   }));
 
 // ── PATCH /api/payment-requests/:id/pmc-review — M/P approves or rejects
@@ -339,7 +350,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
         },
         audit: { userId: me.id, req, details: { pmc_notes: reviewBody.pmc_notes || null } },
       });
-      await notifyWhatsApp(pr.requested_by, `Payment request rejected by PMC. Reason: ${reviewBody.pmc_notes || 'See app for details'}`);
+      await notifyUser(pr.requested_by, `Payment request rejected by PMC. Reason: ${reviewBody.pmc_notes || 'See app for details'}`);
       return res.json({ success: true, message: 'Request rejected. Requester notified.' });
     }
 
@@ -370,7 +381,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
       // Notify Principal + Design Principal
       const principals = await users.principals();
       for (const p of principals) {
-        await notifyWhatsApp(p.id,
+        await notifyUser(p.id,
           `Payment request ${fmtRupee(approvedAmount)} approved by PMC — above project threshold ${fmtRupee(threshold)}. Your approval needed.`
         );
       }
@@ -388,7 +399,7 @@ router.patch('/:id/pmc-review', requireAuth, requirePMC, asyncHandler(async (req
       // Notify Finance Admin
       const finance = await users.financeAdmins();
       for (const f of finance) {
-        await notifyWhatsApp(f.id,
+        await notifyUser(f.id,
           `Payment request approved — ₹${approvedAmount.toLocaleString('en-IN')} — below auto-approval threshold. Ready to pay.`
         );
       }
@@ -467,11 +478,11 @@ router.patch('/:id/principal-review', requireAuth, requirePrincipal, asyncHandle
     if (action === 'approve') {
       const finance = await users.financeAdmins();
       for (const f of finance) {
-        await notifyWhatsApp(f.id, `Payment request approved by Principal — ₹${parseFloat(pr.pmc_amount||pr.amount_requested).toLocaleString('en-IN')}. Ready to pay.`);
+        await notifyUser(f.id, `Payment request approved by Principal — ₹${parseFloat(pr.pmc_amount||pr.amount_requested).toLocaleString('en-IN')}. Ready to pay.`);
       }
     } else {
-      await notifyWhatsApp(pr.requested_by, `Payment request rejected by principal. Reason: ${reviewBody.principal_notes || 'See app for details'}`);
-      await notifyWhatsApp(pr.pmc_reviewed_by, `Payment request rejected by Principal. Reason: ${reviewBody.principal_notes || 'See app'}`);
+      await notifyUser(pr.requested_by, `Payment request rejected by principal. Reason: ${reviewBody.principal_notes || 'See app for details'}`);
+      await notifyUser(pr.pmc_reviewed_by, `Payment request rejected by Principal. Reason: ${reviewBody.principal_notes || 'See app'}`);
     }
 
     res.json({ success: true, message: action === 'approve' ? 'Approved. Finance Admin notified.' : 'Rejected. Team notified.' });
@@ -533,7 +544,7 @@ router.patch('/:id/confirm-payment',
     const amtFmt = fmtRupee(paidCheck.amount);
 
     // WhatsApp to vendor — vendors are EXTERNAL (no users row), so route via the
-    // phone-based notifyPaymentConfirmed path. notifyWhatsApp(userId) would run
+    // phone-based notifyPaymentConfirmed path. notifyUser(userId) would run
     // SELECT ... WHERE id = <phone> → 0 rows → the message is silently dropped.
     const vendorPhone = prVendor.get(pr.vendor_id)?.phone;
     if (vendorPhone) {
@@ -544,7 +555,7 @@ router.patch('/:id/confirm-payment',
     }
 
     // WhatsApp to requester
-    await notifyWhatsApp(pr.requested_by,
+    await notifyUser(pr.requested_by,
       `Payment confirmed — ${pr.vendor_name} — ₹${amtFmt} — UTR: ${utr_number}`
     );
 

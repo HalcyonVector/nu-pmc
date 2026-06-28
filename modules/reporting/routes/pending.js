@@ -327,6 +327,38 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
+  // ─── SIGNOFF INSTANCES: Matrix relay safety net (all roles) ──────────
+  // Open signoff instances where the current user is the designated approver.
+  // Covers all workflow types — payment_batch, weekly_report, final_settlement, etc.
+  // If Matrix is down or a poll is missed, this surfaces the item in the PWA.
+  const [signoffPending] = await db.query(
+    `SELECT si.id, si.workflow_type, si.document_id, si.project_id,
+            si.question, si.created_at,
+            TIMESTAMPDIFF(DAY, si.created_at, NOW()) AS age_days
+       FROM signoff_instances si
+      WHERE si.current_approver_id = ?
+        AND si.status IN ('pending', 'in_progress')
+      ORDER BY si.created_at ASC
+      LIMIT 30`,
+    [me.id]
+  );
+  if (signoffPending.length) {
+    const Onboarding = require('../../onboarding/contract');
+    const soProjs = await Onboarding.functions.getProjectsByIds(signoffPending.map(s => s.project_id));
+    for (const s of signoffPending) {
+      const projName = soProjs.get(s.project_id)?.name || '';
+      needsYou.push({
+        type: 'signoff',
+        label: s.question || `${s.workflow_type} — #${s.document_id}`,
+        sub:   `${projName} · ${s.age_days || 0}d pending · Matrix poll`,
+        age_days: s.age_days || 0,
+        project_id: s.project_id,
+        tab: 'approvals',
+        signoff_instance_id: s.id,
+      });
+    }
+  }
+
   // Sort both lists: oldest first (highest age_days)
   blocked.sort((a, b) => (b.age_days || 0) - (a.age_days || 0));
   needsYou.sort((a, b) => (b.age_days || 0) - (a.age_days || 0));

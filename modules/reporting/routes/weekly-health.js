@@ -619,15 +619,8 @@ router.get('/report', requireAuth, requireRole(...FINANCE_ROLES), asyncHandler(a
         return s + d;
       }, 0);
 
-      const msg = `nu PMC — Monday Health Report\n${weekLabel}\n` +
-        `${projects.length} active projects\n` +
-        `${totalDecays} decay alerts require attention\n\n` +
-        `Report available in app under Reports → Weekly Health`;
-
-      const principals = await users.principals();
-      for (const u of principals) {
-        await notify(u.id, 'weekly_health_report', msg);
-      }
+      const { notifyWeeklyHealthReport } = require('../../../services/notifications');
+      await notifyWeeklyHealthReport(weekLabel, projects.length, totalDecays);
     } catch(_e) { /* notification failure — non-blocking */ }
 
     res.json({

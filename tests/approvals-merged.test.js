@@ -1,12 +1,12 @@
 // tests/approvals-merged.test.js
 // ════════════════════════════════════════════════════════════════════════════
-// Tests for the unified GET /api/approvals (lock #8) and the new v2 endpoints
-// (POST /v2/:id/vote, POST /v2/:id/cancel, GET /v2/:id).
+// Tests for GET /api/approvals (unified + signoff-gate merge) and the v2
+// endpoints (POST /v2/:id/vote, POST /v2/:id/cancel, GET /v2/:id).
 //
 // Verifies:
-//   - GET merges legacy wa_pending_actions rows with unified approvals rows
-//   - Each row carries source='legacy' or source='unified'
-//   - Sorting puts pending rows first, then by raised_at DESC
+//   - GET merges unified approvals rows with signoff_instances rows
+//   - Each row carries source='unified' or source='signoff' (legacy retired)
+//   - Sorting by raised_at DESC (newest first)
 //   - Vote endpoint translates ApprovalError into HTTP responses
 //   - Cancel endpoint enforces "only proposer may cancel"
 // ════════════════════════════════════════════════════════════════════════════
@@ -68,19 +68,18 @@ beforeEach(() => {
 });
 
 // ── GET /api/approvals — merged list ────────────────────────────────────────
+// db.query call order in the GET handler:
+//   1. signoff_instances JOIN signoff_workflows (returns signoff rows)
+// Then: approvalsService.pendingForUser() (mocked — returns unified rows)
 
 describe('GET /api/approvals — merged list', () => {
-  test('returns legacy + unified rows tagged with source', async () => {
+  test('returns unified + signoff rows tagged with source', async () => {
     const app = makeApp('principal', 11, [{ id: 7 }]);
 
-    // SELECT wa_pending_actions
-    db.query.mockResolvedValueOnce([[
-      { id: 100, action_type: 'cn_legacy', title: 'CN-100', project_id: 7,
-        user_id: 10, raised_at: new Date('2026-04-10'),
-        status: 'pending', channel: 'app' },
-    ]]);
+    // 1st db.query: signoff_instances — empty for this test
+    db.query.mockResolvedValueOnce([[]]);
 
-    // service.pendingForUser returns 1 unified row
+    // pendingForUser returns 1 unified row
     approvals.pendingForUser.mockResolvedValueOnce([
       { id: 200, approval_type: 'handover_closure', title: 'Closure',
         details: null, project_id: 7, raised_by: 10, raised_by_role: 'pmc_head',
@@ -91,26 +90,37 @@ describe('GET /api/approvals — merged list', () => {
 
     const res = await request(app).get('/api/approvals');
     expect(res.status).toBe(200);
-    expect(res.body.approvals).toHaveLength(2);
-
-    const sources = res.body.approvals.map(r => r.source).sort();
-    expect(sources).toEqual(['legacy', 'unified']);
-
-    // Unified row should have label + quorum (legacy doesn't)
-    const unified = res.body.approvals.find(r => r.source === 'unified');
-    expect(unified.label).toBe('Project handover closure');
-    expect(unified.quorum).toBe(4);
-    expect(unified.action_type).toBe('handover_closure');
-
-    // Sorting: unified raised 2026-04-12 should come BEFORE legacy 2026-04-10
+    expect(res.body.approvals).toHaveLength(1);
     expect(res.body.approvals[0].source).toBe('unified');
+    expect(res.body.approvals[0].label).toBe('Project handover closure');
+    expect(res.body.approvals[0].quorum).toBe(4);
+    expect(res.body.approvals[0].action_type).toBe('handover_closure');
+  });
+
+  test('signoff rows surface with source="signoff"', async () => {
+    const app = makeApp('principal', 11, [{ id: 7 }]);
+
+    // signoff_instances returns 1 row
+    db.query.mockResolvedValueOnce([[
+      { id: 5, workflow_type: 'change_notice', document_id: 22, project_id: 7,
+        question: 'CN-003 — approve?', si_status: 'pending',
+        current_approver_id: 11, closes_at: null,
+        created_at: new Date('2026-04-11'), quorum_required: 1 },
+    ]]);
+    approvals.pendingForUser.mockResolvedValueOnce([]);
+
+    const res = await request(app).get('/api/approvals');
+    expect(res.status).toBe(200);
+    expect(res.body.approvals).toHaveLength(1);
+    expect(res.body.approvals[0].source).toBe('signoff');
+    expect(res.body.approvals[0].id).toBe('signoff_5');
+    expect(res.body.approvals[0].action_type).toBe('change_notice');
   });
 
   test('passes user role + projects to pendingForUser', async () => {
-    // session.user.projects is shaped [{id}] not [{project_id}] — the merged
-    // GET handler must map .id to projectIds for the service call.
+    // session.user.projects is shaped [{id}] — handler must map .id to projectIds
     const app = makeApp('finance_admin', 11, [{ id: 5 }, { id: 8 }]);
-    db.query.mockResolvedValueOnce([[]]);
+    db.query.mockResolvedValueOnce([[]]);  // signoff_instances
     approvals.pendingForUser.mockResolvedValueOnce([]);
 
     await request(app).get('/api/approvals');
@@ -124,7 +134,7 @@ describe('GET /api/approvals — merged list', () => {
 
   test('empty list still returns approvals: []', async () => {
     const app = makeApp('principal', 11);
-    db.query.mockResolvedValueOnce([[]]);
+    db.query.mockResolvedValueOnce([[]]);  // signoff_instances
     approvals.pendingForUser.mockResolvedValueOnce([]);
 
     const res = await request(app).get('/api/approvals');
@@ -132,34 +142,30 @@ describe('GET /api/approvals — merged list', () => {
     expect(res.body.approvals).toEqual([]);
   });
 
-  test('legacy-only view (no unified pending) still works', async () => {
-    const app = makeApp('principal', 11);
+  test('unified row sorted before older signoff row', async () => {
+    const app = makeApp('principal', 11, [{ id: 7 }]);
+
+    // signoff row raised 2026-04-10
     db.query.mockResolvedValueOnce([[
-      { id: 100, action_type: 'schedule_change', title: 'Schedule v3',
-        project_id: 7, user_id: 10, raised_at: new Date(),
-        status: 'pending', channel: 'app' },
+      { id: 3, workflow_type: 'payment_batch', document_id: 1, project_id: 7,
+        question: 'Pay?', si_status: 'pending', current_approver_id: 11,
+        closes_at: null, created_at: new Date('2026-04-10'), quorum_required: 1 },
     ]]);
-    approvals.pendingForUser.mockResolvedValueOnce([]);
 
-    const res = await request(app).get('/api/approvals');
-    expect(res.body.approvals).toHaveLength(1);
-    expect(res.body.approvals[0].source).toBe('legacy');
-  });
-
-  test('unified-only view (no legacy pending) still works', async () => {
-    const app = makeApp('principal', 11);
-    db.query.mockResolvedValueOnce([[]]);
+    // unified row raised 2026-04-12 (newer)
     approvals.pendingForUser.mockResolvedValueOnce([
       { id: 200, approval_type: 'cn_approval', title: 'CN-200',
-        project_id: 7, raised_by: 10, raised_by_role: 'pmc_head',
-        raised_by_name: 'Pia', raised_at: new Date(),
+        details: null, project_id: 7, raised_by: 10, raised_by_role: 'pmc_head',
+        raised_by_name: 'Pia', raised_at: new Date('2026-04-12'),
         expires_at: null, vendor_id: null, ref_table: 'change_notices', ref_id: 5,
         label: 'CN approval', quorum: 1 },
     ]);
 
     const res = await request(app).get('/api/approvals');
-    expect(res.body.approvals).toHaveLength(1);
+    expect(res.body.approvals).toHaveLength(2);
+    // Newest first: unified (Apr 12) before signoff (Apr 10)
     expect(res.body.approvals[0].source).toBe('unified');
+    expect(res.body.approvals[1].source).toBe('signoff');
   });
 });
 

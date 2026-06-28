@@ -80,8 +80,6 @@ router.patch('/templates/:id/approve', requireAuth, requireRole(...PMC_ROLES), a
         extraCols: { approved_by: me.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'form_templates', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     audit.log({ userId: me.id, action: 'form_template.approve',
       entityType: 'form_templates', entityId: parseInt(req.params.id, 10),
       details: { approver_role: me.role }, req });

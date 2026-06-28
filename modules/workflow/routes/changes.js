@@ -183,14 +183,6 @@ router.post('/:id/sign', requireAuth, requireScopeFromEntity('change_notices'), 
     // external_origin rules per v5.33). documentRow must include the
     // fields those predicates read.
     if (allSigned) {
-      // Surface on central Approvals dashboard
-      const approvals = require('../../../services/approvals');
-      await approvals.register({
-        projectId: cn.project_id, requestType: 'cn_approval',
-        title: `Change Notice ${cn.cn_number}`, details: cn.title,
-        refTable: 'change_notices', refId: cn.id, raisedBy: req.session.user.id,
-      }).catch(err => console.error('[CN approvals.register]', err.message));
-
       try {
         const signoffGate = require('../../../services/signoff-gate');
         await signoffGate.triggerSignoff(
@@ -288,10 +280,6 @@ router.post('/:id/approve', requireAuth, requireScopeFromEntity('change_notices'
       audit: { userId: me.id, req },
     });
 
-    // Close matching row on central Approvals dashboard
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id, 10), actionedBy: me.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
-
     if (cn) {
       try {
         const { notifyChangeNoticeApproved } = require('../../../services/notifications');
@@ -322,9 +310,6 @@ router.post('/:id/reject', requireAuth, requirePrincipal, async (req, res) => {
       audit: { userId: req.session.user.id, req, details: { rejection_note: rejection_note || null } },
     });
 
-    // Close matching row on central Approvals dashboard
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'change_notices', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id, rejectionNote: rejection_note || 'No reason given' }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
     res.json({ success: true });
   } catch (err) {
     if (err.code === 'INVALID_STATE_TRANSITION') {

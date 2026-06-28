@@ -57,7 +57,6 @@ AI: Anthropic Claude (lessons retrospective, photo tagging, AI triggers).
 | `pmc_head` | PMC project head |
 | `design_head` | Design department head |
 | `services_head` | Services department head |
-| `detailing_head` | Detailing department head |
 | `site_manager` / `senior_site_manager` | On-site management |
 | `coordinator` | Project coordinator |
 | `team_lead` | Team lead |
@@ -99,17 +98,20 @@ mysql -u root -p -e "CREATE DATABASE nu_pmc CHARACTER SET utf8mb4 COLLATE utf8mb
 ### 3. Load schema and seed data
 
 ```bash
-# Full schema + all migrations in one file
+# Step 1: Base install (schema + embedded migration history to 2026-05-02)
 mysql -u root -p nu_pmc < nu-pmc-install-20260502.sql
 
-# Optional: apply any pending patches
-mysql -u root -p nu_pmc < patch-schema-2026-05-09.sql
+# Step 2: Required sync patch (tables/columns added after May-02 dump)
+mysql -u root -p nu_pmc < migrations/install-sync-2026-06-27.sql
 
-# Optional: load example seed users (passwords: Welcome@123)
+# Step 3: Config seed (signoff_workflows, role_nav, notifications_config, etc.)
+mysql -u root -p nu_pmc < seed-config.sql
+
+# Step 4: Optional — example users (passwords: Welcome@123)
 mysql -u root -p nu_pmc < nu-pmc-seed-example.sql
 ```
 
-> If you see "duplicate column" errors during the SQL load, these are safe to ignore — they come from migration columns that already exist.
+The sync patch (Step 2) covers: `matrix_reader_cursor` fix, June-22 soft-delete columns, RFI fields on issues, OIDC tables, `ai_feature_toggles`, and all new tables present in `schema.sql` but absent from the May dump. It is idempotent — safe to re-run.
 
 ### 4. Configure environment
 

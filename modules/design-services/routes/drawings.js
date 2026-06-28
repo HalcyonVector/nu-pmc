@@ -507,19 +507,6 @@ router.post('/version/:version_id/approve', requireAuth, asyncHandler(async (req
       entityType: 'drawing_versions', entityId: dv.id,
       details: { from: dv.status, to: newStatus, project_id: dv.project_id, stream: dv.stream }, req });
 
-    // Approvals dashboard wiring (after tx commits — non-atomic side-effect)
-    // NOTE: We do NOT register a pending_l2 drawing_approval entry in wa_pending_actions.
-    // design_head/services_head already see pending drawings directly in their Drawings tab.
-    // The old register() call here incorrectly labelled L2 as "principal approval" and
-    // polluted the principal's action centre with items they have no nav tab to resolve.
-    // Principal can still approve drawings as a break-glass override (canApproveDrawing
-    // returns true for them) but they are not the routine L2 approver.
-    const approvals = require('../../../services/approvals');
-    if (newStatus === 'issued') {
-      // Close any previously registered approval record (belt-and-suspenders cleanup)
-      await approvals.close({ refTable: 'drawing_versions', refId: dv.id, actionedBy: me.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
-    }
-
     // Notify site team when drawing is issued.
     if (newStatus === 'issued') {
       try {

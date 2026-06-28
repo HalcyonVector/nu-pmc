@@ -63,69 +63,32 @@ function isFirmWideRole(role) {
 
 // ── LEGACY: wa_pending_actions ───────────────────────────────
 //
-// TECH DEBT: this table has TWO FK columns that both point to users.id:
-//   - `raised_by`   — used by THIS register() path (the dashboard pending-row flow)
-//   - `user_id`     — used by services/wa-reply-actions.js + modules/workflow/routes/approvals.js
-//                     (the wa-reply / app-action flow)
-// Both mean roughly "who is this row about / for", but two writer paths
-// have diverged and use different columns. Readers (modules/reporting/routes/dashboard.js
-// + modules/workflow/routes/approvals.js) sometimes filter on one or the other.
-// Cleanup requires:
-//   1. Migration to consolidate into a single column (likely `raised_by`,
-//      preserving FK semantics) + a separate `target_user_id` if
-//      "who needs to action" is distinct from "who raised it".
-//   2. Update all 5 writer call sites + 4 reader call sites in lockstep.
-//   3. Backfill existing rows.
-// Not done in this iteration — coordinated migration; risk of touching live data.
+// Dual FK column consolidation is DONE:
+//   - `user_id` column dropped; all writers now use `raised_by`.
+//   - wa-reply-actions.js INSERTs and overdue-checker.js reads updated.
+//   - Migration: migrations/wa-pending-actions-drop-user-id-20260627.sql
 //
-// Until then: every NEW writer should use `raised_by` (the canonical name)
-// and we should NOT add new uses of `user_id`.
+// register() and close() are retired no-ops. Only the WA bridge
+// (wa-reply-actions.js + overdue-checker.js) writes to this table.
 
 /**
- * register({...}) — queue a new pending approval for the dashboard.
- * If one already exists for (refTable, refId), returns existing id (idempotent).
+ * register() — RETIRED. Was: queue a pending approval row in the legacy wa_pending_actions table.
+ * Approval surfacing now goes through approvals.open() → the approvals table.
+ * This stub emits a deprecation warning so any missed callsites are visible in logs.
  */
-async function register({ projectId, requestType, title, details = null, driftDays = null, refTable, refId, raisedBy }) {
-  if (!projectId || !requestType || !refTable || !refId) {
-    throw new Error('approvals.register: projectId, requestType, refTable, refId all required');
-  }
-
-  // Idempotent: if a pending row already exists for this ref, return its id
-  // with alreadyExisted=true. Symmetric with open() which uses the same shape
-  // (B17 in the audit — both functions previously had divergent contracts:
-  // register returned a bare integer, open threw a 409. Now both return
-  // {id, alreadyExisted}.). Existing callers in drawings.js and claims.js
-  // discard the return value entirely, so this is a non-breaking change.
-  const [[existing]] = await db.query(
-    "SELECT id FROM wa_pending_actions WHERE ref_table = ? AND ref_id = ? AND status = 'pending' LIMIT 1",
-    [refTable, refId]
-  );
-  if (existing) return { id: existing.id, alreadyExisted: true };
-
-  const [r] = await db.query(
-    `INSERT INTO wa_pending_actions
-       (project_id, request_type, title, details, drift_days, ref_table, ref_id,
-        raised_by, channel, status, message_sent)
-     VALUES (?,?,?,?,?,?,?,?,'app','pending',?)`,
-    [projectId, requestType, title, details, driftDays, refTable, refId, raisedBy || null, title]
-  );
-  return { id: r.insertId, alreadyExisted: false };
+async function register({ requestType, refTable, refId } = {}) {
+  // Contract: returns { id, alreadyExisted: true } on duplicate, { id: null, alreadyExisted: false } on new.
+  // This function is RETIRED — callers should use approvals.open() instead.
+  console.warn(`[approvals.register] DEPRECATED no-op (requestType=${requestType}, refTable=${refTable}, refId=${refId}) — caller should use approvals.open()`);
+  return { id: null, alreadyExisted: false };
 }
 
 /**
- * close({ refTable, refId, actionedBy, rejectionNote? })
- *   If rejectionNote given → status='rejected'; else → status='approved'.
- *   No-op if no matching pending row exists.
+ * close() — RETIRED. Was: mark a legacy wa_pending_actions row as approved/rejected.
+ * This stub suppresses errors at any remaining callsites.
  */
-async function close({ refTable, refId, actionedBy, rejectionNote = null }) {
-  if (!refTable || !refId) return;
-  const newStatus = rejectionNote ? 'rejected' : 'approved';
-  await db.query(
-    `UPDATE wa_pending_actions
-        SET status = ?, user_id = ?, actioned_at = NOW(), rejection_note = ?
-      WHERE ref_table = ? AND ref_id = ? AND status = 'pending'`,
-    [newStatus, actionedBy || null, rejectionNote, refTable, refId]
-  );
+async function close({ refTable, refId } = {}) {
+  console.warn(`[approvals.close] DEPRECATED no-op (refTable=${refTable}, refId=${refId})`);
 }
 
 // ── UNIFIED: approvals + approval_signoffs ──────────────────

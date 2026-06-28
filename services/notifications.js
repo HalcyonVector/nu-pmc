@@ -496,8 +496,47 @@ async function notifyVendor(vendorId, message, pollOptions = null) {
   });
 }
 
+// ── NEW: notify principals when a new user is pending approval
+// Replaces the users.principalPhones() loop in user-management.js.
+async function notifyNewUserPendingApproval(newUserName, role, initiatedBy) {
+  const msg = `nu PMC: New user pending approval — ${newUserName} (${role}), added by ${initiatedBy}. Open app to approve.`;
+  await _notifyByEvent('user.approval_needed', ['principal', 'design_principal'], 'user_approval_needed', msg);
+}
+
+// ── NEW: notify finance admins when an urgent payment auto-routes (no approval chain)
+// Replaces the users.financeAdmins('id') loop in urgent-payments.js.
+async function notifyUrgentPaymentAuto(vendorName, amount, pwaUrl) {
+  const amt = Number(amount || 0).toLocaleString('en-IN');
+  const msg = `Urgent payment ready — ${vendorName} ₹${amt}. Review: ${pwaUrl}`;
+  await _notifyByEvent('urgent_payment.auto', ['finance_admin'], 'urgent_payment', msg);
+}
+
+// ── NEW: notify finance admins when a Tally XML export is ready
+// Replaces the users.financeAdmins('id') loop in clients.js.
+async function notifyTallyXmlReady(msg) {
+  await _notifyByEvent('tally_xml.ready', ['finance_admin'], 'tally_xml_ready', msg);
+}
+
+// ── NEW: notify principals when the weekly health PDF is generated
+// Replaces the users.principals() loop in weekly-health.js.
+async function notifyWeeklyHealthReport(weekLabel, projectCount, decayCount) {
+  const msg = `nu PMC — Monday Health Report\n${weekLabel}\n${projectCount} active projects\n${decayCount} decay alerts require attention\n\nReport available in app under Reports → Weekly Health`;
+  await _notifyByEvent('weekly.health', ['principal', 'design_principal'], 'weekly_health_report', msg);
+}
+
+// ── NEW: notify PMC heads + relevant stream head when an NCR is raised on a GRN
+// Replaces users.pmcHeads() loop + direct db.query in grn.js.
+// materialType: 'services' | 'design' (determines which stream head is notified)
+async function notifyNcrRaised(projectId, grnNumber, vendorName, reason, materialType) {
+  const pmcMsg  = `Non-conformance flagged at GRN ${grnNumber} — ${vendorName}. Reason: ${reason}`;
+  const headMsg = `Non-conformance flagged — ${vendorName} / ${grnNumber}. NCR raised. Your review needed.`;
+  const headRole = materialType === 'services' ? 'services_head' : 'design_head';
+  await _notifyByEvent('ncr.raised.pmc', ['pmc_head'], 'ncr', pmcMsg, projectId);
+  await _notifyByRole([headRole], 'ncr', headMsg, projectId);
+}
+
 module.exports = {
-  notify,                              // core — notify one user
+  notify,
   notifyDrawingIssued,
   notifyRFIRaised,
   notifyRFIOverdue,
@@ -521,6 +560,9 @@ module.exports = {
   notifyUserCreated,
   notifyUserActivated,
   notifyUserApprovalNeeded,
-  notifyVendor,
-  sendOTP,
+  notifyNewUserPendingApproval,
+  notifyUrgentPaymentAuto,
+  notifyTallyXmlReady,
+  notifyWeeklyHealthReport,
+  notifyNcrRaised,
 };

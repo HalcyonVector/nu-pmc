@@ -894,3 +894,5 @@ router.post('/:project_id/vendor-signoff', requireAuth, requireProjectScope(),
 
     res.json({ success: true, task_count: tasks.length });
   }));
+
+module.exports = router;

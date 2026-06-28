@@ -14,7 +14,7 @@ ROLES = [
   'principal','design_principal','pmc_head','design_head','services_head',
   'finance_admin','senior_site_manager','site_manager','team_lead',
   'jr_architect','services_engineer','coordinator','detailing','trainee',
-  'audit','it_admin','detailing_head',
+  'audit','it_admin',
 ]
 
 pass_count = 0

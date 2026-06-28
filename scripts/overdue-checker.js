@@ -595,9 +595,9 @@ async function processAutoAccepts(db) {
       }
 
       // Notify that auto-accept occurred
-      if (pending.user_id) {
+      if (pending.raised_by) {
         await notifLog.logUserNotif({
-          userId: pending.user_id, messageType: 'auto_accepted',
+          userId: pending.raised_by, messageType: 'auto_accepted',
           body: 'Auto-accepted: ' + pending.action_type.replace(/_/g,' ') + ' (no reply received by deadline)',
           status: 'pending',
         });
@@ -894,5 +894,5 @@ async function sendScheduleReminders(db) {
       roomId: proj.matrix_room_id,
       body:   lines.join('\n'),
     }).catch(e => console.warn(`[schedule-quick] Matrix send failed for ${proj.project_code}:`, e.message));
-  }
+    }
 }

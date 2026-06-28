@@ -664,6 +664,69 @@ const POST_COMPLETION_HOOKS = {
       }
     },
   ],
+
+  // ── PAYMENT BATCH: 3-step relay (PMC → Principal → Finance) ────────
+  // On Finance approval (terminal step): transition PR to principal_approved
+  // so Finance Admin can mark it paid via confirm-payment route.
+  // On rejection at any step: transition to principal_rejected, notify requester.
+  payment_batch: [
+    async function onPaymentBatchComplete(inst) {
+      const [[pr]] = await db.query(
+        `SELECT id, status, requested_by, amount_requested, pmc_amount, project_id
+           FROM payment_requests WHERE id = ? LIMIT 1`,
+        [inst.document_id]
+      );
+      if (!pr) return;
+
+      const { paymentRequest: prSM } = require('./state-machines');
+      const messaging = require('./messaging');
+
+      if (inst.result === 'approved') {
+        // All three signed off — transition to principal_approved
+        await prSM.transition({
+          id: pr.id,
+          from: pr.status,
+          to: 'principal_approved',
+          extraCols: { principal_reviewed_at: new Date() },
+          audit: { userId: inst.triggered_by || null, details: { source: 'payment_batch_signoff' } },
+        });
+
+        // Notify Finance Admin that the payment is ready for the ICICI batch
+        const Auth = require('../modules/auth/contract');
+        const financeUsers = await Auth.functions.getUsersByRole('finance_admin', pr.project_id);
+        const amount = pr.pmc_amount || pr.amount_requested;
+        for (const f of financeUsers) {
+          await messaging.notifyUser({
+            userId: f.id,
+            messageType: 'payment_approved',
+            body: `Payment approved — ₹${Number(amount).toLocaleString('en-IN')}. Ready to include in next ICICI batch.`,
+            projectId: pr.project_id,
+          }).catch(e => console.warn('[payment_batch hook]', e.message));
+        }
+      } else {
+        // Rejected — pick the right terminal state based on which step rejected.
+        // full_sequence is ['pmc','principal','finance']; remaining_approvers
+        // tells us how far we got. If remaining still has principal+finance,
+        // PMC rejected → pmc_rejected. Otherwise → principal_rejected.
+        const remaining = JSON.parse(inst.remaining_approvers || '[]');
+        const rejectState = remaining.length >= 2 ? 'pmc_rejected' : 'principal_rejected';
+        await prSM.transition({
+          id: pr.id,
+          from: pr.status,
+          to: rejectState,
+          extraCols: { principal_reviewed_at: new Date() },
+          audit: { userId: inst.triggered_by || null, details: { source: 'payment_batch_signoff_rejected' } },
+        });
+
+        await messaging.notifyUser({
+          userId: pr.requested_by,
+          messageType: 'payment_rejected',
+          body: `Payment request rejected during approval — ₹${Number(pr.amount_requested).toLocaleString('en-IN')}. Check app for details.`,
+          projectId: pr.project_id,
+        }).catch(e => console.warn('[payment_batch hook rejected]', e.message));
+      }
+    },
+  ],
 };
 
 /**

@@ -184,18 +184,8 @@ async function recordClaimSignoff(side, claimId, projectId, actorId) {
     'SELECT id, project_id, ra_bill_number, status FROM client_claims WHERE id = ?',
     [claimId]
   );
-  if (c && c.status === 'pending_approval') {
-    const approvals = require('../../../services/approvals');
-    await approvals.register({
-      projectId:   c.project_id,
-      requestType: 'claim_approval',
-      title:       `Claim ${c.ra_bill_number}`,
-      details:     'Ready for principal approval',
-      refTable:    'client_claims',
-      refId:       c.id,
-      raisedBy:    actorId,
-    }).catch(err => console.error('[claim approvals.register]', err.message));
-  }
+  // approvals.register() removed — claim surfacing via wa_pending_actions is retired.
+  // Principal approves claims via POST /api/claims/:project_id/:claim_id/approve.
 
   return `${label} sign-off recorded`;
 }
@@ -235,9 +225,7 @@ router.post('/:project_id/:claim_id/approve', requireAuth, requireProjectScope()
       entityType: 'client_claims', entityId: parseInt(req.params.claim_id, 10),
       details: { project_id: parseInt(req.params.project_id, 10), ra_bill_number: claim.ra_bill_number }, req });
 
-    // Close matching row on central Approvals dashboard
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'client_claims', refId: parseInt(req.params.claim_id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
+    // approvals.close() removed — wa_pending_actions is retired.
 
     // Notify Finance Admin via WhatsApp with rates and amounts
     try {

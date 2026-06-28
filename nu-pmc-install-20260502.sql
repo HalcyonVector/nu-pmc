@@ -1063,6 +1063,8 @@ CREATE TABLE `drawing_register` (
   `uploaded_at` datetime NOT NULL DEFAULT current_timestamp(),
   `signed_off_by` int(10) unsigned DEFAULT NULL,
   `signed_off_at` datetime DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` int(10) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_reg_project_drawing` (`project_id`,`drawing_number`),
   KEY `uploaded_by` (`uploaded_by`),
@@ -1118,6 +1120,8 @@ CREATE TABLE `drawing_versions` (
   `held_by` int(10) unsigned DEFAULT NULL,
   `uploaded_by` int(10) unsigned NOT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` int(10) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_drawing_revision` (`drawing_id`,`revision_number`),
   KEY `uploaded_by` (`uploaded_by`),
@@ -1164,6 +1168,8 @@ CREATE TABLE `drawings` (
   `rfi_issue_id` int(10) unsigned DEFAULT NULL,
   `register_entry_id` int(10) unsigned DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` int(10) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_project_drawing` (`project_id`,`drawing_number`),
   KEY `parent_drawing_id` (`parent_drawing_id`),
@@ -3131,12 +3137,6 @@ INSERT INTO `role_nav` VALUES (110,'team_lead','work','register',2,1,'2026-04-28
 INSERT INTO `role_nav` VALUES (111,'team_lead','work','issues',3,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (112,'team_lead','work','submittals',4,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (113,'team_lead','work','phototags',5,1,'2026-04-28 08:51:54');
-INSERT INTO `role_nav` VALUES (114,'detailing_head','home','dashboard',1,1,'2026-04-28 08:51:54');
-INSERT INTO `role_nav` VALUES (115,'detailing_head','home','project_detail',2,1,'2026-04-28 08:51:54');
-INSERT INTO `role_nav` VALUES (116,'detailing_head','work','drawings',1,1,'2026-04-28 08:51:54');
-INSERT INTO `role_nav` VALUES (117,'detailing_head','work','issues',2,1,'2026-04-28 08:51:54');
-INSERT INTO `role_nav` VALUES (118,'detailing_head','work','register',3,1,'2026-04-28 08:51:54');
-INSERT INTO `role_nav` VALUES (119,'detailing_head','work','submittals',4,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (121,'jr_architect','home','dashboard',1,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (122,'jr_architect','home','project_detail',2,1,'2026-04-28 08:51:54');
 INSERT INTO `role_nav` VALUES (123,'jr_architect','work','drawings',1,1,'2026-04-28 08:51:54');
@@ -3444,7 +3444,6 @@ INSERT INTO `role_permissions` VALUES (139,'services_head','pmc.lessons.input-wr
 INSERT INTO `role_permissions` VALUES (140,'pmc_head','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (141,'team_lead','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (142,'jr_architect','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
-INSERT INTO `role_permissions` VALUES (143,'detailing_head','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (144,'detailing','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (145,'services_engineer','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (146,'site_manager','pmc.lessons.input-write','A','PMC / Site','Write lessons-learned input','2026-04-28 08:51:55',NULL);
@@ -3465,7 +3464,6 @@ INSERT INTO `role_permissions` VALUES (160,'services_head','pmc.issue.snag-raise
 INSERT INTO `role_permissions` VALUES (161,'pmc_head','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (162,'team_lead','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (163,'jr_architect','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
-INSERT INTO `role_permissions` VALUES (164,'detailing_head','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (165,'detailing','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (166,'services_engineer','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
 INSERT INTO `role_permissions` VALUES (167,'site_manager','pmc.issue.snag-raise','A','PMC / Site','Raise DLP defect','2026-04-28 08:51:55',NULL);
@@ -3606,6 +3604,7 @@ CREATE TABLE `schedule_tasks` (
   `milestone_label` varchar(200) DEFAULT NULL,
   `display_order` int(10) unsigned NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `planning_note` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `schedule_version_id` (`schedule_version_id`),
   KEY `depends_on_task_id` (`depends_on_task_id`),
@@ -4060,7 +4059,7 @@ CREATE TABLE `users` (
   `username` varchar(50) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
-  `role` enum('principal','design_principal','design_head','services_head','pmc_head','detailing_head','team_lead','jr_architect','detailing','services_engineer','coordinator','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin') NOT NULL,
+  `role` enum('principal','design_principal','design_head','services_head','pmc_head','team_lead','jr_architect','detailing','services_engineer','coordinator','site_manager','senior_site_manager','finance_admin','trainee','audit','it_admin') NOT NULL,
   `stream` enum('design','services','pmc','site','all') NOT NULL DEFAULT 'all',
   `phone` varchar(20) DEFAULT NULL,
   `matrix_user_id` varchar(255) DEFAULT NULL,
@@ -4234,6 +4233,8 @@ CREATE TABLE `vendor_boq_mapping` (
   `confirmed_by` int(10) unsigned DEFAULT NULL,
   `confirmed_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` int(10) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_eng_boq` (`engagement_id`,`boq_item_id`),
   KEY `project_id` (`project_id`),
@@ -5966,7 +5967,7 @@ INSERT INTO signoff_workflows (workflow_type, signoff_type, quorum_required, clo
   ('snag_rectified',   'poll', 1, 60,   'pmc_head',                                                   NULL),
   ('mom_ack',          'poll', 1, 1440, 'recipient',                                                  NULL),
   ('drawing_query_ack','poll', 1, 1440, 'recipient',                                                  NULL),
-  ('payment_batch',    'poll', 2, NULL, 'finance_admin,principal',                                    NULL),
+  ('payment_batch',    'poll', 3, NULL, 'pmc,principal,finance',                                      NULL),
   ('change_notice',    'pwa',  3, NULL, 'pmc_head,design_principal,principal',                        '/sign-off/change-notice'),
   ('weekly_report',    'pwa',  2, NULL, 'pmc_head,principal',                                         '/sign-off/weekly-report'),
   ('project_closure',  'pwa',  4, NULL, 'pmc_head,design_principal,principal,finance_admin',          '/sign-off/project-closure'),
@@ -6241,7 +6242,7 @@ INSERT INTO signoff_workflows (workflow_type, signoff_type, quorum_required, clo
   ('snag_rectified',         'poll', 1, 60,   'pmc',                                    NULL),
   ('mom_acknowledgement',    'poll', 1, 1440, 'recipient',                              NULL),
   ('drawing_query_ack',      'poll', 1, 1440, 'pmc',                                    NULL),
-  ('payment_batch',          'poll', 2, NULL, 'finance,principal',                         NULL),
+  ('payment_batch',          'poll', 3, NULL, 'pmc,principal,finance',                      NULL),
   ('weekly_report',          'poll', 2, NULL, 'pmc,principal',                          NULL),
   ('final_settlement',       'poll', 3, NULL, 'finance,principal,principal',               2.00),
   ('dlp_signoff',            'poll', 3, NULL, 'design_lead,services_head,pmc',          NULL),
@@ -6862,7 +6863,9 @@ SELECT IF(@pending_count > 0,
 ) AS pre_check;
 
 DROP TABLE IF EXISTS matrix_pending_polls;
-DROP TABLE IF EXISTS matrix_reader_cursor;
+-- matrix_reader_cursor is still required by services/matrix-reply-actions.js
+-- for per-room read-position tracking. Do NOT drop it here.
+-- (v5.39 dropped it alongside matrix_pending_polls — v5.42 restores it above.)
 
 -- WhatsApp legacy tables (callers migrated to Matrix in Phase 3)
 -- wa_pending_actions retained: services/approvals.js, services/wa-reply-actions.js,

@@ -131,11 +131,7 @@ router.post('/:project_id',
       const projectRoom = await matrixAdapter.getProjectRoomId(req.params.project_id, 'internal');
 
       if (chain[0] === 'auto') {
-        const udupas = await users.financeAdmins('id');
-        for (const u of udupas) {
-          await notif.notify(u.id, 'urgent_payment',
-            `Urgent payment ready — ${input.adhoc_name || 'Known vendor'} ₹${validAmount.toLocaleString('en-IN')}`);
-        }
+        await notif.notifyUrgentPaymentAuto(input.adhoc_name || 'Known vendor', validAmount, pwaUrl);
         if (projectRoom) {
           const content = matrixAdapter.formatMessage('💰', proj?.name || '', `Urgent payment ready — ${input.adhoc_name||'Known vendor'} ₹${validAmount.toLocaleString('en-IN')}`, 'link', pwaUrl);
           await matrixAdapter.sendText({ roomId: projectRoom, body: content.body }).catch(e => console.warn('[urgent-payments] Matrix post failed:', e.message));

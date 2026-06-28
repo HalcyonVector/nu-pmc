@@ -45,18 +45,18 @@ const path = require('path');
 // review-time surfacing happens when count CHANGES, which catches
 // both adds and removes. That's what we actually want.
 const KNOWN_OK = [
-  { file: 'modules/auth/routes/user-management.js',           count: 1, justification: 'admin user-management — principal phone list for user-event notifications' },
-  { file: 'modules/design-services/routes/schedule.js',       count: 2, justification: 'schedule editor — design / services head dropdowns' },
-  { file: 'modules/finance/routes/budget.js',                 count: 1, justification: 'budget approval — principal selector' },
-  { file: 'modules/finance/routes/claims.js',                 count: 2, justification: 'claims dashboard — finance + PMC dropdowns' },
-  { file: 'modules/finance/routes/payment-requests.js',       count: 3, justification: 'PR detail screens — principal + finance lookups (2 sites for finance, 1 for principal)' },
+  // user-management.js — migrated to notifyNewUserPendingApproval()
+  { file: 'modules/design-services/routes/schedule.js',       count: 2, justification: 'schedule editor — design / services head dropdowns (UI lookup, not notification dispatch)' },
+  { file: 'modules/finance/routes/budget.js',                 count: 1, justification: 'budget approval — principal selector (UI dropdown)' },
+  { file: 'modules/finance/routes/claims.js',                 count: 2, justification: 'claims dashboard — finance + PMC dropdowns (UI lookup)' },
+  { file: 'modules/finance/routes/payment-requests.js',       count: 3, justification: 'PR detail screens — principal + finance lookups (UI dropdowns, not notification dispatch)' },
   { file: 'modules/finance/routes/payments.js',               count: 1, justification: 'strike-2 alert finance_admins (Decision 4 — hardcoded by design, May 2026)' },
-  { file: 'modules/finance/routes/urgent-payments.js',        count: 1, justification: 'urgent payment review — finance admins for Finance Admin-style alerts' },
-  { file: 'modules/onboarding/routes/clients.js',             count: 1, justification: 'client onboarding — finance admin recipients' },
-  { file: 'modules/onboarding/routes/project-setup.js',       count: 1, justification: 'project setup — principal selector' },
-  { file: 'modules/reporting/routes/reports.js',              count: 2, justification: 'reports dashboard — principal lookups (2 sites)' },
-  { file: 'modules/reporting/routes/weekly-health.js',        count: 2, justification: 'weekly health digest — principal recipient list (PDF cycle + /schedule endpoint, both DB-driven)' },
-  { file: 'modules/site/routes/grn.js',                       count: 1, justification: 'NCR notification — secondary alert path, not the primary GRN approval (which is now signoff-gate)' },
+  // urgent-payments.js — migrated to notifyUrgentPaymentAuto()
+  // clients.js — migrated to notifyTallyXmlReady()
+  { file: 'modules/onboarding/routes/project-setup.js',       count: 1, justification: 'project setup — principal selector (UI dropdown)' },
+  { file: 'modules/reporting/routes/reports.js',              count: 2, justification: 'reports dashboard — principal lookups (UI display, 2 sites)' },
+  { file: 'modules/reporting/routes/weekly-health.js',        count: 1, justification: '/schedule endpoint — builds recipient list for JSON response (UI display, not notification dispatch)' },
+  // grn.js NCR — migrated to notifyNcrRaised()
   // changes.js CN principal-approval — pin removed after WA call was removed in prior session
 ];
 

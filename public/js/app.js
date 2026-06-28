@@ -911,6 +911,10 @@ const APP = {
         APP.state.selectedDate = res.today;
       }
       APP.user = res.user;
+      // Clear cached nav + project state so showApp() refetches for the new role.
+      // Without this, nav from the previous user bleeds through (bug C6).
+      APP._nav = null;
+      APP.currentTab = null;
       APP.showApp();
     } else {
       UI.toast(res?.error || 'Dev switch failed');
@@ -4219,11 +4223,9 @@ Tomorrow: start formwork on next bay."
   },
 
   approvalCard(a, canAct) {
-    // Build-commit lock #8: rows arrive merged from BOTH wa_pending_actions
-    // (source='legacy') and approvals (source='unified'). Frontend dispatches
-    // approve/reject/vote/cancel calls based on this tag.
-    const isUnified = a.source === 'unified';
-    const typeKey = a.action_type || a.request_type;  // unified uses action_type, legacy uses request_type
+    // source: 'unified' → approvals table, vote via /v2/:id/vote
+    //         'signoff'  → signoff_instances, actioned via Matrix poll (no in-app buttons)
+    const typeKey = a.action_type;
     const icons = {
       schedule_change:'', weekly_report:'', change_notice:'',
       cn_approval:'', vendor_payment:'', vendor_bank_change:'',
@@ -4246,20 +4248,14 @@ Tomorrow: start formwork on next bay."
       ? `<span class="badge b-amber" style="margin-left:6px;font-size:10px">Multi-signer · ${a.quorum} signers needed</span>`
       : '';
 
-    // Dispatch buttons differ by source.
+    // Dispatch buttons: unified rows get in-app approve/reject; signoff rows
+    // are actioned via Matrix poll — no in-app buttons.
     let actionsHtml = '';
-    if (canAct && a.status === 'pending') {
-      if (isUnified) {
-        actionsHtml = `<div style="display:flex;gap:8px;margin-top:10px">
-          <button class="btn-approve" onclick="APP.voteApprovalV2(${a.id},'approve')">Approve</button>
-          <button class="btn-reject"  onclick="APP.voteApprovalV2(${a.id},'reject')">Reject</button>
-        </div>`;
-      } else {
-        actionsHtml = `<div style="display:flex;gap:8px;margin-top:10px">
-          <button class="btn-approve" onclick="APP.approveRequest(${a.id})">Approve</button>
-          <button class="btn-reject"  onclick="APP.rejectRequest(${a.id})">Reject</button>
-        </div>`;
-      }
+    if (canAct && a.status === 'pending' && a.source === 'unified') {
+      actionsHtml = `<div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn-approve" onclick="APP.voteApprovalV2(${a.id},'approve')">Approve</button>
+        <button class="btn-reject"  onclick="APP.voteApprovalV2(${a.id},'reject')">Reject</button>
+      </div>`;
     }
 
     return `<div class="card">

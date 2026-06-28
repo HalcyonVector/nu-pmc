@@ -202,7 +202,6 @@ async function buildProjectSummary(me, projectId) {
     senior_site_manager: ['schedule', 'issues', 'approvals'],
     site_manager:        ['schedule', 'issues', 'approvals'],
     team_lead:           ['issues', 'submittals'],
-    detailing_head:      ['issues', 'submittals'],   // legacy, merged into team_lead
     jr_architect:        ['issues'],
     services_engineer:   ['issues'],
     coordinator:         ['issues', 'todays_tasks'],
@@ -218,7 +217,7 @@ async function buildProjectSummary(me, projectId) {
     principal:'Issues', design_principal:'Issues', pmc_head:'Issues', audit:'Issues',
     design_head:'Issues', services_head:'Issues',
     site_manager:'Project Issues', senior_site_manager:'Project Issues',
-    team_lead:'My Issues', detailing_head:'My Issues',
+    team_lead:'My Issues',
     jr_architect:'My Issues', services_engineer:'My Issues', coordinator:'My Issues',
   };
 
@@ -278,7 +277,7 @@ async function buildProjectSummary(me, projectId) {
     return r.c;
   }
 
-  // ── Submittals count (team_lead / detailing_head — submittals returned)
+  // ── Submittals count (team_lead — submittals returned)
   async function countSubmittals() {
     const [[r]] = await db.query(
       `SELECT COUNT(*) c FROM submittals

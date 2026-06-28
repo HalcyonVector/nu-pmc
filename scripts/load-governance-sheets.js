@@ -36,7 +36,7 @@ const ROLE_SHEET_MAP = {
   'Principal':'principal','Design Principal':'design_principal',
   'PMC Head':'pmc_head','Design Head':'design_head',
   'Services Head':'services_head','Team Lead':'team_lead',
-  'Jr Architect':'jr_architect','Detailing':'detailing_head',
+  'Jr Architect':'jr_architect','Detailing':'detailing',
   'Site Manager':'site_manager','Sr Site Manager':'senior_site_manager',
   'Finance Admin':'finance_admin','Coordinator':'coordinator',
   'Trainee':'trainee','Audit':'audit','IT Admin':'it_admin',

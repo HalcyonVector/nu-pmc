@@ -1,4 +1,19 @@
 // tests/setup.js — Mock database so tests run without MySQL
+
+// sharp is a native image library not installed in the test sandbox.
+// Mock it globally so any route that transitively requires middleware/upload
+// can be loaded without the native binary.
+jest.mock('sharp', () => {
+  const fn = jest.fn(() => ({
+    resize: jest.fn().mockReturnThis(),
+    jpeg:   jest.fn().mockReturnThis(),
+    png:    jest.fn().mockReturnThis(),
+    toFile: jest.fn().mockResolvedValue({}),
+    toBuffer: jest.fn().mockResolvedValue(Buffer.alloc(0)),
+  }));
+  return fn;
+});
+
 jest.mock('../middleware/db', () => {
   const mockQuery = jest.fn();
   // db.tx(fn) — invokes fn with a "conn" object that delegates query/execute

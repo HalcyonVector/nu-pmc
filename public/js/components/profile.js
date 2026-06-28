@@ -41,7 +41,7 @@ window.Components.profile = function() {
       if (this.showDeputyCard) {
         const usersRes = await API.call('GET', '/users');
         const eligibleMap = {
-          design_head:    ['detailing_head','team_lead','jr_architect'],
+          design_head:    ['team_lead','jr_architect'],
           services_head:  ['services_engineer'],
           pmc_head:       ['pmc_head'],
         };

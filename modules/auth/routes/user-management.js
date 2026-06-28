@@ -62,13 +62,8 @@ router.post('/initiate', requireAuth, async (req, res) => {
       entityType: 'user_pending', entityId: r.insertId,
       details: { username: username.toLowerCase(), full_name, role, stream: stream || 'all' }, req });
 
-    // Notify Principal and Design Principal. Phone-based caller — notifyUserApprovalNeeded
-    // triangulates phone→userId internally and routes via Matrix where
-    // possible (May 2026 migration).
-    const principals = await users.principalPhones();
-    for (const p of principals) {
-      await notif.notifyUserApprovalNeeded(p.phone, full_name, role, me.full_name);
-    }
+    // Notify Principal and Design Principal via event-based routing.
+    await notif.notifyNewUserPendingApproval(full_name, role, me.full_name);
 
     res.json({ success: true, message: `${full_name} pending approval from Principal/Design Principal.` });
   } catch (err) {

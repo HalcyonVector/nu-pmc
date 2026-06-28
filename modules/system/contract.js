@@ -64,7 +64,6 @@ module.exports = {
     'notification_triggers',
     'whatsapp_notifications',
     'wa_send_failures',
-    'wa_pending_actions',
     'failed_emails',
     'client_comms',
     'comms_log',

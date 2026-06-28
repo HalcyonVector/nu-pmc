@@ -245,8 +245,6 @@ router.patch('/cost-heads/:id/approve', requireAuth,
         extraCols: { approved_by: me.id, approved_at: new Date() },
       });
     } catch (err) { return sm.handleRouteError(err, res); }
-    const approvals = require('../../../services/approvals');
-    await approvals.close({ refTable: 'budget_cost_heads', refId: parseInt(req.params.id, 10), actionedBy: req.session.user.id }).catch(e => console.warn('[' + require('path').basename(__filename) + '] swallowed:', e.message));
 
     audit.log({ userId: me.id, action: 'budget.custom_head_approve',
       entityType: 'budget_cost_heads', entityId: parseInt(req.params.id, 10),

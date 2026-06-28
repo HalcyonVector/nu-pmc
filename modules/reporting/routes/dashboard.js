@@ -120,14 +120,14 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       projParams
     );
 
-    // Pending approvals (drift acks etc — only relevant to PMC + principals,
-    // already filtered by ROLE_CATEGORIES)
+    // Pending approvals — reads from the unified approvals table.
+    // wa_pending_actions (legacy) is retired for the app-channel surface.
     const pendingApprovals = await fetchIfWanted('pending_approvals',
-      `SELECT ar.id, ar.request_type, ar.title, ar.drift_days, ar.raised_at,
-         ar.raised_by, ar.project_id
-       FROM wa_pending_actions ar
-       WHERE ar.status = 'pending' AND ar.channel IN ('app','both')${projFilter ? ' AND ar.project_id IN (?)' : ''}
-       ORDER BY ar.raised_at ASC`,
+      `SELECT a.id, a.approval_type AS request_type, a.title, NULL AS drift_days,
+         a.raised_at, a.raised_by, a.project_id
+       FROM approvals a
+       WHERE a.status = 'pending'${projFilter ? ' AND a.project_id IN (?)' : ''}
+       ORDER BY a.raised_at ASC`,
       projParams
     );
     if (pendingApprovals.length) {
@@ -314,5 +314,6 @@ router.get('/morning-brief', requireAuth, asyncHandler(async (req, res) => {
     summary: items.length ? items.join(', ') : 'No overnight activity',
   });
 }));
+
 
 module.exports = router;

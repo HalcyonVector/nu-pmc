@@ -40,7 +40,7 @@ const EXPIRY_HOURS = {
  * Send a pending action message and record it
  */
 async function sendPendingAction(db, wa, opts) {
-  const { actionType, refId, refTable, phone, userId, message } = opts;
+  const { actionType, refId, refTable, phone, userId, raisedBy, message } = opts;
   const expiryHours = EXPIRY_HOURS[actionType] || 24;
   const expiresAt   = new Date(Date.now() + expiryHours * 3600000);
 
@@ -56,7 +56,7 @@ async function sendPendingAction(db, wa, opts) {
     `INSERT INTO wa_pending_actions
      (action_type, ref_id, ref_table, phone, user_id, raised_by, message_sent, expires_at, auto_accept_at)
      VALUES (?,?,?,?,?,?,?,?,?)`,
-    [actionType, refId, refTable, phone, userId||null, opts.raisedBy||null, message, expiresAt, autoAcceptAt]
+    [actionType, refId, refTable, phone, userId||null, raisedBy||null, message, expiresAt, autoAcceptAt]
   );
 
   // Append auto-accept notice to eligible action types
@@ -169,7 +169,7 @@ async function handleGRNApprove(db, pending, reply) {
   if (reply === '1') {
     await db.query(
       "UPDATE grns SET status='approved', approved_by=?, approved_at=NOW() WHERE id=? AND status='pending'",
-      [pending.user_id, pending.ref_id]
+      [pending.raised_by, pending.ref_id]
     );
     const [[grn]] = await db.query('SELECT grn_number FROM grns WHERE id=?', [pending.ref_id]);
     return { handled: true, response: '✓ ' + (grn?.grn_number||'GRN') + ' approved.' };
@@ -177,7 +177,7 @@ async function handleGRNApprove(db, pending, reply) {
   if (reply === '2') {
     await db.query(
       "UPDATE grns SET status='rejected', approved_by=?, approved_at=NOW(), rejection_reason='Rejected via WhatsApp' WHERE id=?",
-      [pending.user_id, pending.ref_id]
+      [pending.raised_by, pending.ref_id]
     );
     const [[grn]] = await db.query('SELECT grn_number FROM grns WHERE id=?', [pending.ref_id]);
     return { handled: true, response: '✓ ' + (grn?.grn_number||'GRN') + ' rejected. Open app to add reason.' };
@@ -222,14 +222,14 @@ async function handleReportUpdate(db, pending, reply, from) {
         `INSERT INTO task_updates (task_id, project_id, report_date, pct_complete, updated_by)
          VALUES (?,?,?,?,?)
          ON DUPLICATE KEY UPDATE pct_complete=VALUES(pct_complete), updated_by=VALUES(updated_by)`,
-        [tasks[taskIdx].id, report.project_id, today, pct, pending.user_id]
+        [tasks[taskIdx].id, report.project_id, today, pct, pending.raised_by]
       );
       saved++;
     }
   }
 
   // Notify PMC
-  if (pending.user_id) {
+  if (pending.raised_by) {
     const [pmcs] = await db.query(
       `SELECT u.id FROM users u JOIN project_assignments pa ON pa.user_id=u.id
        WHERE pa.project_id=? AND u.role='pmc_head' AND u.is_active=1`,
@@ -255,7 +255,7 @@ async function handleIssueConfirm(db, pending, reply) {
   if (reply === '1') {
     await db.query(
       "UPDATE issues SET status='open', confirmed_by=?, confirmed_at=NOW() WHERE id=?",
-      [pending.user_id, pending.ref_id]
+      [pending.raised_by, pending.ref_id]
     );
     const [[issue]] = await db.query('SELECT issue_number FROM issues WHERE id=?', [pending.ref_id]);
     return { handled: true, response: '✓ ' + (issue?.issue_number||'Issue') + ' confirmed — entered into register.' };
@@ -360,7 +360,7 @@ async function handleDrawingQueryReply(db, pending, reply) {
   // Text reply — capture as RFI response
   await db.query(
     "UPDATE issues SET rfi_response=?, rfi_responded_by=?, rfi_responded_at=NOW(), status='resolved' WHERE id=?",
-    [reply.substring(0,500), pending.user_id, pending.ref_id]
+    [reply.substring(0,500), pending.raised_by, pending.ref_id]
   );
   // Notify the site manager who raised the query
   const [[query]] = await db.query(
@@ -378,14 +378,14 @@ async function handleDrawingApproval(db, pending, reply) {
   if (reply === '1' || reply.toLowerCase() === 'approve') {
     await db.query(
       "UPDATE drawing_versions SET status='issued', l2_approved_by=?, l2_approved_at=NOW() WHERE id=?",
-      [pending.user_id, pending.ref_id]
+      [pending.raised_by, pending.ref_id]
     );
     return { handled: true, response: '✓ Drawing approved.' };
   }
   if (reply === '2' || reply.toLowerCase() === 'hold') {
     await db.query(
       "UPDATE drawing_versions SET is_held=1, held_at=NOW(), held_by=? WHERE id=?",
-      [pending.user_id, pending.ref_id]
+      [pending.raised_by, pending.ref_id]
     );
     return { handled: true, response: '✓ Drawing held. Open app to add comments.' };
   }
@@ -494,9 +494,9 @@ async function registerPendingAction(db, opts) {
     [actionType, refId, phone]
   );
   const [result] = await db.query(
-    `INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, user_id, raised_by, message_sent, expires_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-    [actionType, refId, refTable, phone, userId||null, opts.raisedBy||null, message||'', expiresAt]
+    `INSERT INTO wa_pending_actions (action_type, ref_id, ref_table, phone, raised_by, message_sent, expires_at)
+     VALUES (?,?,?,?,?,?,?)`,
+    [actionType, refId, refTable, phone, userId||null, message||'', expiresAt]
   );
   return result.insertId;
 }

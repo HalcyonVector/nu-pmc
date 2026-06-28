@@ -31,7 +31,7 @@ const cns = await Workflow.functions.getOpenChangeNotices(projectId);
 - M2 Onboarding — reads `projects` (direct SELECT)
 - M5 Finance — changes.js reads `budget_cost_heads` (direct SELECT)
 - M6 Reporting — approvals.js reads `weekly_reports` (direct SELECT)
-- M7 System — approvals.js reads `wa_pending_actions` (direct SELECT)
+- M7 System — approvals.js (legacy wa_pending_actions reads retired; now reads `approvals` table via pendingForUser())
 - design-services module — approvals.js reads `schedule_versions` (direct SELECT)
 
 ## Gate status

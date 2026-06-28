@@ -306,16 +306,11 @@ router.post('/:id/tally-xml/:claim_id', requireAuth, asyncHandler(async (req, re
     const outPath  = path.join(UPLOAD_DIR, 'documents', fileName);
     fs.writeFileSync(outPath, xml, 'utf8');
 
-    // Notify finance admins via WhatsApp (role-based — was hardcoded username='finance_admin')
+    // Notify finance admins via event-based routing
     try {
-      const { notify } = require('../../../services/notifications');
-      const recipients = await users.financeAdmins('id');
-      if (recipients.length) {
-        const msg = `nu PMC — Tally XML ready\nProject: ${claim.project_name}\nRA Bill: ${claim.ra_bill_number} — ${claim.discipline}\nInvoice: ${invNum}\nTotal (incl GST): ₹${total.toLocaleString('en-IN')}\n\nPlease import XML into Tally Prime.`;
-        for (const r of recipients) {
-          await notify(r.id, 'tally_xml_ready', msg);
-        }
-      }
+      const { notifyTallyXmlReady } = require('../../../services/notifications');
+      const msg = `nu PMC — Tally XML ready\nProject: ${claim.project_name}\nRA Bill: ${claim.ra_bill_number} — ${claim.discipline}\nInvoice: ${invNum}\nTotal (incl GST): ₹${total.toLocaleString('en-IN')}\n\nPlease import XML into Tally Prime.`;
+      await notifyTallyXmlReady(msg);
     } catch(_e) { /* notification failure — non-blocking */ }
 
     audit.log({ userId: me.id, action: 'tally_xml.generate',
