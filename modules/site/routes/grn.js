@@ -84,11 +84,12 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
       });
       const [r] = await db.query(
         `INSERT INTO grns (project_id, grn_number, engagement_id, material_request_id,
-         delivery_date, description, quantity_received, unit, delivery_note_ref, invoice_ref,
+         delivery_date, description, quantity_received, unit, unit_rate, delivery_note_ref, invoice_ref,
          delivery_note_path, invoice_path, is_unplanned, raised_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [req.params.project_id, num, body.engagement_id, body.material_request_id,
          body.delivery_date, body.description, validQty, body.unit,
+         validUnitRate || null,
          body.delivery_note_ref, body.invoice_ref,
          req.files?.delivery_note?.[0]?.path||null,
          req.files?.invoice?.[0]?.path||null,
@@ -347,16 +348,21 @@ router.patch('/:id/flag-nonconformance', requireAuth,
       });
 
       // NCR number via sequence helper with ER_DUP_ENTRY retry (concurrency-safe).
-      // issues.engagement_id is not a column — dropped from INSERT list.
       await sequence.insertWithRetry(async () => {
         const ncrNumber = await sequence.generate({
           table: 'issues', numberCol: 'ncr_number', projectId: grn.project_id,
           prefix: 'NCR-', pad: 3, where: "AND issue_type='quality'"
         });
+        const issueNumber = await sequence.generate({
+          table: 'issues', numberCol: 'issue_number', projectId: grn.project_id,
+          prefix: 'ISS-', pad: 3
+        });
         await conn.query(
-          `INSERT INTO issues (project_id, ncr_number, description, raised_by, status, issue_type)
-           VALUES (?,?,?,?,'open','quality')`,
-          [grn.project_id, ncrNumber,
+          `INSERT INTO issues
+             (project_id, issue_number, ncr_number, title, description, raised_by, status, issue_type, vendor_accountability)
+           VALUES (?,?,?,?,?,?,'open','quality',1)`,
+          [grn.project_id, issueNumber, ncrNumber,
+           `NCR — ${grn.vendor_name || 'Vendor'} (${grn.grn_number})`,
            `Material non-conformance at GRN ${grn.grn_number}: ${reason}`,
            me.id]
         );
@@ -379,6 +385,7 @@ router.patch('/:id/flag-nonconformance', requireAuth,
     });
 
     // Internal notifications via event-based routing
+    const headRole = material_type === 'services' ? 'services_head' : 'design_head';
     await notif.notifyNcrRaised(grn.project_id, grn.grn_number, grn.vendor_name, reason, material_type);
 
     // External send to vendor — surface result

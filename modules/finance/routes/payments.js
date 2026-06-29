@@ -746,7 +746,7 @@ router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), re
   }));
 
 // ── GET payment history for a project
-router.get('/:project_id/history', requireAuth,
+router.get('/:project_id/history', requireAuth, requireProjectScope(),
   requireRole('principal','design_principal','pmc_head','finance_admin'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;

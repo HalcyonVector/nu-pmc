@@ -161,10 +161,10 @@ router.post('/:id/sign', requireAuth, requireScopeFromEntity('change_notices'), 
       details: { cn_number: cn.cn_number, project_id: cn.project_id, effective_role: effectiveRole, all_signed: !!allSigned }, req });
 
     // Transition to pending_approval once all 3 sigs are in (via state machine)
-    if (allSigned && cn.status === 'draft') {
+    if (allSigned && cn.status === 'collecting_sigs') {
       const { changeNotice: cnSM } = require('../../../services/state-machines');
       await cnSM.transition({
-        id: cn.id, from: 'draft', to: 'pending_approval',
+        id: cn.id, from: 'collecting_sigs', to: 'pending_approval',
         audit: { userId: req.session.user.id, req },
       }).catch(e => {
         if (e.code !== 'INVALID_STATE_TRANSITION') throw e;
@@ -290,6 +290,10 @@ router.post('/:id/approve', requireAuth, requireScopeFromEntity('change_notices'
   } catch (err) {
     if (err.code === 'INVALID_STATE_TRANSITION') {
       return res.status(400).json({ error: err.message, code: err.code });
+    }
+    // DB check constraint — approver cannot be the same person who raised the CN
+    if (err.message?.includes('chk_cn_self_ref')) {
+      return res.status(409).json({ error: 'You cannot approve a change notice you raised yourself.', code: 'CN_SELF_APPROVAL' });
     }
     console.error('CN approve error:', err.message);
     res.status(500).json({ error: 'Failed to approve change notice' });

@@ -88,10 +88,13 @@ router.get('/all', requireAuth, asyncHandler(async (req, res) => {
       i.vendor_name       = vendors.get(i.assigned_vendor_id)?.vendor_name || null;
     });
     
-    // Get unique projects from issues
-    const projectsFromIssues = [...new Map(issues.map(i => [i.project_id, { id: i.project_id, name: i.project_name }])).values()];
-    
-    res.json({ issues, projects: projectsFromIssues });
+    // Return ALL assigned projects (not just ones that have issues)
+    const [allProjects] = await db.query(
+      `SELECT id, name FROM projects WHERE id IN (${projectIds.map(() => '?').join(',')}) ORDER BY name`,
+      projectIds
+    );
+
+    res.json({ issues, projects: allProjects });
   }));
 
 // GET /api/issues/:project_id
@@ -148,14 +151,17 @@ router.post('/:project_id', requireAuth, requireProjectScope(), upload.single('p
         table: 'issues', numberCol: 'issue_number', projectId: req.params.project_id,
         prefix: 'ISS-', pad: 3,
       });
+      const raisedAt = body.incident_date || null;
+      const extraCol = raisedAt ? ', raised_at' : '';
+      const extraVal = raisedAt ? [raisedAt] : [];
       const [r] = await db.query(
         `INSERT INTO issues (project_id, issue_number, issue_type, title, description,
          raised_by, assigned_to, drawing_id, location, due_date, file_path,
-         status, confirmed_by, confirmed_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         status, confirmed_by, confirmed_at${extraCol})
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?${raisedAt ? ',?' : ''})`,
         [req.params.project_id, issueNumber, body.issue_type, body.title, body.description,
          req.session.user.id, assignedTo, body.drawing_id, body.location,
-         body.due_date, req.file?.path||null, initialStatus, confirmedBy, confirmedAt]
+         body.due_date, req.file?.path||null, initialStatus, confirmedBy, confirmedAt, ...extraVal]
       );
       result = r;
     });

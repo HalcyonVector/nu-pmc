@@ -65,6 +65,37 @@ async function loadProjectsForUser(user) {
 // Credentials: user1 / Start@123 (set in seed via dev-seed.sql)
 
 if (process.env.NODE_ENV === 'development') {
+  // GET /api/auth/dev-force-logout — emergency escape from stuck sessions (dev only).
+  // GET bypasses blockAuditWrites, so this works even when locked in audit mode.
+  router.get('/dev-force-logout', (req, res) => {
+    req.session.destroy(() => {
+      const cookieOpts = { sameSite: 'strict', secure: process.env.FORCE_HTTPS === '1' };
+      res.clearCookie('connect.sid', cookieOpts);
+      const { COOKIE_NAME: CSRF_COOKIE } = require('../../../middleware/csrf');
+      res.clearCookie(CSRF_COOKIE, { sameSite: 'strict', secure: process.env.FORCE_HTTPS === '1' });
+      res.json({ success: true, message: 'Session forcibly cleared — reload and log in again' });
+    });
+  });
+
+  // GET /api/auth/dev-escape?user_id=N — directly switch session to any user (dev only).
+  // GET bypasses blockAuditWrites so this works even from a locked audit session.
+  router.get('/dev-escape', asyncHandler(async (req, res) => {
+    const userId = parseInt(req.query.user_id, 10) || 1;
+    const [[user]] = await db.query(
+      'SELECT id, username, full_name, role, stream FROM users WHERE id = ?',
+      [userId]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Skip project-scope query — APP._devSwitch re-fetches full session data anyway
+    req.session.regenerate(err => {
+      if (err) return res.status(500).json({ error: 'Session regenerate failed: ' + err.message });
+      req.session.user = { ...user, projects: [], force_password_change: false };
+      const { issueToken } = require('../../../middleware/csrf');
+      issueToken(req, res);
+      res.json({ success: true, role: user.role });
+    });
+  }));
+
   const DEV_PASSWORD = 'Start@123';
   const DEV_USERNAME = 'user1';
 
@@ -224,10 +255,14 @@ router.post('/logout', (req, res) => {
       // Even if destroy failed, clear the cookie client-side so the
       // browser stops sending it.
     }
-    res.clearCookie('connect.sid');
+    // Must pass the same SameSite/Secure options used when the cookie was
+    // set (server.js session config) — without them some browsers treat the
+    // clearing Set-Cookie as a different cookie and ignore it.
+    const cookieOpts = { sameSite: 'strict', secure: process.env.FORCE_HTTPS === '1' };
+    res.clearCookie('connect.sid', cookieOpts);
     // Clear the CSRF cookie too — session is gone, token is invalid.
     const { COOKIE_NAME: CSRF_COOKIE } = require('../../../middleware/csrf');
-    res.clearCookie(CSRF_COOKIE);
+    res.clearCookie(CSRF_COOKIE, { sameSite: 'strict', secure: process.env.FORCE_HTTPS === '1' });
     res.json({ success: true });
   });
 });

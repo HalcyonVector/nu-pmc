@@ -50,6 +50,9 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
     //   'project_progress' → photos tagged as 'progress' (or untagged, since default is progress)
     //   'issue'            → photos tagged as 'defect'
     //   default (both)     → all photos
+    // Allowlist guard — reject any value not explicitly expected (HIGH-1 fix)
+    const VALID_TYPES = new Set(['project_progress', 'issue', 'all', 'project_progress,issue', undefined, '']);
+    if (types && !VALID_TYPES.has(types)) return res.status(400).json({ error: 'Invalid types filter' });
     let typeFilter = '';
     if (types && types !== 'all' && types !== 'project_progress,issue') {
       if (types === 'project_progress') {

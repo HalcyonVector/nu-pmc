@@ -591,6 +591,43 @@ app.use(olErrorHandler);
 app.use(require('./middleware/error-handler').errorHandler);
 
 if (require.main === module) {
+  // ── Auto-migrate: create any tables that may be missing from the running DB ──
+  const db = require('./middleware/db');
+  (async () => {
+    try {
+      await db.query(`CREATE TABLE IF NOT EXISTS user_leave_requests (
+        id int(10) unsigned NOT NULL AUTO_INCREMENT,
+        user_id int(10) unsigned NOT NULL,
+        from_date date NOT NULL,
+        to_date date NOT NULL,
+        reason varchar(500) DEFAULT NULL,
+        created_at datetime NOT NULL DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        KEY idx_ulr_user_dates (user_id, from_date, to_date),
+        CONSTRAINT fk_ulr_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`);
+
+      // Ensure deputy_overridden_at column exists (added in schema v2)
+      // Use INFORMATION_SCHEMA check instead of IF NOT EXISTS — compatible with MySQL 5.7+
+      const [[colCheck]] = await db.query(
+        `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'deputy_overridden_at'`
+      );
+      if (colCheck.cnt === 0) {
+        await db.query(`ALTER TABLE users ADD COLUMN deputy_overridden_at datetime DEFAULT NULL`);
+      }
+
+      console.log('[migrate] Schema checks complete');
+    } catch (e) {
+      console.warn('[migrate] Non-fatal:', e.message);
+    }
+  })();
+
+  // Production safety checks (LOW-1 fix)
+  if (process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== '1') {
+    console.warn('\x1b[33m[SECURITY WARNING] Session cookies are NOT marked Secure. Set FORCE_HTTPS=1 in production to prevent session theft over HTTP.\x1b[0m');
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`nu PMC server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

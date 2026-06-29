@@ -2769,6 +2769,202 @@ html[data-theme="dark"] .filter-chip.sel {
   font-family: var(--mono);
   font-size: 9px;
   letter-spacing:
+/* ── ENGAGEMENT CARDS ── */
+.eng-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border2);
+  border-radius: var(--r2);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+  transition: box-shadow .15s, transform .1s;
+  overflow: hidden;
+}
+.eng-card:active { transform: scale(.995); }
+.eng-card.s-approved { border-left-color: var(--green); background: linear-gradient(135deg, var(--green-bg) 0%, transparent 60%); }
+.eng-card.s-pending  { border-left-color: var(--amber); background: linear-gradient(135deg, var(--amber-bg) 0%, transparent 60%); }
+.eng-card.s-rejected { border-left-color: var(--red);   background: linear-gradient(135deg, var(--red-bg)   0%, transparent 60%); }
+.eng-card-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.eng-card-left { flex: 1; min-width: 0; }
+.eng-card-name {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+  margin-bottom: 5px;
+}
+.eng-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+.eng-chip {
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--navy);
+  background: rgba(29,61,98,.08);
+  border: 1px solid rgba(29,61,98,.18);
+  border-radius: 4px;
+  padding: 2px 7px;
+  letter-spacing: .02em;
+}
+.eng-scope {
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.eng-card-byline {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted2);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.eng-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.eng-contract-box {
+  background: var(--navy);
+  border-radius: var(--r);
+  padding: 6px 10px;
+  text-align: right;
+  min-width: 90px;
+}
+.eng-contract-val {
+  font-family: var(--mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.2;
+}
+.eng-contract-lbl {
+  font-size: 9px;
+  color: rgba(255,255,255,.6);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-top: 2px;
+}
+.eng-warning {
+  font-size: var(--text-xs);
+  margin-top: 5px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.eng-warning.w-amber { color: var(--amber); background: var(--amber-bg); border: 1px solid var(--amber-br); }
+.eng-warning.w-red   { color: var(--red);   background: var(--red-bg);   border: 1px solid var(--red-br); }
+.eng-mob-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(29,61,98,.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+.eng-mob-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.eng-mob-label {
+  font-size: var(--text-xs);
+  font-family: var(--mono);
+  letter-spacing: .04em;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.eng-mob-val {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.eng-mob-since {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.eng-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── VENDOR MASTER CARDS ── */
+.vm-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border2);
+  border-radius: var(--r2);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+  transition: box-shadow .15s;
+}
+.vm-card.s-pending  { border-left-color: var(--amber); background: linear-gradient(135deg, var(--amber-bg) 0%, transparent 60%); }
+.vm-card.s-cleared  { border-left-color: var(--green); background: linear-gradient(135deg, var(--green-bg) 0%, transparent 60%); }
+.vm-card.s-rejected { border-left-color: var(--red);   background: linear-gradient(135deg, var(--red-bg)   0%, transparent 60%); }
+.vm-card-hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.vm-card-name { font-size: var(--text-md); font-weight: 700; color: var(--text); margin-bottom: 4px; line-height: 1.25; }
+.vm-card-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.vm-card-flags { margin-top: 6px; font-size: var(--text-xs); color: var(--amber); }
+.vm-onboard-btn {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--navy);
+  background: rgba(29,61,98,.07);
+  border: 1px solid rgba(29,61,98,.20);
+  border-radius: var(--r);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.vm-onboard-btn:hover { background: rgba(29,61,98,.13); }
+
+/* Dark mode overrides for eng/vm cards */
+html[data-theme="dark"] .eng-card,
+html[data-theme="dark"] .vm-card { background: #1A2332; border-color: #2A3A4A; }
+html[data-theme="dark"] .eng-card.s-approved { background: linear-gradient(135deg, rgba(74,222,128,.07) 0%, #1A2332 60%); }
+html[data-theme="dark"] .eng-card.s-pending  { background: linear-gradient(135deg, rgba(251,191,36,.07) 0%, #1A2332 60%); }
+html[data-theme="dark"] .eng-card.s-rejected { background: linear-gradient(135deg, rgba(248,113,113,.07) 0%, #1A2332 60%); }
+html[data-theme="dark"] .vm-card.s-pending   { background: linear-gradient(135deg, rgba(251,191,36,.07) 0%, #1A2332 60%); }
+html[data-theme="dark"] .vm-card.s-cleared   { background: linear-gradient(135deg, rgba(74,222,128,.07) 0%, #1A2332 60%); }
+html[data-theme="dark"] .vm-card.s-rejected  { background: linear-gradient(135deg, rgba(248,113,113,.07) 0%, #1A2332 60%); }
+html[data-theme="dark"] .eng-chip { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.15); color: #B0C4D8; }
+html[data-theme="dark"] .eng-contract-box { background: #0D1B2A; }
+html[data-theme="dark"] .eng-mob-strip { background: rgba(255,255,255,.03); border-color: #2A3A4A; }
+html[data-theme="dark"] .vm-onboard-btn { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.15); color: #B0C4D8; }
+html[data-theme="dark"] .vm-onboard-btn:hover { background: rgba(255,255,255,.11); }
+
 /* ── Global select styling — suppress native OS arrow, inject consistent ▼ ── */
 select {
   -webkit-appearance: none;

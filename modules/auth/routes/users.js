@@ -30,6 +30,28 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
   }));
 
+// GET /api/users/deputy-candidates — eligible deputies for the current user
+// Returns users by role eligibility, not reporting hierarchy.
+router.get('/deputy-candidates', requireAuth, asyncHandler(async (req, res) => {
+  const me = req.session.user;
+  const eligibleMap = {
+    design_head:   ['team_lead', 'jr_architect'],
+    services_head: ['services_engineer'],
+    pmc_head:      ['pmc_head'],
+  };
+  const eligible = eligibleMap[me.role];
+  if (!eligible) return res.json({ users: [] });
+
+  const placeholders = eligible.map(() => '?').join(',');
+  const [users] = await db.query(
+    `SELECT id, username, full_name, role, stream FROM users
+      WHERE role IN (${placeholders}) AND id != ? AND is_active = 1
+      ORDER BY full_name`,
+    [...eligible, me.id]
+  );
+  res.json({ users });
+}));
+
 // GET /api/users/me — current user's profile (with deputy_id)
 // Used by the Profile screen to render deputy & leave UI.
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
@@ -37,7 +59,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
     const [[user]] = await db.query(
       `SELECT id, username, full_name, role, stream, managed_by, is_active,
               deputy_id, deputy_from, deputy_until, deputy_reason,
-              deputy_set_by, deputy_overridden_by, deputy_overridden_at
+              deputy_set_by, deputy_overridden_by
          FROM users WHERE id = ?`,
       [me.id]
     );
@@ -205,7 +227,7 @@ router.patch("/:id/deputy", requireAuth, async (req, res) => {
       await db.query(
         `UPDATE users SET deputy_id=NULL, deputy_from=NULL, deputy_until=NULL,
                           deputy_reason=NULL, deputy_set_by=NULL,
-                          deputy_overridden_by=NULL, deputy_overridden_at=NULL
+                          deputy_overridden_by=NULL
          WHERE id=?`, [targetId]);
       audit.log({ userId: me.id, action: 'user.deputy_clear',
         entityType: 'users', entityId: targetId,
@@ -215,7 +237,7 @@ router.patch("/:id/deputy", requireAuth, async (req, res) => {
     if (isSelf) {
       await db.query(
         `UPDATE users SET deputy_id=?, deputy_from=?, deputy_until=?, deputy_reason=?,
-                          deputy_set_by=?, deputy_overridden_by=NULL, deputy_overridden_at=NULL
+                          deputy_set_by=?, deputy_overridden_by=NULL
          WHERE id=?`,
         [deputy_id, deputy_from || null, deputy_until || null, deputy_reason || null, me.id, targetId]
       );
@@ -226,7 +248,7 @@ router.patch("/:id/deputy", requireAuth, async (req, res) => {
       // Principal override path — stamps overridden_by + overridden_at
       await db.query(
         `UPDATE users SET deputy_id=?, deputy_from=?, deputy_until=?, deputy_reason=?,
-                          deputy_set_by=?, deputy_overridden_by=?, deputy_overridden_at=NOW()
+                          deputy_set_by=?, deputy_overridden_by=?
          WHERE id=?`,
         [deputy_id, deputy_from || null, deputy_until || null, deputy_reason || null,
          me.id, me.id, targetId]

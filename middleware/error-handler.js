@@ -15,6 +15,12 @@ function asyncHandler(fn) {
 function errorHandler(err, req, res, _next) {
   if (res.headersSent) return;
 
+  // Multer file-size limit → friendly 413
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    const mb = parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 20;
+    return res.status(413).json({ error: `File too large. Maximum allowed size is ${mb} MB.`, code: 'FILE_TOO_LARGE' });
+  }
+
   const status = err.status || err.statusCode || 500;
   const code   = err.code   || (status === 400 ? 'BAD_REQUEST' :
                                 status === 401 ? 'UNAUTHORIZED' :
@@ -32,7 +38,7 @@ function errorHandler(err, req, res, _next) {
     error:  status >= 500 ? 'Internal server error' : err.message,
     code,
     ...(err.details && { details: err.details }),
-    ...(process.env.NODE_ENV !== 'production' && status >= 500 && { stack: err.stack?.split('\n').slice(0,5) }),
+    // Stack traces never sent to clients — logged server-side above (MEDIUM-1 fix)
   });
 }
 

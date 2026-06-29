@@ -7231,82 +7231,50 @@ APP.submitGRN = async function() {
 // ── ISSUES — register
 APP.renderIssues = async function() {
   const el = UI.contentEl();
-  const viewMode = APP.state.issuesViewMode || 'all'; // 'all' or 'project'
-  
-  let data, issues = [], availableProjects = [];
-  
-  if (viewMode === 'all') {
-    // Fetch all issues across user's projects
-    data = await API.get('/issues/all');
-    if (!data) return;
-    issues = data.issues || [];
-    availableProjects = data.projects || [];
-  } else {
-    // Single project mode (existing behavior)
-    let pid = APP.state.selectedProject;
-    if (!pid) {
-      const projects = APP.user?.projects || [];
-      if (projects.length) { pid = projects[0].id; APP.state.selectedProject = pid; }
-    }
-    if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
-    data = await API.get(`/issues/${pid}`);
-    if (!data) return;
-    issues = data.issues || [];
-    availableProjects = APP.user?.projects || [];
-  }
+  // Always load all issues across assigned projects
+  const data = await API.get('/issues/all');
+  if (!data) return;
+  let issues = data.issues || [];
+  const availableProjects = data.projects || [];
+  APP.state.issueProjects = availableProjects; // cache for showIssueForm
 
   const role = APP.user.role;
   const canRaise   = ['site_manager','senior_site_manager','pmc_head','design_head','services_head'].includes(role);
   const canConfirm = ['pmc_head','design_head','services_head','principal','design_principal'].includes(role);
 
+  // Project filter dropdown
+  const selectedProjectFilter = APP.state.selectedProjectFilter || null;
   let html = '';
-
-  // View mode toggle
-  html += `<div style="margin-bottom:16px">
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <button style="padding:6px 12px;border-radius:4px;font-size:12px;border:1px solid ${viewMode==='all'?'var(--navy)':'var(--border)'};background:${viewMode==='all'?'var(--navy)':'var(--white)'};color:${viewMode==='all'?'var(--white)':'var(--text)'}" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=null;APP.renderIssues()">All Projects</button>
-      <button style="padding:6px 12px;border-radius:4px;font-size:12px;border:1px solid ${viewMode==='project'?'var(--navy)':'var(--border)'};background:${viewMode==='project'?'var(--navy)':'var(--white)'};color:${viewMode==='project'?'var(--white)':'var(--text)'}" onclick="APP.state.issuesViewMode='project';APP.renderIssues()">Single Project</button>
-    </div>
-  `;
-
-  // Project filter (only in all projects mode)
-  if (viewMode === 'all' && availableProjects.length > 0) {
-    const selectedProjectFilter = APP.state.selectedProjectFilter;
+  if (availableProjects.length > 1) {
     html += `<div style="margin-bottom:12px">
       <select onchange="APP.state.selectedProjectFilter=this.value==='all'?null:parseInt(this.value);APP.renderIssues()" style="padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:100%">
-        <option value="all" ${!selectedProjectFilter ? 'selected' : ''}>All Projects</option>
-        ${availableProjects.map(p => `<option value="${p.id}" ${selectedProjectFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+        <option value="all" ${!selectedProjectFilter?'selected':''}>All Projects</option>
+        ${availableProjects.map(p => `<option value="${p.id}" ${selectedProjectFilter===p.id?'selected':''}>${UI.escapeText(p.name)}</option>`).join('')}
       </select>
     </div>`;
-    
-    // Filter issues by selected project if one is chosen
-    if (selectedProjectFilter) {
-      issues = issues.filter(i => i.project_id === selectedProjectFilter);
-      
-      // Move selected project to top in display
-      const selectedProject = availableProjects.find(p => p.id === selectedProjectFilter);
-      if (selectedProject) {
-        availableProjects = [selectedProject, ...availableProjects.filter(p => p.id !== selectedProjectFilter)];
-      }
-    }
+  }
+  if (selectedProjectFilter) {
+    issues = issues.filter(i => i.project_id === selectedProjectFilter);
   }
 
-  html += `</div>`;
+  // Always show draft issues the current user raised (visibility after submission)
+  const myDraft = i => i.status === 'draft' && i.raised_by === APP.user.id;
 
   const needsConfirm = issues.filter(i => i.status === 'draft' && canConfirm);
   if (needsConfirm.length) {
     html += `<div class="sec-label">Needs Confirmation (${needsConfirm.length})</div>`;
     needsConfirm.forEach(i => {
       html += `<div class="issue-item ${i.issue_type}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
+        <button onclick="APP.openIssueDetail(${i.id})" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%;background:none;border:none;padding:0;text-align:left;cursor:pointer">
           <div style="flex:1;min-width:0">
             <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
             <div class="iss-title">${i.title}</div>
-            <div class="iss-meta">Raised: ${i.raised_by_name||'—'} · ${UI.fmtDate(i.created_at)}${viewMode === 'all' && i.project_name ? ` · ${i.project_name}` : ''}</div>
+            <div class="iss-meta">Raised: ${i.raised_by_name||'—'} · ${UI.fmtDate(i.created_at)}${i.project_name ? ` · ${i.project_name}` : ''}</div>
+            ${i.file_path ? `<div style="font-size:11px;color:var(--navy);margin-top:4px">📎 Photo attached — tap to view</div>` : ''}
           </div>
           <span class="badge b-amber">Draft</span>
-        </div>
+        </button>
         <div class="btn-row" style="margin-top:10px">
           <button class="btn-approve" onclick="APP.confirmIssue(${i.id})">Confirm</button>
           <button class="btn-reject" onclick="APP.dismissIssue(${i.id})">Dismiss</button>
@@ -7319,9 +7287,9 @@ APP.renderIssues = async function() {
   const cur = APP.state.issueFilter || 'all';
   html += `<div class="sec-hdr-row">
     <div class="sec-label" style="margin:0;flex:1">Issues Register</div>
-    ${canRaise && viewMode === 'project' ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
+    ${canRaise ? `<button class="btn-primary sec-hdr-btn" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
   </div>
-  ${canRaise && viewMode === 'project' ? `<button class="btn-primary sec-action-mobile" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
+  ${canRaise ? `<button class="btn-primary sec-action-mobile" onclick="APP.showIssueForm()">+ Raise Issue</button>` : ''}
   ${APP._sortToggleHTML('issues', ['default','urgency','age'])}
   <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px">
     ${typeFilters.map(f => `<button style="min-height:44px;flex-shrink:0;padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;border:1px solid ${f===cur?'var(--navy)':'var(--border)'};background:${f===cur?'var(--navy)':'var(--white)'};color:${f===cur?'var(--white)':'var(--muted)'}" onclick="APP.state.issueFilter='${f}';APP.renderIssues()">${f.replace('_', ' ')}</button>`).join('')}
@@ -7329,40 +7297,34 @@ APP.renderIssues = async function() {
 
   let filtered;
   if (cur === 'needs_you') {
-    filtered = issues.filter(i => 
+    filtered = issues.filter(i =>
       (i.assigned_to === APP.user.id || i.assigned_to_site === APP.user.id) ||
-      (i.status === 'draft' && canConfirm)
+      (i.status === 'draft' && (canConfirm || myDraft(i)))
     );
   } else if (cur === 'all') {
-    filtered = issues.filter(i => i.status !== 'draft');
+    filtered = issues.filter(i => i.status !== 'draft' || myDraft(i));
   } else {
-    filtered = issues.filter(i => i.issue_type === cur && i.status !== 'draft');
+    filtered = issues.filter(i => i.issue_type === cur && (i.status !== 'draft' || myDraft(i)));
   }
 
   filtered = APP._applySort(filtered, APP._getSortMode('issues'), { urgencyField:'issue_type', ageField:'raised_at' });
-  
-  if (!filtered.length) { 
-    html += UI.empty('','No issues in this category'); 
+
+  if (!filtered.length) {
+    html += UI.empty('','No issues in this category');
   } else {
-    // Group by project when in all-projects mode and no specific project is filtered
-    if (viewMode === 'all' && !APP.state.selectedProjectFilter) {
+    if (!APP.state.selectedProjectFilter) {
       const issuesByProject = {};
       filtered.forEach(i => {
         const projectName = i.project_name || 'Unknown Project';
         if (!issuesByProject[projectName]) issuesByProject[projectName] = [];
         issuesByProject[projectName].push(i);
       });
-      
-      // Sort projects by number of issues (descending)
-      const sortedProjects = Object.keys(issuesByProject).sort((a, b) => 
-        issuesByProject[b].length - issuesByProject[a].length
-      );
-      
-      sortedProjects.slice(0, 10).forEach(projectName => { // Limit to top 10 projects
+      const sortedProjects = Object.keys(issuesByProject).sort((a,b) => issuesByProject[b].length - issuesByProject[a].length);
+      sortedProjects.slice(0,10).forEach(projectName => {
         const projectIssues = issuesByProject[projectName];
         html += `<div class="sec-label" style="margin-top:20px;margin-bottom:8px">${projectName} (${projectIssues.length})</div>`;
-        projectIssues.slice(0, 5).forEach(i => { // Show up to 5 issues per project
-          const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
+        projectIssues.slice(0,5).forEach(i => {
+          const badge = i.status === 'draft' ? 'b-muted' : i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
           html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer;width:100%;text-align:left;display:block" onclick="APP.openIssueDetail(${i.id})">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
               <div style="flex:1;min-width:0">
@@ -7374,10 +7336,9 @@ APP.renderIssues = async function() {
             </div>
           </button>`;
         });
-        
         if (projectIssues.length > 5) {
           html += `<div style="padding:8px;color:var(--muted);font-size:12px;text-align:center">
-            <button style="background:none;border:none;color:var(--navy);cursor:pointer;font-size:12px" 
+            <button style="background:none;border:none;color:var(--navy);cursor:pointer;font-size:12px"
                     onclick="APP.state.selectedProjectFilter=${projectIssues[0].project_id};APP.renderIssues()">
               View all ${projectIssues.length} issues →
             </button>
@@ -7385,15 +7346,14 @@ APP.renderIssues = async function() {
         }
       });
     } else {
-      // Regular list view (single project mode or filtered project)
       filtered.slice(0,50).forEach(i => {
-        const badge = i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
+        const badge = i.status === 'draft' ? 'b-muted' : i.status === 'open' ? 'b-red' : i.status === 'in_progress' ? 'b-amber' : 'b-green';
         html += `<button class="issue-item ${i.issue_type}" style="min-height:44px;cursor:pointer;width:100%;text-align:left;display:block" onclick="APP.openIssueDetail(${i.id})">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%">
             <div style="flex:1;min-width:0">
               <div class="iss-num">${i.issue_number||'ISS-'+i.id} · <span style="text-transform:uppercase;font-size:10px">${i.issue_type}</span></div>
               <div class="iss-title">${i.title}</div>
-              <div class="iss-meta">${i.assigned_to_name||'Unassigned'} · ${UI.fmtDate(i.due_date||i.created_at)}${viewMode === 'all' && i.project_name ? ` · ${i.project_name}` : ''}</div>
+              <div class="iss-meta">${i.assigned_to_name||'Unassigned'} · ${UI.fmtDate(i.due_date||i.created_at)}${i.project_name ? ` · ${i.project_name}` : ''}</div>
             </div>
             <span class="badge ${badge}">${i.status}</span>
           </div>
@@ -7419,21 +7379,14 @@ APP.renderIssues = async function() {
 //   PATCH  /api/issues/:id/confirm  / /dismiss
 //   PATCH  /api/issues/:id/close    (new — added below)
 APP.openIssueDetail = async function(issueId) {
-  const viewMode = APP.state.issuesViewMode || 'all';
-  let data;
-  
-  if (viewMode === 'all') {
-    // In all-projects view, fetch all issues and find the specific one
-    data = await API.get('/issues/all');
-  } else {
-    // Single project view (existing behavior)
-    const pid = APP.state.selectedProject;
-    data = await API.get(`/issues/${pid}`);
-  }
-  
+  const [data, photosRes] = await Promise.all([
+    API.get('/issues/all'),
+    API.get(`/issues/${issueId}/photos`).catch(() => null),
+  ]);
   if (!data) return;
   const issue = (data.issues || []).find(x => x.id === issueId);
   if (!issue) { UI.toast('Issue not found'); return; }
+  const photos = photosRes?.photos || [];
 
   const me = APP.user || {};
   const role = me.role;
@@ -7460,7 +7413,7 @@ APP.openIssueDetail = async function(issueId) {
       <div>
         <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">${issue.issue_number||'ISS-'+issue.id}</div>
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:2px">${issue.issue_type}</div>
-        ${viewMode === 'all' && issue.project_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${issue.project_name}</div>` : ''}
+        ${issue.project_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${issue.project_name}</div>` : ''}
       </div>
       <span class="badge" style="background:${statusColor};color:#fff">${issue.status}</span>
     </div>
@@ -7478,6 +7431,20 @@ APP.openIssueDetail = async function(issueId) {
     </div>
 
     ${issue.resolution_note ? `<div style="font-size:12px;background:#eefaf2;padding:10px;border-left:3px solid var(--green);border-radius:var(--r2);margin-bottom:14px;white-space:pre-wrap">${issue.resolution_note}</div>` : ''}
+
+    ${photos.length ? `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Photos (${photos.length})</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${photos.map(p => {
+          const url = API.fileUrl(p.file_path, 'issues');
+          const name = (p.file_path || '').split('/').pop() || 'photo';
+          return `<div style="position:relative;width:90px;height:90px;border-radius:6px;overflow:hidden;border:1px solid var(--border);flex-shrink:0">
+            <img src="${url}" alt="Issue photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${url}','_blank')">
+            <a href="${url}" download="${UI.escapeAttr(name)}" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;text-align:center;padding:3px;text-decoration:none">↓ Download</a>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="btn-row" style="margin-top:16px;flex-wrap:wrap;gap:6px">
       ${canResolve ? `<button class="btn-primary" onclick="APP._resolveIssue(${issue.id})">Resolve</button>` : ''}
@@ -7541,7 +7508,24 @@ APP.dismissIssue = async function(id) {
   if (res?.success) { UI.toast('Dismissed'); APP.renderIssues(); }
 };
 APP.showIssueForm = function() {
+  const projects = APP.state.issueProjects || [];
+  const hasFilter = !!APP.state.selectedProjectFilter;
+  const today = UI.todayIST();
+
+  let projectRow;
+  if (!hasFilter && projects.length > 1) {
+    const opts = projects.map(p => `<option value="${p.id}">${UI.escapeText(p.name)}</option>`).join('');
+    projectRow = `<div class="field-row"><label class="field-label" for="iss-project">Project *</label>
+      <select id="iss-project" style="width:100%;height:38px;padding:6px;border-radius:var(--r);border:1px solid var(--border)">
+        ${opts}
+      </select></div>`;
+  } else {
+    const pid = APP.state.selectedProjectFilter || APP.state.selectedProject || projects[0]?.id || '';
+    projectRow = `<input type="hidden" id="iss-project" value="${pid}">`;
+  }
+
   UI.openModal('Raise Issue', `
+    ${projectRow}
     <div class="field-row"><label class="field-label" for="iss-type">Type</label>
       <select id="iss-type">
         <option value="safety">Safety</option>
@@ -7554,22 +7538,58 @@ APP.showIssueForm = function() {
       <input type="text" id="iss-title" placeholder="Brief description"></div>
     <div class="field-row"><label class="field-label" for="iss-desc">Details</label>
       <textarea id="iss-desc" rows="3" placeholder="Describe the issue..."></textarea></div>
-    <div class="field-row"><label class="field-label" for="iss-due">Due Date</label>
-      <input type="date" id="iss-due"></div>
-    <button class="btn-primary" onclick="APP.submitIssue()">Raise Issue</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field-row"><label class="field-label" for="iss-date">Incident Date</label>
+        <input type="date" id="iss-date" value="${today}"></div>
+      <div class="field-row"><label class="field-label" for="iss-due">Due Date</label>
+        <input type="date" id="iss-due"></div>
+    </div>
+    <div class="field-row">
+      <label class="field-label">Photo <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <label for="iss-photo" id="iss-photo-label" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:8px;padding:18px 12px;cursor:pointer;background:var(--card,#fafafa)">
+        <span style="font-size:28px">📷</span>
+        <span style="font-size:12px;color:var(--muted)">Tap to add photo</span>
+      </label>
+      <input type="file" id="iss-photo" accept="image/*" capture="environment" style="display:none" onchange="APP._issuePhotoPreview(this)">
+      <div id="iss-photo-preview" style="display:none;margin-top:8px;position:relative;width:100px;height:100px">
+        <img id="iss-photo-img" style="width:100%;height:100%;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+        <button type="button" onclick="APP._issuePhotoClear()" style="position:absolute;top:-6px;right:-6px;background:var(--red,#c0392b);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">x</button>
+      </div>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:4px" onclick="APP.submitIssue()">Raise Issue</button>
   `);
 };
+APP._issuePhotoPreview = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  document.getElementById('iss-photo-img').src = url;
+  document.getElementById('iss-photo-preview').style.display = 'block';
+  document.getElementById('iss-photo-label').style.display = 'none';
+};
+APP._issuePhotoClear = function() {
+  document.getElementById('iss-photo').value = '';
+  document.getElementById('iss-photo-preview').style.display = 'none';
+  document.getElementById('iss-photo-label').style.display = '';
+};
 APP.submitIssue = async function() {
-  const pid = APP.state.selectedProject;
-  const body = {
-    issue_type: document.getElementById('iss-type').value,
-    title:      document.getElementById('iss-title').value,
-    description:document.getElementById('iss-desc').value,
-    due_date:   document.getElementById('iss-due').value || null,
-  };
-  if (!body.title) { UI.toast('Add a title'); return; }
-  const res = await API.post(`/issues/${pid}`, body);
-  if (res?.success) { APP.closeModal(); UI.toast('Issue raised ✓'); APP.renderIssues(); }
+  const pidEl = document.getElementById('iss-project');
+  const pid = pidEl ? parseInt(pidEl.value, 10) : null;
+  if (!pid) { UI.toast('Select a project'); return; }
+  const title = document.getElementById('iss-title')?.value?.trim();
+  if (!title) { UI.toast('Add a title'); return; }
+  const photo = document.getElementById('iss-photo')?.files?.[0];
+  const fd = new FormData();
+  fd.append('issue_type', document.getElementById('iss-type').value);
+  fd.append('title',      title);
+  fd.append('description', document.getElementById('iss-desc')?.value?.trim() || '');
+  const due = document.getElementById('iss-due')?.value;
+  if (due) fd.append('due_date', due);
+  const incidentDate = document.getElementById('iss-date')?.value;
+  if (incidentDate) fd.append('incident_date', incidentDate);
+  if (photo) fd.append('photo', photo);
+  const res = await API.call('POST', `/issues/${pid}`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Issue raised ✓'); APP.renderIssues(); }
   else { UI.toast(res?.error || 'Failed to raise issue'); }
 };
 // renderMeetings is the unified entry point (Fold B).
@@ -12847,7 +12867,13 @@ APP.claimRsSign = async function(pid, claimId) {
 
 APP.claimPmcSign = async function(pid, claimId) {
   const res = await API.post(`/claims/${pid}/${claimId}/pmc-signoff`, {});
-  if (res?.success) { UI.toast('PMC Approved ✓'); APP.renderClaims(); }
+  if (res?.success) { UI.toast('PMC Signoff recorded ✓'); APP.renderClaims(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP.claimApprove = async function(pid, claimId) {
+  const res = await API.post(`/claims/${pid}/${claimId}/approve`, {});
+  if (res?.success) { UI.toast('Claim approved ✓'); APP.renderClaims(); }
   else UI.toast(res?.error || 'Failed');
 };
 

@@ -169,12 +169,13 @@ const ClientReceipt = z.object({
 const IssueCreate = z.object({
   issue_type:           IssueType.default('quality'),
   title:                NonEmptyString.max(300),
-  description:          NonEmptyString.max(5000),
+  description:          z.string().trim().max(5000).default(''),
   location:             OptionalString,
   priority:             IssuePriority.default('medium'),
   assigned_to:          NullableId.optional(),
   drawing_id:           NullableId.optional(),
   due_date:             DateString.nullable().optional(),
+  incident_date:        DateString.nullable().optional(),
 });
 
 const RFICreate = z.object({

@@ -13,6 +13,9 @@
 --   F. New tables present in schema.sql but absent from the May-02 dump:
 --        sessions, password_reset_otps, project_photos, issue_photos,
 --        meeting_photos, weekly_report_photos, snags, pre_handover_snags
+--   G. Deputy scheduling columns on users table
+--        deputy_from, deputy_until, deputy_reason, deputy_set_by, deputy_overridden_by
+--   H. cost_impact + stream columns on change_notices table
 --
 -- All statements are idempotent — safe to run on an already-patched DB.
 -- MySQL does not support ADD COLUMN IF NOT EXISTS; column additions are
@@ -412,5 +415,69 @@ SELECT
   (SELECT COUNT(*) FROM information_schema.COLUMNS
    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'issues' AND COLUMN_NAME = 'rfi_number'
   ) AS issues_rfi_fields;
+
+-- ============================================================
+-- G. Deputy scheduling columns on users table
+--    Present in nu-pmc-install-20260502.sql but absent from local_full.sql.
+--    Required by: /api/changes/:id/sign  (ER_BAD_FIELD_ERROR without these)
+--                 /api/users/:id/deputy  (SET deputy_from / deputy_until)
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS _patch_deputy_cols;
+DELIMITER $$
+CREATE PROCEDURE _patch_deputy_cols()
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'deputy_from'
+  ) THEN
+    ALTER TABLE users
+      ADD COLUMN deputy_from          DATE           NULL DEFAULT NULL AFTER deputy_id,
+      ADD COLUMN deputy_until         DATE           NULL DEFAULT NULL AFTER deputy_from,
+      ADD COLUMN deputy_reason        VARCHAR(300)   NULL DEFAULT NULL AFTER deputy_until,
+      ADD COLUMN deputy_set_by        INT UNSIGNED   NULL DEFAULT NULL AFTER deputy_reason,
+      ADD COLUMN deputy_overridden_by INT UNSIGNED   NULL DEFAULT NULL AFTER deputy_set_by;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND INDEX_NAME = 'fk_users_deputy_set_by'
+  ) THEN
+    ALTER TABLE users
+      ADD KEY fk_users_deputy_set_by        (deputy_set_by),
+      ADD KEY fk_users_deputy_overridden_by (deputy_overridden_by);
+  END IF;
+END$$
+DELIMITER ;
+CALL _patch_deputy_cols();
+DROP PROCEDURE IF EXISTS _patch_deputy_cols;
+
+SELECT 'G: deputy_from/until/reason/set_by/overridden_by columns ensured on users' AS patch_status;
+
+-- ============================================================
+-- H. cost_impact + stream columns on change_notices
+--    Present in nu-pmc-install-20260502.sql but absent from local_full.sql.
+--    Required by: /api/changes/:id/approve  (SELECT lists both explicitly)
+--                 /api/changes/:id/sign     (signoff gate reads cost_impact)
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS _patch_cn_cols;
+DELIMITER $$
+CREATE PROCEDURE _patch_cn_cols()
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'change_notices' AND COLUMN_NAME = 'cost_impact'
+  ) THEN
+    ALTER TABLE change_notices
+      ADD COLUMN cost_impact DECIMAL(14,2) NULL DEFAULT NULL AFTER schedule_impact_days,
+      ADD COLUMN stream ENUM('design','services','common') NULL DEFAULT NULL AFTER cost_impact;
+  END IF;
+END$$
+DELIMITER ;
+CALL _patch_cn_cols();
+DROP PROCEDURE IF EXISTS _patch_cn_cols;
+
+SELECT 'H: cost_impact + stream on change_notices ensured' AS patch_status;
 
 SET FOREIGN_KEY_CHECKS=1;

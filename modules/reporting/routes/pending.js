@@ -58,9 +58,33 @@ async function getSLA(projectId, itemType) {
 // Used for SLA breach detection — age >= sla_days means overdue.
 const AGE_DAYS_EXPR = 'TIMESTAMPDIFF(DAY, %s, NOW())';
 
+// ─── Per-user response cache (30-second TTL) ─────────────────────────
+// Prevents pool exhaustion when many users open the Pending tab
+// simultaneously — each user's result is recomputed at most once per 30s.
+const _pendingCache = new Map(); // userId → { ts, data }
+const PENDING_CACHE_TTL_MS = 30_000;
+function _getPendingCache(userId) {
+  const entry = _pendingCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > PENDING_CACHE_TTL_MS) { _pendingCache.delete(userId); return null; }
+  return entry.data;
+}
+function _setPendingCache(userId, data) {
+  _pendingCache.set(userId, { ts: Date.now(), data });
+  // Evict stale entries (keep map bounded)
+  if (_pendingCache.size > 200) {
+    const cutoff = Date.now() - PENDING_CACHE_TTL_MS;
+    for (const [k, v] of _pendingCache) { if (v.ts < cutoff) _pendingCache.delete(k); }
+  }
+}
+
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   const me = req.session.user;
   const role = me.role;
+
+  // Serve cached result if fresh (prevents pool exhaustion under concurrent load)
+  const cached = _getPendingCache(me.id);
+  if (cached) return res.json(cached);
 
   const blocked = [];
   const needsYou = [];
@@ -216,19 +240,36 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   // ─── BLOCKED — PMC Head view (things stuck with site team) ─────────
   else if (role === 'pmc_head') {
     const Onboarding = require('../../onboarding/contract');
-    // Site reports flagged but not resolved
-    const [flagged] = await db.query(
-      `SELECT dr.id, dr.project_id,
-              dr.ai_flag_reason,
-              TIMESTAMPDIFF(DAY, dr.submitted_at, NOW()) AS age_days
-         FROM daily_reports dr
-        WHERE dr.status = 'flagged'
-          AND TIMESTAMPDIFF(DAY, dr.submitted_at, NOW()) >= 1
-        ORDER BY dr.submitted_at ASC
-        LIMIT 30`
-    );
-    const flagProjs = await Onboarding.functions.getProjectsByIds(flagged.map(r => r.project_id));
-    flagged.forEach(r => { r.project_name = flagProjs.get(r.project_id)?.name || null; });
+    // Run both queries in parallel — they are independent of each other
+    const [[flagged], [siteIssues]] = await Promise.all([
+      db.query(
+        `SELECT dr.id, dr.project_id,
+                dr.ai_flag_reason,
+                TIMESTAMPDIFF(DAY, dr.submitted_at, NOW()) AS age_days
+           FROM daily_reports dr
+          WHERE dr.status = 'flagged'
+            AND TIMESTAMPDIFF(DAY, dr.submitted_at, NOW()) >= 1
+          ORDER BY dr.submitted_at ASC
+          LIMIT 30`
+      ),
+      db.query(
+        `SELECT i.id, i.title, i.project_id,
+                TIMESTAMPDIFF(DAY, i.raised_at, NOW()) AS age_days
+           FROM issues i
+          WHERE i.issue_type IN ('safety','quality')
+            AND i.status IN ('open','in_progress')
+            AND TIMESTAMPDIFF(DAY, i.raised_at, NOW()) >= ?
+          ORDER BY i.raised_at ASC
+          LIMIT 30`,
+        [minThresholds.rfi]
+      ),
+    ]);
+
+    // Hydrate project names in parallel
+    const allProjIds = [...flagged.map(r => r.project_id), ...siteIssues.map(i => i.project_id)];
+    const projMap = await Onboarding.functions.getProjectsByIds(allProjIds);
+
+    flagged.forEach(r => { r.project_name = projMap.get(r.project_id)?.name || null; });
     for (const r of flagged) {
       blocked.push({
         type: 'report_flagged',
@@ -239,20 +280,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
       });
     }
 
-    // Site issues with no update — use raised_at (updated_at not present in issues table)
-    const [siteIssues] = await db.query(
-      `SELECT i.id, i.title, i.project_id,
-              TIMESTAMPDIFF(DAY, i.raised_at, NOW()) AS age_days
-         FROM issues i
-        WHERE i.issue_type IN ('safety','quality')
-          AND i.status IN ('open','in_progress')
-          AND TIMESTAMPDIFF(DAY, i.raised_at, NOW()) >= ?
-        ORDER BY i.raised_at ASC
-        LIMIT 30`,
-      [minThresholds.rfi]
-    );
-    const siProjs = await Onboarding.functions.getProjectsByIds(siteIssues.map(i => i.project_id));
-    siteIssues.forEach(i => { i.project_name = siProjs.get(i.project_id)?.name || null; });
+    siteIssues.forEach(i => { i.project_name = projMap.get(i.project_id)?.name || null; });
     for (const i of siteIssues) {
       if (i.age_days < slaFor(slaMap, i.project_id, 'rfi')) continue;
       blocked.push({
@@ -363,13 +391,15 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   blocked.sort((a, b) => (b.age_days || 0) - (a.age_days || 0));
   needsYou.sort((a, b) => (b.age_days || 0) - (a.age_days || 0));
 
-  res.json({
+  const payload = {
     role,
     blocked,
     needsYou,
     blocked_count: blocked.length,
     needs_you_count: needsYou.length,
-  });
+  };
+  _setPendingCache(me.id, payload);
+  res.json(payload);
 }));
 
 module.exports = router;

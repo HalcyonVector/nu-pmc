@@ -48,6 +48,21 @@ router.post('/reload', requireAuth, requirePrincipal, asyncHandler(async (req, r
   res.json({ success: true, ...result });
 }));
 
+// ── PATCH /api/governance/permissions/rename-action ──────────────────────
+// Renames an action key across all roles (fixes governance-sheet import mismatches).
+router.patch('/permissions/rename-action', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
+  const { from_action, to_action } = req.body;
+  if (!from_action || !to_action) return res.status(400).json({ error: 'from_action and to_action required' });
+  const [result] = await db.query(
+    'UPDATE role_permissions SET action=? WHERE action=?',
+    [to_action, from_action]
+  );
+  await reloadPermissions();
+  audit.log({ userId: req.session.user.id, action: 'governance.permissions.rename-action',
+               entityType: 'system', entityId: 0, meta: { from_action, to_action }, req });
+  res.json({ success: true, rows_updated: result.affectedRows });
+}));
+
 // ── GET /api/governance/permissions ───────────────────────────────────────
 router.get('/permissions', requireAuth, requirePrincipal, asyncHandler(async (req, res) => {
   const [rows] = await db.query(
@@ -194,11 +209,12 @@ async function _importPermissions(workbook, conn) {
 
       if (!action || action === 'Action / Responsibility') continue;
 
-      // If the label IS already a raw action key (e.g. "vendors.create"), use it
-      // verbatim. Pattern: lowercase letters/digits/underscores, dot-separated.
+      // If the label IS already a raw action key (e.g. "vendors.create",
+      // "finance.payment.pre-upload-check"), use it verbatim.
+      // Pattern: lowercase letters/digits/underscores/hyphens, dot-separated.
       // This lets the sheet hold route-level permission keys directly, so there
       // is only one place where a key is defined — the sheet.
-      const isRawKey = /^[a-z0-9_]+(?:\.[a-z0-9_]+)+$/.test(action);
+      const isRawKey = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)+$/.test(action);
       const actionKey = isRawKey
         ? action
         : `${group.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.${action.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;

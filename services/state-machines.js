@@ -37,6 +37,7 @@ const changeNotice = createStateMachine({
   name:  'change_notice',
   table: 'change_notices',
   transitions: {
+    collecting_sigs:   ['pending_approval'],
     draft:             ['pending_approval'],
     pending_approval:  ['approved', 'rejected'],
   },

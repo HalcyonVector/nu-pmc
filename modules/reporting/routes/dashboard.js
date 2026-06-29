@@ -263,56 +263,180 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
   }));
 
-// GET /api/dashboard/morning-brief — overnight activity summary (principals only)
+// GET /api/dashboard/morning-brief — role-curated overnight activity summary
+// Shows ONLY what changed since yesterday. Standing totals live in the Action Centre.
 router.get('/morning-brief', requireAuth, asyncHandler(async (req, res) => {
-  const me = req.session.user;
-  if (!PRINCIPALS.includes(me.role)) {
-    return res.status(403).json({ error: 'Principals only' });
+  const me    = req.session.user;
+  const role  = me.role;
+  const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
+
+  // "Since yesterday morning" — 24 hours ago
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+  // Resolve project scope for project-scoped roles
+  let scopedIds = null;
+  if (PROJECT_SCOPED_ROLES.includes(role)) {
+    const [rows] = await db.query(
+      `SELECT pa.project_id FROM project_assignments pa
+       JOIN projects p ON p.id = pa.project_id AND p.status = 'active'
+       WHERE pa.user_id = ? AND pa.is_active = 1`, [me.id]
+    );
+    scopedIds = rows.map(r => r.project_id);
+    if (!scopedIds.length) {
+      return res.json({ role, metrics: [], items: [], total_activity: 0, needs_attention: false,
+        summary: 'No active projects assigned yet.' });
+    }
   }
 
-  // Activity in the last 18 hours
-  const since = new Date(Date.now() - 18 * 60 * 60 * 1000)
-    .toISOString().slice(0, 19).replace('T', ' ');
+  // Helper: count rows
+  const count = async (sql, params = []) => {
+    const [[row]] = await db.query(sql, params);
+    return Number(row.cnt || 0);
+  };
+  // Project scope helpers
+  const pf = scopedIds ? ' AND project_id IN (?)' : '';
+  const pp = scopedIds ? [scopedIds] : [];
 
-  const [[drawings]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM drawing_versions WHERE created_at >= ?', [since]
-  );
-  const [[payments]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM vendor_payments WHERE raised_at >= ?', [since]
-  );
-  const [[flags]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM task_updates WHERE is_flagged = 1 AND created_at >= ?', [since]
-  );
-  const [[issues]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ?', [since]
-  );
-  const [[reports]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM weekly_reports WHERE created_at >= ?', [since]
-  );
-  const [[taskUpdates]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM task_updates WHERE created_at >= ?', [since]
-  );
+  let metrics = [];
+  let items   = [];
+  let needsAttention = false;
 
-  const items = [];
-  if (drawings.cnt > 0) items.push(`${drawings.cnt} drawing${drawings.cnt > 1 ? 's' : ''} issued`);
-  if (payments.cnt > 0) items.push(`${payments.cnt} payment${payments.cnt > 1 ? 's' : ''} raised`);
-  if (flags.cnt > 0)    items.push(`${flags.cnt} task flag${flags.cnt > 1 ? 's' : ''} raised`);
-  if (issues.cnt > 0)   items.push(`${issues.cnt} issue${issues.cnt > 1 ? 's' : ''} logged`);
-  if (reports.cnt > 0)  items.push(`${reports.cnt} report${reports.cnt > 1 ? 's' : ''} submitted`);
-  if (taskUpdates.cnt > 0) items.push(`${taskUpdates.cnt} task update${taskUpdates.cnt > 1 ? 's' : ''}`);
+  // Metric builder helpers — "since yesterday" vs "today" vs "needs action"
+  const addSince = (n, singular, plural, lbl) => {
+    if (!n) return;
+    metrics.push({ val: n, lbl });
+    items.push(`${n} ${n > 1 ? plural : singular} since yesterday`);
+  };
+  const addToday = (n, singular, plural, lbl) => {
+    if (!n) return;
+    metrics.push({ val: n, lbl });
+    items.push(`${n} ${n > 1 ? plural : singular} today`);
+  };
+  const addAction = (n, text, lbl, urgent = false) => {
+    if (!n) return;
+    metrics.push({ val: n, lbl });
+    items.push(text);
+    if (urgent) needsAttention = true;
+  };
 
-  res.json({
-    since,
-    items,
-    drawings: drawings.cnt,
-    payments: payments.cnt,
-    flags: flags.cnt,
-    issues: issues.cnt,
-    reports: reports.cnt,
-    task_updates: taskUpdates.cnt,
-    total_activity: drawings.cnt + payments.cnt + flags.cnt + issues.cnt + reports.cnt + taskUpdates.cnt,
-    summary: items.length ? items.join(', ') : 'No overnight activity',
-  });
+  // ── Principal / Design Principal ─────────────────────────────────────
+  if (['principal', 'design_principal'].includes(role)) {
+    const [drawings, payments, newFlags, newIssues, reports, pendingAppr] = await Promise.all([
+      count('SELECT COUNT(*) AS cnt FROM drawing_versions WHERE created_at >= ?', [since]),
+      count('SELECT COUNT(*) AS cnt FROM vendor_payments WHERE raised_at >= ?', [since]),
+      count('SELECT COUNT(*) AS cnt FROM task_updates WHERE is_flagged = 1 AND created_at >= ?', [since]),
+      count('SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ? AND status != ?', [since, 'closed']),
+      count('SELECT COUNT(*) AS cnt FROM weekly_reports WHERE created_at >= ?', [since]),
+      count('SELECT COUNT(*) AS cnt FROM approvals WHERE status = ?', ['pending']),
+    ]);
+    addSince(drawings,  'drawing issued',       'drawings issued',        'Drawings');
+    addSince(payments,  'payment raised',        'payments raised',         'Payments');
+    addSince(newFlags,  'flag raised',           'flags raised',            'New Flags');
+    addSince(newIssues, 'issue logged',          'issues logged',           'New Issues');
+    addSince(reports,   'report submitted',      'reports submitted',       'Reports');
+    addAction(pendingAppr, `${pendingAppr} approval${pendingAppr>1?'s':''} awaiting your sign-off`, 'Pending', true);
+    const total = drawings + payments + newFlags + newIssues + reports;
+    return res.json({ role, metrics, items, total_activity: total, needs_attention: needsAttention,
+      summary: items.length ? items.join(' · ') : 'No overnight activity across projects.' });
+  }
+
+  // ── PMC Head ──────────────────────────────────────────────────────────
+  if (role === 'pmc_head') {
+    const [pendingAppr, newFlags, todayReports, newIssues, pendingChanges] = await Promise.all([
+      count('SELECT COUNT(*) AS cnt FROM approvals WHERE status = ?', ['pending']),
+      count('SELECT COUNT(*) AS cnt FROM task_updates WHERE is_flagged = 1 AND created_at >= ?', [since]),
+      count('SELECT COUNT(*) AS cnt FROM weekly_reports WHERE DATE(created_at) = ?', [today]),
+      count('SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ? AND status != ?', [since, 'closed']),
+      count('SELECT COUNT(*) AS cnt FROM change_notices WHERE status = ?', ['collecting_sigs']),
+    ]);
+    addAction(pendingAppr,    `${pendingAppr} approval${pendingAppr>1?'s':''} awaiting sign-off`,     'Approvals', true);
+    addAction(pendingChanges, `${pendingChanges} change notice${pendingChanges>1?'s':''} need sign-off`, 'Changes',   true);
+    addSince(newFlags,  'flag raised',      'flags raised',     'New Flags');
+    addSince(newIssues, 'issue logged',     'issues logged',    'New Issues');
+    addToday(todayReports, 'report in',    'reports in',       'Reports');
+    const total = newFlags + todayReports + newIssues;
+    return res.json({ role, metrics, items, total_activity: total, needs_attention: needsAttention,
+      summary: items.length ? items.join(' · ') : 'All clear — nothing new overnight.' });
+  }
+
+  // ── Site Manager / Senior Site Manager ────────────────────────────────
+  if (['site_manager', 'senior_site_manager'].includes(role)) {
+    const [newIssues, dueTasks, newFlags, todayLabour, newUpdates] = await Promise.all([
+      count(`SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ? AND status != ?${pf}`, [since, 'closed', ...pp]),
+      count(`SELECT COUNT(*) AS cnt FROM schedule_tasks st
+             JOIN schedule_versions sv ON st.schedule_version_id = sv.id AND sv.is_current = 1
+             WHERE st.end_date = ?${scopedIds ? ' AND sv.project_id IN (?)' : ''}`,
+        scopedIds ? [today, scopedIds] : [today]),
+      count(`SELECT COUNT(*) AS cnt FROM task_updates WHERE is_flagged = 1 AND created_at >= ?${pf}`, [since, ...pp]),
+      count(`SELECT COUNT(*) AS cnt FROM labour_register WHERE DATE(work_date) = ?${pf}`, [today, ...pp]),
+      count(`SELECT COUNT(*) AS cnt FROM task_updates WHERE created_at >= ?${pf}`, [since, ...pp]),
+    ]);
+    addAction(dueTasks,  `${dueTasks} task${dueTasks>1?'s':''} due today — check schedule`,         'Due Today', true);
+    addSince(newFlags,   'flag raised on site',  'flags raised on site', 'New Flags');
+    addSince(newIssues,  'issue raised',          'issues raised',        'New Issues');
+    addToday(newUpdates, 'task update logged',   'task updates logged',  'Updates');
+    addToday(todayLabour,'labour entry',         'labour entries',       'Labour');
+    const total = newIssues + newFlags + newUpdates;
+    return res.json({ role, metrics, items, total_activity: total, needs_attention: needsAttention,
+      summary: items.length ? items.join(' · ') : 'No overnight activity on your sites.' });
+  }
+
+  // ── Finance Admin ─────────────────────────────────────────────────────
+  if (role === 'finance_admin') {
+    const [pendingVendors, newPayments, newPayReqs] = await Promise.all([
+      count(`SELECT COUNT(*) AS cnt FROM vendors WHERE clearance_status = ?`, ['pending']),
+      count(`SELECT COUNT(*) AS cnt FROM vendor_payments WHERE raised_at >= ?`, [since]),
+      count(`SELECT COUNT(*) AS cnt FROM payment_requests WHERE created_at >= ?`, [since]),
+    ]);
+    addAction(pendingVendors, `${pendingVendors} vendor${pendingVendors>1?'s':''} awaiting finance clearance`, 'Pending', true);
+    addSince(newPayments, 'payment request raised', 'payment requests raised', 'Payments');
+    addSince(newPayReqs,  'payment request created', 'payment requests created', 'New Reqs');
+    const total = newPayments + newPayReqs;
+    return res.json({ role, metrics, items, total_activity: total, needs_attention: needsAttention,
+      summary: items.length ? items.join(' · ') : 'No new finance activity overnight.' });
+  }
+
+  // ── Design Head / Team Lead / Jr Architect / Jr Engineer ──────────────
+  if (['design_head', 'team_lead', 'jr_architect', 'jr_engineer'].includes(role)) {
+    const [overdueQueries, newQueries, newDrawings] = await Promise.all([
+      count(`SELECT COUNT(*) AS cnt FROM issues WHERE status != ? AND drawing_version_id IS NOT NULL AND DATEDIFF(NOW(), raised_at) >= 3${pf}`, ['closed', ...pp]),
+      count(`SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ? AND status != ? AND drawing_version_id IS NOT NULL${pf}`, [since, 'closed', ...pp]),
+      count(`SELECT COUNT(*) AS cnt FROM drawing_versions WHERE created_at >= ?`, [since]),
+    ]);
+    addAction(overdueQueries, `${overdueQueries} drawing quer${overdueQueries>1?'ies':'y'} unanswered 3+ days — needs response`, 'Overdue', true);
+    addSince(newQueries,  'new query raised on drawings', 'new queries raised on drawings', 'New Queries');
+    addSince(newDrawings, 'drawing issued',               'drawings issued',                'Drawings');
+    const total = newQueries + newDrawings;
+    return res.json({ role, metrics, items, total_activity: total, needs_attention: needsAttention,
+      summary: items.length ? items.join(' · ') : 'No drawing activity overnight.' });
+  }
+
+  // ── Services Head / Services Engineer ─────────────────────────────────
+  if (['services_head', 'services_engineer'].includes(role)) {
+    const [pendingSubmittals, newIssues, newSubmittals] = await Promise.all([
+      count(`SELECT COUNT(*) AS cnt FROM submittals WHERE status NOT IN ('approved','rejected')${pf}`, pp),
+      count(`SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ? AND status != ?${pf}`, [since, 'closed', ...pp]),
+      count(`SELECT COUNT(*) AS cnt FROM submittals WHERE submitted_at >= ?${pf}`, [since, ...pp]),
+    ]);
+    addAction(pendingSubmittals, `${pendingSubmittals} submittal${pendingSubmittals>1?'s':''} awaiting review`, 'Pending', true);
+    addSince(newSubmittals, 'submittal submitted',  'submittals submitted', 'New');
+    addSince(newIssues,     'issue raised',         'issues raised',        'New Issues');
+    const total = newSubmittals + newIssues;
+    return res.json({ role, metrics, items, total_activity: total, needs_attention: needsAttention,
+      summary: items.length ? items.join(' · ') : 'No services activity overnight.' });
+  }
+
+  // ── Coordinator / Trainee / Others ────────────────────────────────────
+  const [taskUpdates, newQueries] = await Promise.all([
+    count(`SELECT COUNT(*) AS cnt FROM task_updates WHERE created_at >= ?${pf}`, [since, ...pp]),
+    count(`SELECT COUNT(*) AS cnt FROM issues WHERE raised_at >= ? AND status != ?${pf}`, [since, 'closed', ...pp]),
+  ]);
+  addSince(taskUpdates, 'task update logged', 'task updates logged',    'Updates');
+  addSince(newQueries,  'new query raised',   'new queries raised',     'New Queries');
+  return res.json({ role, metrics, items, total_activity: taskUpdates + newQueries, needs_attention: false,
+    summary: items.length ? items.join(' · ') : 'All quiet overnight.' });
 }));
 
 

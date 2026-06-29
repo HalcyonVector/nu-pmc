@@ -39,17 +39,8 @@ window.Components.profile = function() {
       this.deputySelected = this.user?.deputy_id || '';
 
       if (this.showDeputyCard) {
-        const usersRes = await API.call('GET', '/users');
-        const eligibleMap = {
-          design_head:    ['team_lead','jr_architect'],
-          services_head:  ['services_engineer'],
-          pmc_head:       ['pmc_head'],
-        };
-        const eligible = eligibleMap[this.user.role] || [];
-        this.deputyOptions = (usersRes?.users || []).filter(u =>
-          u.id !== this.user.id &&
-          (eligible.includes(u.role) || (this.user.role === 'pmc_head' && u.role === 'pmc_head'))
-        );
+        const usersRes = await API.call('GET', '/users/deputy-candidates');
+        this.deputyOptions = usersRes?.users || [];
       }
       this.loading = false;
     },
