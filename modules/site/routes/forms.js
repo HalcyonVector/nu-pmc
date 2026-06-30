@@ -18,8 +18,13 @@ router.get('/templates', requireAuth, asyncHandler(async (req, res) => {
       [req.session.user.id]
     );
     const Auth = require('../../auth/contract');
+    const fileUrls = require('../../../services/file-url');
     const users = await Auth.functions.getUsers(templates.map(t => t.created_by).filter(Boolean));
-    templates.forEach(t => { t.created_by_name = users.get(t.created_by)?.full_name || null; });
+    templates.forEach(t => {
+      t.created_by_name = users.get(t.created_by)?.full_name || null;
+      t.template_url = t.file_path ? fileUrls.fileUrl(t.file_path) : null;
+      delete t.file_path;
+    });
     res.json({ templates });
   }));
 
@@ -30,18 +35,34 @@ router.post('/templates', requireAuth, upload.single('excel'), asyncHandler(asyn
     if (!name) return res.status(400).json({ error: 'Template name required' });
 
     // Principals auto-approved, others need approval
-    const isAutoApproved = PRINCIPALS.includes(me.role);
+    const isAutoApproved = [...PMC_ROLES, ...PRINCIPALS].includes(me.role);
 
     // If Excel uploaded — parse fields from it
     let fields = fields_json ? JSON.parse(fields_json) : [];
     if (req.file && !fields.length) {
       const rows = await xl.readFile(req.file.path);
-      fields = rows.map((row, i) => ({
-        id: i + 1,
-        label: row['Field Label'] || row['Label'] || `Field ${i+1}`,
-        type:  row['Type'] || 'text',
-        required: row['Required'] === 'Yes',
-      }));
+      // Detect format: inspection checklist (has "Check Item") vs field-definition sheet (has "Field Label")
+      const sample = rows[0] || {};
+      if ('Check Item' in sample || 'check_item' in sample || 'Item' in sample) {
+        // Inspection checklist — each row IS a check item; use it as the field label
+        fields = rows
+          .filter(r => r['Check Item'] || r['Item'] || r['S.No.'])
+          .map((r, i) => ({
+            id: i + 1,
+            label: r['Check Item'] || r['Item'] || `Item ${i+1}`,
+            type: 'text',
+            required: false,
+            spec: r['Specification'] || r['Spec'] || '',
+          }));
+      } else {
+        // Standard field-definition format
+        fields = rows.map((row, i) => ({
+          id: i + 1,
+          label: row['Field Label'] || row['Label'] || `Field ${i+1}`,
+          type:  row['Type'] || 'text',
+          required: row['Required'] === 'Yes',
+        }));
+      }
     }
 
     const [result] = await db.query(
@@ -86,21 +107,28 @@ router.patch('/templates/:id/approve', requireAuth, requireRole(...PMC_ROLES), a
     res.json({ success: true, message: 'Template approved — available for use on all projects.' });
   }));
 
-// GET /api/forms/templates/:id/download — download as Excel for offline editing
+// GET /api/forms/templates/:id/download — serve original file if uploaded, else generate XLSX
 router.get('/templates/:id/download', requireAuth, asyncHandler(async (req, res) => {
     const [[template]] = await db.query('SELECT * FROM form_templates WHERE id = ?', [req.params.id]);
     if (!template) return res.status(404).json({ error: 'Template not found' });
 
+    // If an original file was uploaded, serve it directly
+    if (template.file_path) {
+      const path = require('path');
+      const fs   = require('fs');
+      const ext  = path.extname(template.file_path) || '.xlsx';
+      const filename = `${template.name.replace(/[^a-zA-Z0-9_\-]/g,'_')}_template${ext}`;
+      if (fs.existsSync(template.file_path)) {
+        return res.download(template.file_path, filename);
+      }
+    }
+
+    // Fall back: generate XLSX from fields_json
     const fields = JSON.parse(template.fields_json || '[]');
     const data   = [
-      ['Field Label', 'Type', 'Required', 'Options (comma separated)'],
-      ...fields.map(f => [f.label, f.type || 'text', f.required ? 'Yes' : 'No', f.options || '']),
-      // Empty rows for adding new fields
-      ['', 'text', 'No', ''],
-      ['', 'text', 'No', ''],
-      ['', 'text', 'No', ''],
+      ['Field Label', 'Specification', 'Status (OK/NOT OK/NA)', 'Remarks'],
+      ...fields.map(f => [f.label, f.spec || '', '', '']),
     ];
-
     const outPath = `/tmp/form_template_${template.id}_${Date.now()}.xlsx`;
     await xl.writeFile(data, outPath, template.name);
     res.download(outPath, `${template.name.replace(/\s/g,'_')}_template.xlsx`);

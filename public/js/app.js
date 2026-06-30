@@ -5736,17 +5736,42 @@ Tomorrow: start formwork on next bay."
     } else UI.toast(res?.error || 'Failed');
   },
 
-  _showEvidenceList(inputId, listId) {
+  _renderEvidenceChips(inputId, listId) {
     const input = document.getElementById(inputId);
     const list  = document.getElementById(listId);
     if (!input || !list) return;
     list.innerHTML = '';
-    Array.from(input.files).forEach((f, i) => {
+    (input._accFiles || []).forEach((f, i) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);padding:4px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)';
-      row.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${UI.escapeText(f.name)}</span><span style="color:var(--muted);flex-shrink:0">${(f.size/1024).toFixed(0)} KB</span>`;
+      row.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${UI.escapeText(f.name)}</span><span style="color:var(--muted);flex-shrink:0">${(f.size/1024).toFixed(0)} KB</span><button onclick="APP._removeEvidenceFile('${inputId}','${listId}',${i})" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0 2px">&times;</button>`;
       list.appendChild(row);
     });
+  },
+
+  _showEvidenceList(inputId, listId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    // Accumulate new picks into _accFiles (browser replaces input.files on each pick)
+    if (!input._accFiles) input._accFiles = [];
+    const existing = new Set(input._accFiles.map(f => f.name));
+    Array.from(input.files).forEach(f => { if (!existing.has(f.name)) input._accFiles.push(f); });
+    if (input._accFiles.length > 5) { UI.toast('Max 5 files'); input._accFiles = input._accFiles.slice(0, 5); }
+    // Write accumulated list back so FormData submission gets all files
+    const dt = new DataTransfer();
+    input._accFiles.forEach(f => dt.items.add(f));
+    try { input.files = dt.files; } catch(e) {}
+    APP._renderEvidenceChips(inputId, listId);
+  },
+
+  _removeEvidenceFile(inputId, listId, idx) {
+    const input = document.getElementById(inputId);
+    if (!input?._accFiles) return;
+    input._accFiles.splice(idx, 1);
+    const dt = new DataTransfer();
+    input._accFiles.forEach(f => dt.items.add(f));
+    try { input.files = dt.files; } catch(e) {}
+    APP._renderEvidenceChips(inputId, listId);
   },
 
   async approvePayment(id) {
@@ -13676,19 +13701,24 @@ APP.renderForms = async function() {
   if (templates.length) {
     html += `<div class="sec-label">Inspection Templates</div>`;
     templates.forEach(t => {
+      const isApproved = t.status === 'approved';
+      const isDraft    = t.status === 'draft';
       html += `<div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1;min-width:0">
             <div class="card-title">${UI.escapeText(t.name||'—')}</div>
-            <div class="card-meta">${t.category||'General'} · ${t.field_count||0} fields</div>
+            <div class="card-meta">${t.category||'General'}${t.field_count ? ' · '+t.field_count+' fields' : ''}${isDraft ? ' · <span style="color:var(--amber)">Pending approval</span>' : ''}</div>
           </div>
-          <div style="display:flex;gap:6px">
-            ${t.status === 'draft' && canManageTemplates ? `<button class="btn-sm approve" onclick="APP.approveFormTemplate(${pid},${t.id})">Approve</button>` : ''}
-            ${t.status === 'approved' && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.name||'')}')">Fill Form</button>` : ''}
+          <div style="display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0;align-items:center">
+            ${t.template_url ? `<a href="${t.template_url}" target="_blank" class="btn-sm" style="text-decoration:none">↓ Download</a>` : `<a href="/api/forms/templates/${t.id}/download" class="btn-sm" style="text-decoration:none">↓ Download</a>`}
+            ${isDraft && canManageTemplates ? `<button class="btn-sm approve" onclick="APP.approveFormTemplate(${pid},${t.id})">Approve</button>` : ''}
+            ${isApproved && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.name||'')}',${t.template_url ? `'${t.template_url}'` : 'null'})">Fill & Submit</button>` : ''}
           </div>
         </div>
       </div>`;
     });
+  } else {
+    html += UI.empty('','No inspection templates yet' + (canManageTemplates ? '' : ' — ask your PMC Head to create one'));
   }
 
   html += `<div class="sec-hdr-row" style="margin-top:16px">
@@ -13701,11 +13731,11 @@ APP.renderForms = async function() {
     const badge = s.status === 'approved' ? 'b-green' : s.status === 'pending_review' ? 'b-amber' : 'b-silver';
     html += `<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="flex:1">
+        <div style="flex:1;min-width:0">
           <div class="card-title">${UI.escapeText(s.template_name||'—')}</div>
           <div class="card-meta">${UI.fmtDate(s.submitted_at)} · ${s.submitted_by_name||'—'}</div>
           ${s.notes ? `<div class="card-meta" style="margin-top:2px;font-style:italic">${UI.escapeText(s.notes)}</div>` : ''}
-          ${s.file_url ? `<a href="${s.file_url}" target="_blank" class="btn-sm" style="margin-top:6px;display:inline-block">📎 Attachment</a>` : ''}
+          ${s.file_url ? `<div style="margin-top:8px"><a href="${s.file_url}" target="_blank" class="btn-sm" style="text-decoration:none">↓ Download Submission</a></div>` : '<div style="margin-top:4px;font-size:11px;color:var(--muted)">No file attached</div>'}
         </div>
         <span class="badge ${badge}" style="flex-shrink:0;margin-left:8px">${s.status||'submitted'}</span>
       </div>
@@ -13760,35 +13790,60 @@ APP.approveFormTemplate = async function(pid, templateId) {
   else UI.toast(res?.error || 'Failed');
 };
 
-APP.showSubmitForm = async function(pid, templateId, templateTitle) {
-  // Fetch template to get fields
+APP.showSubmitForm = async function(pid, templateId, templateTitle, templateUrl) {
+  // Fetch template fields
   const tplData = await API.get('/forms/templates').catch(() => null);
   const tpl = (tplData?.templates || []).find(t => t.id == templateId);
   let fields = [];
   try { fields = JSON.parse(tpl?.fields_json || '[]'); } catch(e) {}
 
+  // Are fields generic placeholders ("Field 1", "Field 2", ...) or real labels?
+  const hasGenericLabels = fields.length > 0 && fields.every(f => /^(Field|Item) \d+$/.test(f.label || ''));
+  // If template has an uploaded file OR fields are generic, use file-upload-only mode
+  const fileOnlyMode = !!(templateUrl || tpl?.template_url) || hasGenericLabels;
+
+  const effectiveUrl = templateUrl || tpl?.template_url || null;
+
   let fieldsHtml = '';
-  if (fields.length) {
-    fieldsHtml = fields.map((f,i) => `
-      <div class="field-row">
-        <label class="field-label">${UI.escapeText(f.label||`Field ${i+1}`)}${f.required?' *':''}</label>
-        <input id="sf-field-${i}" data-label="${UI.escapeAttr(f.label||`Field ${i+1}`)}"
-          placeholder="${UI.escapeAttr(f.label||'')}">
-      </div>`).join('');
-  } else {
-    fieldsHtml = `<div class="field-row"><label class="field-label">Response *</label>
-      <textarea id="sf-field-0" data-label="Response" rows="4" placeholder="Describe the inspection findings..."></textarea></div>`;
-    fields = [{ label: 'Response' }];
+  let fieldCount = 0;
+  if (!fileOnlyMode && fields.length) {
+    // Real named fields — show inputs with spec sub-labels
+    fieldCount = fields.length;
+    fieldsHtml = `<div class="sec-label" style="margin:12px 0 6px">Checklist Fields</div>` +
+      fields.map((f,i) => `
+        <div class="field-row">
+          <label class="field-label">${UI.escapeText(f.label||`Item ${i+1}`)}${f.required?' *':''}</label>
+          ${f.spec ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px">${UI.escapeText(f.spec)}</div>` : ''}
+          <input id="sf-field-${i}" data-label="${UI.escapeAttr(f.label||`Item ${i+1}`)}" placeholder="OK / NOT OK / NA or remarks">
+        </div>`).join('');
+  } else if (!fileOnlyMode) {
+    // No fields at all — single remarks box
+    fieldCount = 1;
+    fieldsHtml = `<div class="field-row"><label class="field-label">Remarks / Findings</label>
+      <textarea id="sf-field-0" data-label="Remarks" rows="3" placeholder="Describe the inspection findings..."></textarea></div>`;
+    fields = [{ label: 'Remarks' }];
   }
 
+  const downloadHint = effectiveUrl
+    ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:12px;color:var(--text)">1. Download the inspection sheet&nbsp;&nbsp;2. Fill it in&nbsp;&nbsp;3. Upload below</span>
+        <a href="${effectiveUrl}" target="_blank" class="btn-sm" style="text-decoration:none;flex-shrink:0">↓ Download Sheet</a>
+       </div>`
+    : `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+        <a href="/api/forms/templates/${templateId}/download" class="btn-sm" style="text-decoration:none">↓ Download Blank Sheet (XLSX)</a>
+       </div>`;
+
   UI.openModal(`Submit: ${templateTitle}`, `
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${tpl?.category||'General'} inspection — PMC will review your submission</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${tpl?.category||'General'} · PMC Head will review your submission</div>
+    ${downloadHint}
+    <div class="field-row">
+      <label class="field-label">Upload Completed Sheet <span style="color:var(--muted);font-weight:400">(filled XLSX, PDF, or photo)</span></label>
+      <input type="file" id="sf-file" accept="image/*,.pdf,.xlsx,.xls">
+    </div>
     ${fieldsHtml}
-    <div class="field-row"><label class="field-label">Photo / Attachment <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <input type="file" id="sf-file" accept="image/*,.pdf"></div>
-    <div class="field-row"><label class="field-label">Notes</label>
-      <input id="sf-notes" placeholder="Any additional notes..."></div>
-    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitFilledForm(${pid},${templateId},${fields.length})">Submit Form</button>
+    <div class="field-row"><label class="field-label">Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input id="sf-notes" placeholder="e.g. Checked by Ramesh at 3pm, all items OK"></div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="APP._submitFilledForm(${pid},${templateId},${fieldCount})">Submit for Review</button>
   `);
 };
 

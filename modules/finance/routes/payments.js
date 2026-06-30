@@ -492,7 +492,7 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
       return res.status(400).json({ error: 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed.' });
     }
 
-    const confirmations = pf.parseConfirmationExcel(file.path);
+    const confirmations = await pf.parseConfirmationExcel(file.path);
     const [cyclePayments] = await db.query(`
       SELECT * FROM vendor_payments WHERE payment_cycle_id = ?`, [cycle_id]
     );
@@ -621,7 +621,7 @@ router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), re
 
     try {
       // Re-parse the same file
-      const confirmations = pf.parseConfirmationExcel(file_path);
+      const confirmations = await pf.parseConfirmationExcel(file_path);
       const [cyclePayments] = await db.query(`
         SELECT * FROM vendor_payments WHERE payment_cycle_id = ?`, [cycle_id]
       );

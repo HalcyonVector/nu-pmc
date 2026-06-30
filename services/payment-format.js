@@ -55,13 +55,17 @@ const formats = {
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !row[0]) continue;
+        const utr = String(row[13] || '').trim();
+        // ICICI sets REF_NO (col 13) to the UTR once payment succeeds.
+        // If UTR is present → success; if empty → failed/pending.
+        const status = utr ? 'success' : 'pending';
         results.push({
           transaction_id:   String(row[0] || ''),
           beneficiary_name: String(row[3] || ''), // BNF_NAME
           account_number:   String(row[4] || ''), // BENE_ACC_NO
           amount:           parseFloat(String(row[6] || '0').replace(/,/g, '')) || 0,
-          status:           'pending',
-          utr:              String(row[13] || ''), // REF_NO contains UTR after processing
+          status,
+          utr,
           payment_date:     String(row[12] || ''), // PYMT_DATE
         });
       }

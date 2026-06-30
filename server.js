@@ -642,6 +642,14 @@ if (require.main === module) {
         ('services_head',    'more', 'reports_daily',  2, 1),
         ('services_head',    'more', 'reports_weekly', 3, 1)`).catch(() => {});
 
+    // Auto-approve form_templates created by PMC roles that landed as draft before this fix
+    await db.query(`
+      UPDATE form_templates ft
+      JOIN users u ON ft.created_by = u.id
+      SET ft.status = 'approved', ft.approved_by = ft.created_by, ft.approved_at = NOW()
+      WHERE ft.status = 'draft'
+        AND u.role IN ('pmc_head','principal','design_principal')`).catch(() => {});
+
     } catch (e) {
       console.warn('[migrate] Non-fatal:', e.message);
     }

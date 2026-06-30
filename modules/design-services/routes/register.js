@@ -66,8 +66,16 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
   upload.single('register'), asyncHandler(async (req, res) => {
     const me  = req.session.user;
     const pid = req.params.project_id;
-    const { stream } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    // Derive stream strictly from role — a stream head may only upload their own
+    // stream's register. Principals (cross-stream) may specify via body.
+    // Closes the stream-swap hole where a services_head could POST stream=design.
+    let stream;
+    if (me.role === 'design_head')        stream = 'design';
+    else if (me.role === 'services_head') stream = 'services';
+    else if (me.role === 'principal' || me.role === 'design_principal') {
+      stream = (req.body.stream === 'design' || req.body.stream === 'services') ? req.body.stream : null;
+    }
     if (!stream || !['design','services'].includes(stream)) {
       return res.status(400).json({ error: 'stream must be "design" or "services"' });
     }

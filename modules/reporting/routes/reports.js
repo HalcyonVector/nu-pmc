@@ -457,7 +457,7 @@ router.post('/:id/generate-pdf', requireAuth, requirePMC, asyncHandler(async (re
 }));
 
 // POST /api/reports/:project_id/weekly/upload — upload final signed weekly report
-router.post('/:project_id/weekly/upload', requireAuth, requireProjectScope(), require('../../../middleware/upload').upload.single('report'), asyncHandler(async (req, res) => {
+router.post('/:project_id/weekly/upload', requireAuth, requireProjectScope(), requirePMC, require('../../../middleware/upload').upload.single('report'), asyncHandler(async (req, res) => {
     const { week_ending, notes } = req.body;
     const file = req.file;
     if (!file || !week_ending) return res.status(400).json({ error: 'File and week_ending required' });

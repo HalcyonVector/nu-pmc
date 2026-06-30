@@ -39,7 +39,7 @@ async function saveDocument({ projectId, file, uploadedBy, docType = 'other', ca
   const today = docDate || dateUtil.todayIST();
   const size = getFileSize(file.path);
   const fname = file.originalname;
-  const conn = await db.getConnection ? db.getConnection() : null;
+  const conn = db.getConnection ? await db.getConnection() : null;
   try {
     if (conn) await conn.beginTransaction();
     const runner = conn || db;
@@ -92,7 +92,7 @@ async function saveDocumentVersion({ documentId, file, uploadedBy, changeNote = 
 
   const size = getFileSize(file.path);
   const fname = file.originalname;
-  const conn = await db.getConnection ? db.getConnection() : null;
+  const conn = db.getConnection ? await db.getConnection() : null;
   try {
     if (conn) await conn.beginTransaction();
     const runner = conn || db;
