@@ -478,7 +478,7 @@ router.post('/:project_id/icici/generate', requireAuth, requireProjectScope(), r
 // POST /api/payments/:project_id/icici/confirm/preview — parse ICICI confirmation Excel
 // Returns matched rows, no DB changes, no WhatsApp.
 // UI renders as a confirmation table for user review.
-router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectScope(), requirePMC, upload.single('confirmation'), asyncHandler(async (req, res) => {
+router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectScope(), requireRole('principal','design_principal','pmc_head','finance_admin'), upload.single('confirmation'), asyncHandler(async (req, res) => {
     const file = req.file;
     const { cycle_id } = req.body;
     if (!file || !cycle_id) return res.status(400).json({ error: 'File and cycle_id required' });
@@ -566,7 +566,7 @@ router.post('/:project_id/icici/confirm/preview', requireAuth, requireProjectSco
 // POST /api/payments/:project_id/icici/confirm — APPLY the confirmation
 // Body MUST include: { confirmation: 'CONFIRM_PAID', file_token: '<from-preview>', cycle_id, expected_success_count }
 // Marks matched payments as paid, sends WhatsApp to vendors with UTR.
-router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), requirePMC, asyncHandler(async (req, res) => {
+router.post('/:project_id/icici/confirm', requireAuth, requireProjectScope(), requireRole('principal','design_principal','pmc_head','finance_admin'), asyncHandler(async (req, res) => {
     const { confirmation, file_token, cycle_id, expected_success_count } = req.body;
     if (!file_token || !cycle_id) return res.status(400).json({ error: 'file_token and cycle_id required (call /preview first)' });
     if (confirmation !== 'CONFIRM_PAID') {

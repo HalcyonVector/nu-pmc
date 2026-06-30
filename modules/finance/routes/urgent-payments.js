@@ -175,7 +175,25 @@ router.get('/:project_id',
     );
     const Onboarding = require('../../onboarding/contract');
     const vendors = await Onboarding.functions.getVendorsByIds(payments.map(p => p.vendor_id));
-    payments.forEach(p => { p.vendor_name = vendors.get(p.vendor_id)?.vendor_name || null; });
+    const fileUrls = require('../../../services/file-url');
+    if (payments.length) {
+      const prIds = payments.map(p => p.id);
+      const [evRows] = await db.query(
+        `SELECT payment_request_id, file_path, file_type FROM payment_request_evidence WHERE payment_request_id IN (?)`,
+        [prIds]
+      );
+      const evMap = {};
+      evRows.forEach(e => {
+        if (!evMap[e.payment_request_id]) evMap[e.payment_request_id] = [];
+        evMap[e.payment_request_id].push({ url: fileUrls.fileUrl(e.file_path), type: e.file_type, name: (e.file_path||'').split('/').pop() });
+      });
+      payments.forEach(p => {
+        p.vendor_name    = vendors.get(p.vendor_id)?.vendor_name || null;
+        p.evidence_files = evMap[p.id] || [];
+      });
+    } else {
+      payments.forEach(p => { p.vendor_name = vendors.get(p.vendor_id)?.vendor_name || null; });
+    }
     res.json({ payments });
   }));
 

@@ -237,6 +237,12 @@ module.exports = {
         `UPDATE projects SET ${flagName} = 1 WHERE id = ?`,
         [projectId]
       );
+      // Only call activateIfReady when NOT inside a transaction (conn === null),
+      // otherwise the flag update isn't committed yet and the gate would read stale data.
+      if (res.affectedRows > 0 && !conn) {
+        const ReadinessGate = require('../readiness-gate/contract');
+        await ReadinessGate.functions.activateIfReady(projectId).catch(() => {});
+      }
       return res.affectedRows > 0;
     },
   },

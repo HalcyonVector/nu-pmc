@@ -37,7 +37,11 @@ const router  = express.Router();
 // GET /api/client-boq/:project_id — get client BOQ (rates visible to heads + finance_admin)
 router.get('/:project_id', requireAuth, requireRole(...HEADS_WITH_FINANCE), asyncHandler(async (req, res) => {
     const [versions] = await db.query(
-      `SELECT * FROM client_boq_versions WHERE project_id = ? AND is_current = 1`,
+      `SELECT cbv.*, COUNT(cbi.id) AS item_count
+       FROM client_boq_versions cbv
+       LEFT JOIN client_boq_items cbi ON cbi.boq_version_id = cbv.id
+       WHERE cbv.project_id = ? AND cbv.is_current = 1
+       GROUP BY cbv.id`,
       [req.params.project_id]
     );
 
@@ -76,22 +80,16 @@ router.get('/:project_id', requireAuth, requireRole(...HEADS_WITH_FINANCE), asyn
   }));
 
 // POST /api/client-boq/:project_id/upload — R/S uploads client BOQ
-router.post('/:project_id/upload', requireAuth, requireProjectScope(), requireRole(...STREAM_HEADS), asyncHandler(async (req, res) => {
+const { upload: _upload } = require('../../../middleware/upload');
+router.post('/:project_id/upload', requireAuth, requireProjectScope(), requireRole(...STREAM_HEADS), ..._upload.single('client_boq'), asyncHandler(async (req, res) => {
     const me  = req.session.user;
     const pid = req.params.project_id;
-    const { stream } = req.body;
-    if (!stream) return res.status(400).json({ error: 'Stream required' });
-
-    // Handle file upload inline
-    const { upload } = require('../../../middleware/upload');
-    const multerUpload = upload.single('boq');
-
-    await new Promise((resolve, reject) => {
-      multerUpload(req, res, err => err ? reject(err) : resolve());
-    });
 
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const { stream } = req.body;
+    if (!stream) return res.status(400).json({ error: 'Stream required' });
 
     // Parse Excel BEFORE the transaction so a malformed file doesn't tie up
     // a DB connection. Items are validated/cleaned here; the tx just persists.
@@ -99,13 +97,13 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requireRo
     const items = [];
     for (let i = 0; i < rows.length; i++) {
       const row      = rows[i];
-      const trade    = row['Trade']       || row['trade']       || '';
-      const itemCode = row['Code']        || row['item_code']   || null;
-      const itemName = row['Item']        || row['Description'] || row['item_name'] || '';
+      const trade    = (row['Trade'] || row['trade'] || stream).trim(); // default to stream if no Trade column
+      const itemCode = row['Code']        || row['item_code']   || row['Item No.'] || null;
+      const itemName = (row['Item']       || row['Description'] || row['item_name'] || '').toString().trim();
       const unit     = row['Unit']        || row['unit']        || 'nos';
       const quantity = parseFloat(row['Quantity'] || row['qty'] || 0);
-      const rate     = parseFloat(row['Rate']     || row['client_rate'] || 0);
-      if (!trade || !itemName) continue;
+      const rate     = parseFloat(row['Rate'] || row['Rate (Rs.)'] || row['client_rate'] || 0);
+      if (!itemName) continue;
       items.push({ trade, itemCode, itemName, unit, quantity, rate, displayOrder: i });
     }
 

@@ -644,6 +644,28 @@ router.get('/:project_id/weekly-batch', requireAuth,
       p.vendor_name = e?.vendor_name || null;
       p.scope       = e?.scope || null;
     });
+
+    // Attach evidence file URLs so Finance Admin / PMC can download supporting docs
+    if (pending.length) {
+      const fileUrls = require('../../../services/file-url');
+      const prIds = pending.map(p => p.id);
+      const [evidenceRows] = await db.query(
+        `SELECT payment_request_id, file_path, file_type FROM payment_request_evidence
+         WHERE payment_request_id IN (?)`,
+        [prIds]
+      );
+      const evidenceMap = {};
+      evidenceRows.forEach(e => {
+        if (!evidenceMap[e.payment_request_id]) evidenceMap[e.payment_request_id] = [];
+        evidenceMap[e.payment_request_id].push({
+          url:  fileUrls.fileUrl(e.file_path),
+          type: e.file_type,
+          name: (e.file_path || '').split('/').pop(),
+        });
+      });
+      pending.forEach(p => { p.evidence_files = evidenceMap[p.id] || []; });
+    }
+
     res.json({ pending, count: pending.length });
   }));
 

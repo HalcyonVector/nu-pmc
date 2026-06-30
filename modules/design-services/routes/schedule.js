@@ -420,6 +420,13 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
       // Accept DD/MM/YYYY or DD-MM-YYYY (common Indian format)
       const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
       if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+      // Accept DD-Mon-YYYY or DD Mon YYYY (e.g. 28-Aug-2026, 01 Jan 2025)
+      const months = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
+      const dmy2 = s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3})[\s\-](\d{4})$/);
+      if (dmy2) {
+        const mo = months[dmy2[2].toLowerCase()];
+        if (mo) return `${dmy2[3]}-${mo}-${dmy2[1].padStart(2,'0')}`;
+      }
       // Already YYYY-MM-DD or similar ISO
       return s;
     };
@@ -587,6 +594,45 @@ router.patch('/:project_id/drift-acknowledge', requireAuth, requireProjectScope(
       entityType: 'schedule_versions', entityId: parseInt(version_id),
       details: { project_id: parseInt(req.params.project_id), mitigation_note }, req });
     res.json({ success: true, row_version: parseInt(row_version) + 1, message: 'Drift acknowledged — Principal and Design Principal notified for review.' });
+  }));
+
+// POST /api/schedule/:project_id/versions/:version_id/approve — Principal approves pending schedule
+router.post('/:project_id/versions/:version_id/approve', requireAuth, requireProjectScope(),
+  asyncHandler(async (req, res) => {
+    const role = req.session.user.role;
+    if (!['principal','design_principal'].includes(role)) {
+      return res.status(403).json({ error: 'Only Principal or Design Principal can approve schedules' });
+    }
+    const { project_id, version_id } = req.params;
+    const [[ver]] = await db.query(
+      'SELECT * FROM schedule_versions WHERE id = ? AND project_id = ?',
+      [version_id, project_id]
+    );
+    if (!ver) return res.status(404).json({ error: 'Schedule version not found' });
+    if (ver.status === 'approved') return res.status(400).json({ error: 'Already approved' });
+
+    await db.tx(async (conn) => {
+      await conn.query(
+        `UPDATE schedule_versions SET status='approved', is_current=1, approved_by=?, approved_at=NOW() WHERE id=?`,
+        [req.session.user.id, version_id]
+      );
+      // Demote other versions: clear is_current, and supersede any still-pending ones
+      await conn.query(
+        `UPDATE schedule_versions
+         SET is_current=0,
+             status = CASE WHEN status='pending_approval' THEN 'superseded' ELSE status END
+         WHERE project_id=? AND id!=?`,
+        [project_id, version_id]
+      );
+    });
+    // Ensure checklist flag is set (covers case where first upload had drift and needed approval)
+    const Onboarding = require('../../onboarding/contract');
+    await Onboarding.functions.setChecklistFlag(project_id, 'checklist_schedule').catch(() => {});
+
+    audit.log({ userId: req.session.user.id, action: 'schedule.version.approve',
+      entityType: 'schedule_versions', entityId: parseInt(version_id),
+      details: { project_id: parseInt(project_id), version_label: ver.label, drift_days: ver.drift_days }, req });
+    res.json({ success: true, message: `Schedule ${ver.label} approved and set as current.` });
   }));
 
 // PATCH /api/schedule/:project_id/tasks/:task_id/progress — site manager updates progress

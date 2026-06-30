@@ -46,6 +46,17 @@ FOLDER                              WHERE TO UPLOAD IN THE SYSTEM
 26_fee-schedule/                    Finance → Invoices → Fee Schedule → Upload Schedule
 27_site-form-template/              Site → Forms → Templates → Upload Template (XLSX)
 28_site-form-submission/            Site → Forms → [open a project form] → Submit → Upload Filled Form
+29_daily-report/                    Work → Today's Report → Submit Today's Report → Site Photo / Attachment
+                                     Role: Site Manager or Senior Site Manager (must be assigned to project)
+                                     Optional photo or PDF attached to the end-of-day report
+                                     PMC Head sees a "View Attachment" link on each report card
+
+WHO READS DAILY REPORTS
+------------------------
+- Site Manager / Senior Site Manager: submit via the "Today's Report" pinned card in Work tab
+- PMC Head: reviews under Reporting → Daily Reports (approve or flag each report)
+- Principal / Design Principal: see approved reports after 6am the following day
+- Weekly reports (under Reporting → Weekly Reports) roll up from approved daily reports
 
 NOTES
 -----

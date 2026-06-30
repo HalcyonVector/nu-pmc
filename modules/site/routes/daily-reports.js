@@ -27,6 +27,8 @@ const db      = require('../../../middleware/db');
 const { requireAuth, PROJECT_SCOPED_ROLES, requireProjectScope } = require('../../../middleware/auth');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
+const { upload } = require('../../../middleware/upload');
+const fileUrls = require('../../../services/file-url');
 const router  = express.Router();
 
 // Submitters for Item 10 — expand later if additional site roles need to submit.
@@ -160,6 +162,7 @@ router.get('/:project_id/today',
 // Supports saving notes for today as well as future dates.
 router.post('/:project_id/submit',
   requireAuth, requireProjectScope(),
+  upload.single('photo'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
     const projectId = parseInt(req.params.project_id, 10);
@@ -203,19 +206,21 @@ router.post('/:project_id/submit',
     }
 
     // ON DUPLICATE KEY UPDATE — keeps the original submitted_at but
-    // refreshes overall_notes. Reset to pending_review if it was flagged.
+    // refreshes overall_notes and raw_file_path. Reset to pending_review if flagged.
+    const filePath = req.file?.path || null;
     const [result] = await db.query(
       `INSERT INTO daily_reports
-         (project_id, report_date, site_manager_id, source, overall_notes, status, submitted_at)
-       VALUES (?, ?, ?, 'app', ?, 'pending_review', NOW())
+         (project_id, report_date, site_manager_id, source, overall_notes, raw_file_path, status, submitted_at)
+       VALUES (?, ?, ?, 'app', ?, ?, 'pending_review', NOW())
        ON DUPLICATE KEY UPDATE
-         overall_notes = VALUES(overall_notes),
-         status        = 'pending_review',
-         submitted_at  = NOW(),
-         flag_reason   = NULL,
-         flagged_by    = NULL,
-         flagged_at    = NULL`,
-      [projectId, today, me.id, notes || null]
+         overall_notes  = VALUES(overall_notes),
+         raw_file_path  = COALESCE(VALUES(raw_file_path), raw_file_path),
+         status         = 'pending_review',
+         submitted_at   = NOW(),
+         flag_reason    = NULL,
+         flagged_by     = NULL,
+         flagged_at     = NULL`,
+      [projectId, today, me.id, notes || null, filePath]
     );
 
     const id = result.insertId || (existing && existing.id) || null;
@@ -286,7 +291,7 @@ router.get('/:project_id',
       : '';
 
     const [reports] = await db.query(
-      `SELECT id, report_date, status, source, overall_notes,
+      `SELECT id, report_date, status, source, overall_notes, raw_file_path,
               submitted_at, approved_at, flag_reason, flagged_at,
               site_manager_id, approved_by, flagged_by
        FROM daily_reports
@@ -304,6 +309,8 @@ router.get('/:project_id',
       r.site_manager_name = users.get(r.site_manager_id)?.full_name || null;
       r.approved_by_name  = users.get(r.approved_by)?.full_name     || null;
       r.flagged_by_name   = users.get(r.flagged_by)?.full_name      || null;
+      r.file_url = r.raw_file_path ? fileUrls.fileUrl(r.raw_file_path) : null;
+      delete r.raw_file_path;
     });
     res.json({ reports });
   })

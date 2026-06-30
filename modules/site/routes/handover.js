@@ -17,7 +17,7 @@
 
 const express = require('express');
 const db      = require('../../../middleware/db');
-const { requireAuth, requireProjectScope, requireScopeFromEntity } = require('../../../middleware/auth');
+const { requireAuth, requireProjectScope, requireScopeFromEntity, requirePMC } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/permissions');
 const { upload } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
@@ -62,8 +62,7 @@ router.get('/:project_id/checklist',
 );
 
 router.post('/:project_id/checklist/initialise',
-  requireAuth, requireProjectScope(),
-  requirePermission('pmc.handover.checklist-init'),
+  requireAuth, requireProjectScope(), requirePMC,
   asyncHandler(async (req, res) => {
     const me = req.session.user;
     const projectId = parseInt(req.params.project_id, 10);
@@ -102,8 +101,7 @@ router.post('/:project_id/checklist/initialise',
 );
 
 router.post('/:project_id/checklist/:item_id/upload',
-  requireAuth, requireScopeFromEntity('handover_checklist_items', 'item_id'),
-  requirePermission('pmc.handover.checklist-upload'),
+  requireAuth, requireProjectScope(), requirePMC,
   upload.single('doc'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
@@ -143,8 +141,7 @@ router.get('/:project_id/closure',
 );
 
 router.post('/:project_id/closure/signoff',
-  requireAuth, requireProjectScope(),
-  requirePermission('pmc.handover.closure-signoff'),
+  requireAuth, requireProjectScope(), requirePMC,
   asyncHandler(async (req, res) => {
     const me = req.session.user;
     const projectId = parseInt(req.params.project_id, 10);

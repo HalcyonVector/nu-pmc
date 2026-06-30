@@ -397,3 +397,25 @@ router.get('/:project_id/:measurement_id/certificate', requireAuth, asyncHandler
   }));
 
 module.exports = router;
+
+// POST /api/measurements/:project_id/:measurement_id/signed-cert — upload signed cert after acceptance
+router.post('/:project_id/:measurement_id/signed-cert',
+  requireAuth, requireProjectScope(), requireRole(...PMC_ROLES), upload.single('signed_certificate'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'File required' });
+    const [[meas]] = await db.query(
+      'SELECT id, status FROM measurements WHERE id = ? AND project_id = ?',
+      [req.params.measurement_id, req.params.project_id]
+    );
+    if (!meas) return res.status(404).json({ error: 'Measurement not found' });
+    if (meas.status !== 'client_accepted') return res.status(400).json({ error: 'Measurement must be client_accepted' });
+    await db.query(
+      'UPDATE measurements SET signed_certificate_path = ? WHERE id = ?',
+      [req.file.path, req.params.measurement_id]
+    );
+    const audit = require('../../../services/audit');
+    audit.log({ userId: req.session.user.id, action: 'measurement.signed_cert.upload',
+      entityType: 'measurements', entityId: parseInt(req.params.measurement_id),
+      details: { project_id: parseInt(req.params.project_id) }, req });
+    res.json({ success: true });
+  }));

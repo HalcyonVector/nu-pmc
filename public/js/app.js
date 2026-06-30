@@ -12,12 +12,16 @@ function csrfHeaders() {
   return m ? { 'X-Nu-CSRF': decodeURIComponent(m[1]) } : {};
 }
 
-const TRADE_COLORS = {
-  'Civil':'#c8a55a','Electrical':'#4a8fa8','IT / Networking':'#4a8a5a',
-  'HVAC':'#9a6ab8','Fire / Suppression':'#a84a3a','PA & Fire Alarm':'#a88a2a',
-  'Interior':'#7a5a9a','Plumbing':'#3a8a7a','Handover':'#5a5a5a',
-  'Architectural':'#c8a55a','Structural':'#4a8fa8',
+const _TRADE_COLORS_RAW = {
+  'civil':'#c8a55a','electrical':'#4a8fa8','it / networking':'#4a8a5a',
+  'hvac':'#9a6ab8','fire / suppression':'#a84a3a','pa & fire alarm':'#a88a2a',
+  'interior':'#7a5a9a','plumbing':'#3a8a7a','handover':'#5a5a5a',
+  'architectural':'#c8a55a','structural':'#4a8fa8','finishing':'#c8a55a',
+  'mep':'#4a8fa8','general':'#5a5a5a','civil & structural':'#c8a55a',
 };
+const TRADE_COLORS = new Proxy(_TRADE_COLORS_RAW, {
+  get(t, k) { return typeof k === 'string' ? t[k.toLowerCase()] : undefined; }
+});
 const MAT_STATUSES = ['Requested','Ordered','Dispatched','Received','Checked & Validated'];
 
 // ROLE_TABS removed — nav is DB-driven via /api/nav/me. Login enforces that
@@ -60,8 +64,9 @@ const TAB_LABELS = {
   library:'Knowledge Library',
   // New module tabs
   claims:'Claims',            forms:'Inspections',       labour_quick:'Labour (Quick)',
-  schedule_quick:'Schedule Quick', comms:'Comms',        direct_payments:'Direct Pay',
-  measurements:'Measurements',
+  schedule_quick:'Schedule Quick', comms:'Comms',       
+  measurements:'Measurements', handover:'Handover',
+ 
 };
 
 const APP = {
@@ -972,15 +977,19 @@ const APP = {
          </div>` : '';
     UI.openModal('Today\'s Report', `
       ${flagBanner}
-      <div style="font-size:13px;color:#666;margin-bottom:10px;line-height:1.5">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">
         Notes about today — what was achieved, blockers, upcoming. Tasks, photos,
         labour, and issues you've already logged today are included automatically.
       </div>
-      <textarea id="today-report-notes" rows="7" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"
+      <textarea id="today-report-notes" rows="6" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"
         placeholder="Example: Completed slab casting at grid A-C. 12 labour on site.
 Delay: cement delivery slipped by 2 hrs.
 Tomorrow: start formwork on next bay."
       >${t.notes ? UI.escapeText(t.notes) : ''}</textarea>
+      <div class="field-row" style="margin-top:12px">
+        <label class="field-label">Site Photo / Attachment (optional)</label>
+        <input type="file" id="today-report-photo" accept="image/*,.pdf">
+      </div>
       <button class="btn-primary" style="width:100%;margin-top:14px" onclick="APP.submitTodayReport()">Submit Today's Report</button>
     `);
   },
@@ -989,7 +998,16 @@ Tomorrow: start formwork on next bay."
     const pid = APP.state.selectedProject;
     if (!pid) { UI.toast('No project selected'); return; }
     const notes = (document.getElementById('today-report-notes')?.value || '').trim();
-    const res = await API.post(`/daily-reports/${pid}/submit`, { notes });
+    const photoFile = document.getElementById('today-report-photo')?.files?.[0];
+    let res;
+    if (photoFile) {
+      const fd = new FormData();
+      fd.append('notes', notes);
+      fd.append('photo', photoFile);
+      res = await API.call('POST', `/daily-reports/${pid}/submit`, fd, true);
+    } else {
+      res = await API.post(`/daily-reports/${pid}/submit`, { notes });
+    }
     if (res?.ok) {
       UI.closeModal();
       UI.toast('Report submitted ✓');
@@ -1109,7 +1127,6 @@ Tomorrow: start formwork on next bay."
       schedule:      APP.renderSchedule,
       schedule_view: APP.renderScheduleView,
       photos:        APP.renderPhotos,
-      documents:     APP.renderDocuments,
       // queries folded into issues in v3
       issues_site:   APP.renderQueriesSite,  // site-manager field-issues screen (implementation still named renderQueriesSite)
       materials:     APP.renderMaterials,
@@ -1155,8 +1172,8 @@ Tomorrow: start formwork on next bay."
       labour_quick:      () => APP.renderLabourQuick(),
       schedule_quick:    () => APP.renderScheduleQuick(),
       comms:             () => APP.renderComms(),
-      direct_payments:   () => APP.renderDirectPayments(),
       measurements:      () => APP.renderMeasurements(),
+      handover:          () => APP.renderHandover(),
     };
     (map[id] || (() => el.innerHTML = UI.empty('','Coming soon')))();
   },
@@ -1256,12 +1273,10 @@ Tomorrow: start formwork on next bay."
       const completed = [];
 
       projects.forEach(p => {
-        const isChecklistComplete = !!(p.checklist_project_created && p.checklist_design_boq &&
-                                       p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager);
         if (['completed', 'on_hold'].includes(p.status)) {
           completed.push(p);
-        } else if (p.status === 'initialising' || !isChecklistComplete) {
-          // Skip initialising projects on the dashboard as requested
+        } else if (p.status === 'initialising') {
+          // Skip initialising projects on the dashboard
         } else {
           active.push(p);
         }
@@ -1306,11 +1321,9 @@ Tomorrow: start formwork on next bay."
       const completed = [];
 
       projects.forEach(p => {
-        const isChecklistComplete = !!(p.checklist_project_created && p.checklist_design_boq &&
-                                       p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager);
         if (['completed', 'on_hold'].includes(p.status)) {
           completed.push(p);
-        } else if (p.status === 'initialising' || !isChecklistComplete) {
+        } else if (p.status === 'initialising') {
           initialising.push(p);
         } else {
           active.push(p);
@@ -1343,7 +1356,8 @@ Tomorrow: start formwork on next bay."
   projectCard(p, compact) {
     const trades = Object.entries(p.trades || {});
     const statusHtml = UI.statusBadge(p.status);
-    const checklist  = p.checklist_project_created && p.checklist_design_boq &&
+    const checklist  = p.checklist_project_created && p.checklist_design_register &&
+                       p.checklist_services_register && p.checklist_design_boq &&
                        p.checklist_services_boq && p.checklist_schedule && p.checklist_site_manager;
 
     let html = `<div class="proj-card fade-in" style="min-height:44px; text-align:center; width:100%; cursor:pointer" onclick="APP.selectProject('${p.id}')">
@@ -1356,17 +1370,19 @@ Tomorrow: start formwork on next bay."
         <div>${statusHtml}</div>
       </div>`;
 
-    if (!checklist) {
+    if (p.status === 'initialising' && !checklist) {
       const steps = [
-        ['Project created',          p.checklist_project_created],
-        ['Design BOQ uploaded',      p.checklist_design_boq],
-        ['Services BOQ uploaded',    p.checklist_services_boq],
-        ['Schedule uploaded',        p.checklist_schedule],
-        ['Site manager assigned',    p.checklist_site_manager],
+        ['Project created',                  p.checklist_project_created],
+        ['Design drawing register',          p.checklist_design_register],
+        ['Services drawing register',        p.checklist_services_register],
+        ['Design BOQ uploaded',              p.checklist_design_boq],
+        ['Services BOQ uploaded',            p.checklist_services_boq],
+        ['Schedule uploaded',                p.checklist_schedule],
+        ['Site manager assigned',            p.checklist_site_manager],
       ];
       const done = steps.filter(s => s[1]).length;
       html += `<div style="padding:0 16px 16px; width:100%; text-align:center">
-        <div style="font-size:10px;color:#60a8c8;font-family:var(--mono);margin-bottom:8px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px">INITIALISING — ${done}/5 complete</div>
+        <div style="font-size:10px;color:#60a8c8;font-family:var(--mono);margin-bottom:8px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px">INITIALISING — ${done}/7 complete</div>
         <div style="display:flex; flex-direction:column; gap:6px; text-align:center">
           ${steps.map(([l, v]) => `
             <div class="check-item${v ? ' done' : ''}" style="justify-content:center">
@@ -1392,8 +1408,10 @@ Tomorrow: start formwork on next bay."
         trades.forEach(([trade, pct]) => {
           const col = TRADE_COLORS[trade] || '#5a5a5a';
           const pctDisplay = parseFloat(pct).toFixed(2).replace(/\.?0+$/, '') || '0';
+          const tradeLabel = trade.split(' ')[0];
+          const tradeFmt = tradeLabel.charAt(0).toUpperCase() + tradeLabel.slice(1).toLowerCase();
           html += `<div class="prog-row">
-            <div class="prog-label">${trade.split(' ')[0]}</div>
+            <div class="prog-label">${tradeFmt}</div>
             <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
             <div class="prog-pct">${pctDisplay}%</div>
           </div>`;
@@ -1482,6 +1500,7 @@ Tomorrow: start formwork on next bay."
     const pid   = APP._ensurePid();
 
     if (!pid) { el.innerHTML = UI.empty('','No project assigned yet'); return; }
+    if (APP._guardInitialisingProject(el, pid)) return;
 
     const subTabs = `<div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
       <button style="min-height:44px;flex:1;text-align:center;padding:10px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);background:${sub==='today'?'var(--navy)':'var(--white)'};color:${sub==='today'?'var(--white)':'var(--muted)'}" onclick="APP.state.scheduleView='today';APP.renderSchedule()">TODAY</button>
@@ -1580,6 +1599,19 @@ Tomorrow: start formwork on next bay."
     // Flagged tasks — principals/PMC see these at the top
     const isPrincipalView = ['principal','design_principal','pmc_head'].includes(APP.user?.role || APP.user?.real_role);
     if (isPrincipalView) {
+      // Check for pending schedule versions that need PMC acknowledgement
+      if (APP.user?.role === 'pmc_head') {
+        const versionsData = await API.get(`/schedule/${pid}/versions`).catch(() => null);
+        const pendingVer = (versionsData?.versions || []).find(v => v.status === 'pending_approval' && v.drift_days > 0 && !v.drift_acknowledged);
+        if (pendingVer) {
+          finalHtml += `<div class="card" style="background:#FFF8E1;border-left:3px solid var(--amber);margin-bottom:12px;padding:12px">
+            <div style="font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Schedule drift requires your acknowledgement</div>
+            <div class="card-meta" style="margin-bottom:8px">+${pendingVer.drift_days} days drift from R0 — document mitigation steps before Principal reviews</div>
+            <textarea id="drift-mit-note" rows="2" placeholder="Mitigation steps / explanation…" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px"></textarea>
+            <button class="btn-sm approve" onclick="APP.acknowledgeDrift(${pid}, ${pendingVer.id}, ${pendingVer.row_version||0})" style="width:100%">Acknowledge Drift & Notify Principal</button>
+          </div>`;
+        }
+      }
       // Fetch flags for each project and merge
       const flagResults = await Promise.all(
         projects.map(p => API.get(`/schedule/${p.id}/flags`).catch(() => null))
@@ -2255,6 +2287,7 @@ Tomorrow: start formwork on next bay."
     const el  = UI.contentEl();
     const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+    if (APP._guardInitialisingProject(el, pid)) return;
 
     const data = await API.getSchedule(pid);
     const ver  = data?.version;
@@ -2263,21 +2296,35 @@ Tomorrow: start formwork on next bay."
 
     let html = APP._projectSelectHtml('APP.renderScheduleView()');
     const isPMCHead = APP.user?.role === 'pmc_head';
+    // Also fetch versions to find any pending one needing acknowledgement
+    const versionsData = await API.get(`/schedule/${pid}/versions`).catch(() => null);
+    const pendingVer = (versionsData?.versions || []).find(v => v.status === 'pending_approval');
+    const isPrincipal = ['principal','design_principal'].includes(APP.user?.role);
+    if (pendingVer && isPMCHead && !pendingVer.drift_acknowledged) {
+      html += `<div class="card" style="background:#FFF8E1;border-left:3px solid var(--amber);margin-bottom:12px;padding:12px">
+        <div style="font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Schedule drift requires your acknowledgement</div>
+        <div class="card-meta" style="margin-bottom:8px">+${pendingVer.drift_days} days drift from R0 — document mitigation before Principal reviews</div>
+        <textarea id="drift-mit-note" rows="2" placeholder="Mitigation steps / explanation…" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px"></textarea>
+        <button class="btn-sm approve" onclick="APP.acknowledgeDrift(${pid}, ${pendingVer.id}, ${pendingVer.row_version||0})" style="width:100%">Acknowledge Drift & Notify Principal</button>
+      </div>`;
+    }
+    if (pendingVer && isPrincipal) {
+      const ackNote = pendingVer.drift_mitigation ? `<div style="font-size:12px;background:var(--surface);border-radius:4px;padding:8px;margin-bottom:8px;color:var(--text)"><strong>PMC mitigation note:</strong> ${UI.escapeText(pendingVer.drift_mitigation)}</div>` : '';
+      const ackPending = !pendingVer.drift_acknowledged ? '<div style="font-size:12px;color:var(--amber);margin-bottom:8px">⏳ Awaiting PMC Head acknowledgement</div>' : '';
+      html += `<div class="card" style="background:#F0F7FF;border-left:3px solid var(--navy);margin-bottom:12px;padding:12px">
+        <div style="font-weight:600;color:var(--navy);margin-bottom:6px">📋 Schedule ${pendingVer.label} pending your approval</div>
+        <div class="card-meta" style="margin-bottom:8px">+${pendingVer.drift_days} days drift from R0</div>
+        ${ackPending}${ackNote}
+        ${pendingVer.drift_acknowledged
+          ? `<button class="btn-sm approve" onclick="APP.approveScheduleVersion(${pid}, ${pendingVer.id})" style="width:100%">Approve Schedule ✓</button>`
+          : `<button class="btn-sm" disabled style="width:100%;opacity:0.5">Waiting for PMC acknowledgement…</button>`}
+      </div>`;
+    }
     if (ver) {
       html += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
         <span class="badge b-blue">Schedule ${ver.label}</span>
         ${ver.drift_days > 0 ? `<span class="badge b-${ver.drift_days>3?'red':'amber'}">+${ver.drift_days} days drift</span>` : '<span class="badge b-green">On R0 track</span>'}
-        ${ver.status==='pending_approval'?'<span class="badge b-red">Pending approval</span>':''}
       </div>`;
-      const needsAck = ver.drift_days > 0 && !ver.drift_acknowledged;
-      if (needsAck && isPMCHead) {
-        html += `<div class="card" style="background:#FFF8E1;border-left:3px solid var(--amber);margin-bottom:12px">
-          <div style="font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Schedule drift requires acknowledgement</div>
-          <div class="card-meta" style="margin-bottom:8px">+${ver.drift_days} days drift — please document mitigation steps</div>
-          <textarea id="drift-mit-note" rows="2" placeholder="Mitigation steps / explanation…" style="width:100%;margin-bottom:8px"></textarea>
-          <button class="btn-sm approve" onclick="APP.acknowledgeDrift(${pid}, ${ver.id}, ${ver.row_version||0})" style="width:100%">Acknowledge Drift</button>
-        </div>`;
-      }
     }
 
     html += `<div class="sec-label">Today — Validate Site Updates</div>`;
@@ -2343,15 +2390,27 @@ Tomorrow: start formwork on next bay."
 
   async acknowledgeDrift(pid, versionId, rowVersion) {
     const mitigation_note = document.getElementById('drift-mit-note')?.value?.trim();
+    if (!mitigation_note) { UI.toast('Please enter mitigation steps first'); return; }
     const res = await API.patch(`/schedule/${pid}/drift-acknowledge`, { version_id: versionId, mitigation_note, row_version: rowVersion });
-    if (res?.success) { UI.toast('Drift acknowledged ✓'); APP.renderScheduleView(); }
+    if (res?.success) { UI.toast('Drift acknowledged ✓ — Principal notified'); APP.renderScheduleView(); }
     else UI.toast(res?.error || 'Failed');
+  },
+
+  async approveScheduleVersion(pid, versionId) {
+    const ok = await UI.confirm('Approve this schedule version? It will become the active schedule.');
+    if (!ok) return;
+    const res = await API.post(`/schedule/${pid}/versions/${versionId}/approve`, {});
+    if (res?.success) { UI.toast(res.message || 'Schedule approved ✓'); APP.renderScheduleView(); }
+    else UI.toast(res?.error || 'Approval failed');
   },
 
   async uploadSchedule(pid, input) {
     const file = input.files[0];
     if (!file) return;
-    const reason = await UI.prompt('Reason for schedule revision');
+    // Only ask for a reason if there's already an existing schedule version
+    const existing = await API.get(`/schedule/${pid}`).catch(() => null);
+    const isFirstUpload = !existing?.version;
+    const reason = isFirstUpload ? '' : await UI.prompt('Reason for schedule revision');
     const fd = new FormData();
     fd.append('schedule', file);
     fd.append('reason', reason || '');
@@ -2373,6 +2432,7 @@ Tomorrow: start formwork on next bay."
     }
     const pid = APP._ensurePid();
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+    if (APP._guardInitialisingProject(el, pid)) return;
 
     const data = await API.getDrawings(pid);
     const drawings = data?.drawings || [];
@@ -2411,8 +2471,9 @@ Tomorrow: start formwork on next bay."
           <strong style="color:#1a2e44">Main drawing</strong> — must match a drawing number on the approved register. PMC Head or Services Head pre-registers every main drawing at project start.
         </div>
 
-        <div class="field-row"><label class="field-label" for="dwg-proj">Project</label>
-          <input type="text" id="dwg-proj" value="${pid}" placeholder="Project ID">
+        <div class="field-row"><label class="field-label">Project</label>
+          <input type="hidden" id="dwg-proj" value="${pid}">
+          <div style="padding:10px 12px;background:var(--surface,#f8f9fa);border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--text)">${(APP.user?.projects||[]).find(p=>String(p.id)===String(pid))?.name||'Project '+pid}</div>
         </div>
         <div class="field-row"><label class="field-label" for="dwg-cat">Category</label>
           <select id="dwg-cat">
@@ -2420,8 +2481,8 @@ Tomorrow: start formwork on next bay."
             ${['Architectural','Structural','Civil','Interior','Electrical','HVAC','Plumbing','Fire','IT'].map(c=>`<option>${c}</option>`).join('')}
           </select>
         </div>
-        <div class="field-row"><label class="field-label" for="dwg-num">Drawing Number</label><input type="text" id="dwg-num" placeholder="e.g. A-101"></div>
-        <div class="field-row"><label class="field-label" for="dwg-name">Drawing Name</label><input type="text" id="dwg-name" placeholder="Ground Floor Plan"></div>
+        <div class="field-row" id="dwg-num-row"><label class="field-label" for="dwg-num">Drawing Number</label><input type="text" id="dwg-num" placeholder="e.g. A-101"></div>
+        <div class="field-row" id="dwg-name-row"><label class="field-label" for="dwg-name">Drawing Name</label><input type="text" id="dwg-name" placeholder="Ground Floor Plan"></div>
 
         <div class="field-row" id="dwg-parent-row" style="display:none"><label class="field-label" for="dwg-parent">Parent Drawing (optional)</label>
           <input type="text" id="dwg-parent" placeholder="e.g. 42 (drawing ID of A-101)">
@@ -2460,6 +2521,8 @@ Tomorrow: start formwork on next bay."
     html += '</div>';
 
     el.innerHTML = html;
+    // Always start on Main type after a fresh render
+    if (canUpload) APP.setDwgType('main');
   },
 
   // ── Cross-project pending drawings portfolio ─────────────────────────────
@@ -2607,10 +2670,8 @@ Tomorrow: start formwork on next bay."
     const parentRow = document.getElementById('dwg-parent-row');
     const rfiRow    = document.getElementById('dwg-rfi-row');
     const info      = document.getElementById('dwg-type-info');
-    const numEl     = document.getElementById('dwg-num');
-    const nameEl    = document.getElementById('dwg-name');
-    const numRow    = numEl?.parentElement;
-    const nameRow   = nameEl?.parentElement;
+    const numRow    = document.getElementById('dwg-num-row');
+    const nameRow   = document.getElementById('dwg-name-row');
 
     if (parentRow) parentRow.style.display = (t === 'detail') ? 'block' : 'none';
     if (rfiRow)    rfiRow.style.display    = (t === 'rfi_response') ? 'block' : 'none';
@@ -2767,6 +2828,8 @@ Tomorrow: start formwork on next bay."
   async renderRegister() {
     const el  = UI.contentEl();
     const pid = APP._ensurePid();
+    // Design Head / Services Head must upload registers to complete initialisation — skip guard
+    if (!['design_head','services_head'].includes(APP.user?.role) && APP._guardInitialisingProject(el, pid)) return;
     const role = APP.user?.role;
     if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
 
@@ -3930,15 +3993,20 @@ Tomorrow: start formwork on next bay."
   // ── FEE SCHEDULE UPLOAD (principal only)
   showFeeScheduleUpload(projectId) {
     UI.openModal('Upload Fee Schedule', `
-      <p style="color:#666;font-size:13px;margin-bottom:12px">
-        Upload Excel with columns: <strong>Stage</strong>, <strong>Percentage</strong>, <strong>Contract Value</strong>.
-        System computes amounts and creates milestones.
-      </p>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+        Upload an Excel file with columns: <span style="font-family:var(--mono);font-size:11px;background:var(--surface);padding:1px 6px;border-radius:4px">Stage</span>,
+        <span style="font-family:var(--mono);font-size:11px;background:var(--surface);padding:1px 6px;border-radius:4px">Percentage</span>,
+        <span style="font-family:var(--mono);font-size:11px;background:var(--surface);padding:1px 6px;border-radius:4px">Contract Value</span>.
+        Milestones are created automatically.
+      </div>
       <div class="field-row">
-        <label class="field-label" for="fs-file">Excel file</label>
+        <label class="field-label">Excel File *</label>
         <input type="file" id="fs-file" accept=".xlsx,.xls">
       </div>
-      <button class="btn-primary" onclick="APP.uploadFeeSchedule(${projectId})">Upload</button>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn-primary" onclick="APP.uploadFeeSchedule(${projectId})">Upload</button>
+        <button class="btn-secondary" onclick="UI.closeModal()">Cancel</button>
+      </div>
     `);
   },
 
@@ -4464,6 +4532,7 @@ Tomorrow: start formwork on next bay."
   async renderPhotos() {
     const el  = UI.contentEl();
     const pid = APP._ensurePid();
+    if (APP._guardInitialisingProject(el, pid)) return;
     const today = APP.state.serverToday || UI.todayIST();
     // Default to today so first load and subsequent loads return the same photos
     if (!APP.state.selectedDate) APP.state.selectedDate = today;
@@ -5194,8 +5263,11 @@ Tomorrow: start formwork on next bay."
         <input type="date" id="rpt-week-ending" value="${weekEnding}"></div>
       <div class="field-row"><label class="field-label">Week Number</label>
         <input type="number" id="rpt-week-num" value="${weekNum}" placeholder="e.g. 24" min="1" max="53"></div>
-      <div class="field-row"><label class="field-label">Summary</label>
-        <textarea id="rpt-summary" rows="4" placeholder="Work completed this week, progress highlights…">${UI.escapeText(lastSummary)}</textarea></div>
+      <div class="field-row" style="display:flex;align-items:center;justify-content:space-between">
+        <label class="field-label" style="margin:0">Summary</label>
+        <button class="btn-sm" style="font-size:11px" onclick="APP._generateWeeklySummary(${pid})">Generate from site data</button>
+      </div>
+      <textarea id="rpt-summary" rows="4" placeholder="Work completed this week, progress highlights…">${UI.escapeText(lastSummary)}</textarea>
       <div class="field-row"><label class="field-label">Issues / Notes for Client</label>
         <textarea id="rpt-issues" rows="3" placeholder="Blockers, decisions needed, observations…"></textarea></div>
       ${cf?.carried_items?.length ? `
@@ -5253,6 +5325,35 @@ Tomorrow: start formwork on next bay."
   async approveWeeklyReport(id) {
     const res = await API.approveReport(id);
     if (res?.success) { UI.toast('Report approved ✓'); APP.renderWeeklyReports(); }
+  },
+
+  async _generateWeeklySummary(pid) {
+    const btn = event?.target;
+    if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
+    const data = await API.get(`/reports/${pid}/generate`).catch(() => null);
+    if (btn) { btn.textContent = 'Generate from site data'; btn.disabled = false; }
+    if (!data) { UI.toast('Could not generate — no site data yet'); return; }
+
+    const lines = [];
+    if (data.trade_progress?.length) {
+      lines.push('Progress this week:');
+      data.trade_progress.forEach(t => lines.push(`  ${t.trade}: ${t.pct_complete}% complete`));
+    }
+    if (data.flags?.length) {
+      lines.push(`\nOpen flags: ${data.flags.length}`);
+      data.flags.slice(0,3).forEach(f => lines.push(`  - ${f.description||f.task_name||'—'}`));
+    }
+    if (data.materials?.length) {
+      const pending = data.materials.filter(m => m.status === 'pending');
+      if (pending.length) lines.push(`\nMaterials pending approval: ${pending.length}`);
+    }
+    const el = document.getElementById('rpt-summary');
+    if (el) el.value = lines.join('\n') || 'No site data available for this week.';
+
+    const issueEl = document.getElementById('rpt-issues');
+    if (issueEl && data.queries?.length) {
+      issueEl.value = data.queries.slice(0,3).map(q => `- ${q.description||'Open query'}`).join('\n');
+    }
   },
 
   async unflagReport(id) {
@@ -5552,43 +5653,100 @@ Tomorrow: start formwork on next bay."
     } else UI.toast(res?.error || 'Upload failed');
   },
 
+  async showRaisePaymentPicker(pid) {
+    // Load engagements for this project so site manager can pick vendor first
+    const data = await API.get(`/vendors/${pid}/engagements`).catch(() => null);
+    const engs = (data?.engagements || []).filter(e => e.approval_status === 'approved');
+    if (!engs.length) {
+      UI.openModal('Raise Payment Request', `
+        <div style="font-size:14px;color:var(--muted);text-align:center;padding:20px 0">
+          No approved vendor engagements on this project.<br>
+          <span style="font-size:12px">Vendors must be engaged and approved by the Principal before payment requests can be raised.</span>
+        </div>
+      `);
+      return;
+    }
+    UI.openModal('Raise Payment Request', `
+      <div class="field-row">
+        <label class="field-label">Select Vendor / Engagement *</label>
+        <select id="pr-eng-sel" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--card)">
+          <option value="">— Select vendor —</option>
+          ${engs.map(e => `<option value="${e.id}" data-vendor-id="${e.vendor_id}" data-vendor-name="${UI.escapeAttr(e.vendor_name||'')}">${UI.escapeAttr(e.vendor_name||'—')} · ${UI.escapeAttr((e.scope||'').substring(0,40))}</option>`).join('')}
+        </select>
+      </div>
+      <div id="pr-form-slot"></div>
+      <button class="btn-secondary" style="width:100%;margin-top:8px" onclick="APP._prPickEngagement(${pid})">Next</button>
+    `);
+  },
+
+  _prPickEngagement(pid) {
+    const sel = document.getElementById('pr-eng-sel');
+    const opt = sel?.options[sel.selectedIndex];
+    if (!opt || !opt.value) { UI.toast('Select a vendor'); return; }
+    const engId    = parseInt(opt.value, 10);
+    const vendorId = parseInt(opt.dataset.vendorId, 10);
+    const vendorName = opt.dataset.vendorName || '—';
+    UI.closeModal();
+    APP.showRaisePayment(pid, vendorId, vendorName, engId);
+  },
+
   showRaisePayment(pid, vendorId, vendorName, engagementId) {
-    const today = APP.state.serverToday || UI.todayIST();
-    const weekEnd = UI.addDays(today, 6 - new Date(today+'T00:00:00').getDay());
     const TYPES = ['running_account_bill','advance','mobilisation_advance','material_advance',
                    'final_bill','retention_release','extra_item','deduction'];
-    UI.openModal(`Payment — ${vendorName}`, `
-      <div style="margin-bottom:14px">
-        <label class="field-label">Scan invoice to auto-fill</label>
-        <input type="file" accept="image/*,.pdf" id="pay-invoice-scan" onchange="APP.readInvoice(this)" style="margin-top:4px">
-      </div>
+    UI.openModal(`Payment Request — ${vendorName}`, `
       <div class="field-row"><label class="field-label" for="pay-type">Payment Type</label>
         <select id="pay-type">
           ${TYPES.map(t=>`<option value="${t}">${t.replace(/_/g,' ').toUpperCase()}</option>`).join('')}
         </select>
       </div>
-      <div class="field-row"><label class="field-label" for="pay-amt">Amount (₹)</label><input type="text" id="pay-amt" placeholder="0"></div>
-      <div class="field-row"><label class="field-label" for="pay-pct">Work Done % (for RA bills)</label><input type="text" id="pay-pct" placeholder="Optional"></div>
-      <div class="field-row"><label class="field-label" for="pay-week">Week Ending</label><input type="date" id="pay-week" value="${weekEnd}"></div>
-      <div class="field-row"><label class="field-label" for="pay-notes">Notes</label><textarea id="pay-notes" rows="2"></textarea></div>
+      <div class="field-row"><label class="field-label" for="pay-amt">Amount (₹) *</label><input type="text" id="pay-amt" placeholder="0"></div>
+      <div class="field-row"><label class="field-label" for="pay-reason">Reason / Description *</label><textarea id="pay-reason" rows="2" placeholder="What is this payment for?"></textarea></div>
+      <div class="field-row">
+        <label class="field-label">Evidence / Invoice PDFs <span style="color:var(--muted);font-weight:400">(up to 5 files)</span></label>
+        <input type="file" id="pay-evidence" accept="image/*,.pdf" multiple style="font-size:13px" onchange="APP._showEvidenceList('pay-evidence','pay-evidence-list')">
+        <div id="pay-evidence-list" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
       <button class="btn-primary" onclick="APP.submitPayment(${pid},${vendorId},${engagementId||'null'})">Raise Payment Request</button>
     `);
   },
 
   async submitPayment(pid, vendorId, engagementId) {
-    const data = {
-      vendor_id:       vendorId,
-      engagement_id:   engagementId || null,
-      payment_type:    document.getElementById('pay-type')?.value,
-      amount_requested:document.getElementById('pay-amt')?.value,
-      work_done_pct:   document.getElementById('pay-pct')?.value || null,
-      week_ending:     document.getElementById('pay-week')?.value,
-      notes:           document.getElementById('pay-notes')?.value.trim(),
-    };
-    if (!data.amount_requested || !data.week_ending) { UI.toast('Amount and week ending required'); return; }
-    const res = await API.raisePayment(pid, data);
-    if (res?.success) { UI.closeModal(); UI.toast('Payment request raised ✓'); APP.renderVendors(); }
-    else UI.toast(res?.error || 'Failed');
+    const amount  = document.getElementById('pay-amt')?.value?.trim();
+    const reason  = document.getElementById('pay-reason')?.value?.trim();
+    const payType = document.getElementById('pay-type')?.value;
+    const evidenceFiles = document.getElementById('pay-evidence')?.files;
+    if (!amount) { UI.toast('Amount required'); return; }
+    if (!reason) { UI.toast('Reason required'); return; }
+    const fd = new FormData();
+    fd.append('engagement_id',   engagementId || '');
+    fd.append('vendor_id',       vendorId || '');
+    fd.append('amount_requested', amount);
+    fd.append('reason',          reason);
+    fd.append('payment_type',    payType || 'other');
+    if (evidenceFiles) {
+      for (const f of evidenceFiles) fd.append('evidence', f);
+    }
+    const res = await API.call('POST', `/payment-requests/${pid}`, fd, true);
+    if (res?.success) {
+      UI.closeModal();
+      UI.toast('Payment request raised ✓');
+      // Refresh whichever tab is active
+      if (APP.currentTab === 'payments') APP.renderPayments();
+      else APP.renderVendors();
+    } else UI.toast(res?.error || 'Failed');
+  },
+
+  _showEvidenceList(inputId, listId) {
+    const input = document.getElementById(inputId);
+    const list  = document.getElementById(listId);
+    if (!input || !list) return;
+    list.innerHTML = '';
+    Array.from(input.files).forEach((f, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);padding:4px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)';
+      row.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${UI.escapeText(f.name)}</span><span style="color:var(--muted);flex-shrink:0">${(f.size/1024).toFixed(0)} KB</span>`;
+      list.appendChild(row);
+    });
   },
 
   async approvePayment(id) {
@@ -5669,6 +5827,23 @@ APP._visibleProjects = function() {
   return (APP.user?.projects || []).filter(p => !isSiteRole || p.status === 'active' || !p.status);
 };
 
+// Returns true (and renders a "still initialising" banner) if the selected
+// project is not yet active. Skip this guard in Budget/setup screens.
+APP._guardInitialisingProject = function(el, pid) {
+  if (!pid) return false;
+  const proj = (APP.user?.projects || []).find(p => String(p.id) === String(pid));
+  if (!proj || proj.status !== 'initialising') return false;
+  // Senior roles set up and oversee projects — never block them
+  if (['pmc_head','principal','design_principal'].includes(APP.user?.role)) return false;
+  el.innerHTML = APP._projectSelectHtml('APP.render(APP.currentTab)') + `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;gap:16px;padding:32px;text-align:center">
+      <div style="font-size:32px">🏗️</div>
+      <div style="font-weight:700;font-size:16px;color:var(--text)">${proj.name} is still being set up</div>
+      <div style="font-size:13px;color:var(--muted);max-width:320px">This project hasn't been fully initialised yet. Complete the setup checklist before accessing this tab.</div>
+    </div>`;
+  return true;
+};
+
 APP._ensurePid = function() {
   const projects = APP._visibleProjects();
   // Validate current selection is actually in the visible list;
@@ -5677,7 +5852,9 @@ APP._ensurePid = function() {
   const inList = projects.some(p => String(p.id) === String(APP.state.selectedProject));
   if (!APP.state.selectedProject || !inList) {
     if (projects.length) {
-      APP.state.selectedProject = projects[0].id;
+      // Prefer first active project; only fall back to initialising if nothing else exists
+      const active = projects.find(p => p.status === 'active' || !p.status);
+      APP.state.selectedProject = (active || projects[0]).id;
       if (APP._updateTopbar) APP._updateTopbar();
     }
   }
@@ -6738,6 +6915,159 @@ APP.uploadChecklistDoc = function(itemId, projectId) {
   input.click();
 };
 
+APP.renderHandover = async function() {
+  const el = UI.contentEl();
+  const pid = APP._ensurePid();
+  if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+
+  let html = APP._projectSelectHtml('APP.renderHandover()');
+
+  const [checkRes, closureRes] = await Promise.all([
+    API.get(`/handover/${pid}/checklist`).catch(() => null),
+    API.get(`/handover/${pid}/closure`).catch(() => null),
+  ]);
+
+  const items = checkRes?.items || [];
+  const completion = checkRes?.completion_pct ?? 0;
+  const submitted  = checkRes?.submitted ?? 0;
+  const total      = checkRes?.total ?? 0;
+  const signoffs   = closureRes?.signoffs || [];
+  const closureComplete = closureRes?.complete || false;
+  const myRole     = APP.user?.role;
+  const isPMC      = ['pmc_head','principal','design_principal'].includes(myRole);
+
+  // Progress bar
+  const barColor = completion === 100 ? 'var(--green)' : completion > 60 ? 'var(--amber)' : 'var(--navy)';
+  html += `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-weight:700;font-size:15px;color:var(--navy)">Handover Checklist</div>
+      <span style="font-family:var(--mono);font-size:13px;color:var(--muted)">${submitted} / ${total} documents</span>
+    </div>
+    <div style="background:var(--border);height:6px;border-radius:3px;overflow:hidden;margin-bottom:6px">
+      <div style="background:${barColor};height:100%;width:${completion}%;border-radius:3px;transition:width .3s"></div>
+    </div>
+    <div style="font-size:11px;color:${barColor};font-weight:600">${completion}% complete</div>
+  </div>`;
+
+  if (!items.length) {
+    if (isPMC) {
+      html += `<div style="text-align:center;padding:24px 0">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Checklist not initialised for this project yet.</div>
+        <button class="btn-sm navy" onclick="APP._initHandoverChecklist(${pid})">Initialise Checklist</button>
+      </div>`;
+    } else {
+      html += UI.empty('','Handover checklist not set up yet');
+    }
+  } else {
+    const discColor = { architectural:'#1D3D62', services:'#4A8FA8', pmc:'#4A8A5A', statutory:'#C8A040' };
+    const byDisc = {};
+    items.forEach(i => { const d = i.discipline || 'other'; (byDisc[d] = byDisc[d] || []).push(i); });
+
+    Object.keys(byDisc).forEach(disc => {
+      const list = byDisc[disc];
+      const doneCount = list.filter(i => i.file_url).length;
+      html += `<div style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:${discColor[disc]||'#888'};flex-shrink:0"></div>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">${disc.charAt(0).toUpperCase()+disc.slice(1)}</span>
+          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${doneCount}/${list.length}</span>
+        </div>`;
+      list.forEach(item => {
+        const done = !!item.file_url;
+        const na = !item.is_applicable;
+        html += `<div class="card" style="padding:10px 14px;margin-bottom:6px;${na?'opacity:0.45':''}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+              ${done ? 'background:var(--green);color:#fff' : 'background:var(--border);color:var(--muted)'}">
+              ${done ? '✓' : '○'}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:${na?'var(--muted)':'var(--text)'};${na?'text-decoration:line-through':''}">${UI.escapeText(item.item_name)}</div>
+              ${done ? `<div style="font-size:11px;color:var(--green);margin-top:1px">Uploaded ${UI.fmtDate(item.uploaded_at)}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              ${done ? `<button class="btn-sm" onclick="window.open('${item.file_url}','_blank')">View</button>` : ''}
+              ${isPMC && !na ? `<button class="btn-sm${done?'':' navy'}" onclick="APP._uploadHandoverItem(${pid},${item.id})">${done ? 'Replace' : 'Upload'}</button>` : ''}
+            </div>
+          </div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  }
+
+  // Closure signoffs
+  if (items.length) {
+    const roleLabel = { pmc_head:'PMC Head', design_head:'Design Head', services_head:'Services Head', principal:'Principal' };
+    const mySignoffRole = { pmc_head:'pmc_head', design_head:'design_head', services_head:'services_head', principal:'principal', design_principal:'principal' }[myRole];
+    const mySigned = signoffs.find(s => s.role === mySignoffRole);
+
+    html += `<div class="sec-hdr-row" style="margin-top:20px">
+      <div class="sec-label" style="margin:0;flex:1">Project Closure${closureComplete ? ' — Complete' : ''}</div>
+      ${closureComplete ? '<span class="badge b-green">All signed</span>' : ''}
+    </div>`;
+
+    const allRoles = ['pmc_head','design_head','services_head','principal'];
+    allRoles.forEach(role => {
+      const signed = signoffs.find(s => s.role === role);
+      html += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+            ${signed ? 'background:var(--green);color:#fff' : 'background:var(--border);color:var(--muted)'}">
+            ${signed ? '✓' : '○'}
+          </div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${roleLabel[role]}</div>
+            ${signed ? `<div style="font-size:11px;color:var(--green)">${signed.signed_by_name} · ${UI.fmtDate(signed.signed_at)}</div>` : '<div style="font-size:11px;color:var(--muted)">Pending</div>'}
+          </div>
+          ${mySignoffRole === role && !mySigned ? `<button class="btn-sm navy" onclick="APP._handoverSignoff(${pid})">Sign Off</button>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  el.innerHTML = `<div class="fade-in">${html}</div>`;
+};
+
+APP._initHandoverChecklist = async function(pid) {
+  const res = await API.post(`/handover/${pid}/checklist/initialise`, {});
+  if (res?.success) { UI.toast(`${res.items_created} items initialised`); APP.renderHandover(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
+APP._uploadHandoverItem = function(pid, itemId) {
+  UI.openModal('Upload Handover Document', `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      Upload the document for this checklist item. PDF, Word, or image formats accepted.
+    </div>
+    <div class="field-row">
+      <label class="field-label">Document *</label>
+      <input type="file" id="hov-doc" accept=".pdf,.doc,.docx,image/*">
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn-primary" onclick="APP._submitHandoverDoc(${pid},${itemId})">Upload</button>
+      <button class="btn-secondary" onclick="UI.closeModal()">Cancel</button>
+    </div>
+  `);
+};
+
+APP._submitHandoverDoc = async function(pid, itemId) {
+  const file = document.getElementById('hov-doc')?.files?.[0];
+  if (!file) { UI.toast('Select a file first'); return; }
+  const fd = new FormData();
+  fd.append('doc', file);
+  const res = await API.call('POST', `/handover/${pid}/checklist/${itemId}/upload`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Document uploaded'); APP.renderHandover(); }
+  else UI.toast(res?.error || 'Upload failed');
+};
+
+APP._handoverSignoff = async function(pid) {
+  const notes = document.getElementById('closure-notes')?.value || '';
+  const res = await API.post(`/handover/${pid}/closure/signoff`, { notes });
+  if (res?.success) { UI.toast(res.all_signed ? 'All signed — project closed' : 'Sign-off recorded'); APP.renderHandover(); }
+  else UI.toast(res?.error || 'Failed');
+};
+
 // ════════════════════════════════════════════════════════
 // LOOKUP HELPERS — GST, IFSC, PAN auto-populate
 // ════════════════════════════════════════════════════════
@@ -6959,6 +7289,7 @@ APP.renderDailyReports = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   // Daily reports endpoint (Sprint 3 Item 10). The earlier /reports/:pid endpoint
   // returned weekly_reports and is reserved for the weekly health/report view.
@@ -6991,6 +7322,7 @@ APP.renderDailyReports = async function() {
           <span class="badge b-amber">Pending</span>
         </div>
         ${r.overall_notes ? `<div class="rc-note">"${r.overall_notes.substring(0,120)}"</div>` : ''}
+        ${r.file_url ? `<div style="margin-top:4px"><a href="${r.file_url}" target="_blank" class="btn-sm" style="text-decoration:none">View Attachment</a></div>` : ''}
         <div class="btn-row" style="margin-top:8px">
           <button class="btn-sm approve" onclick="APP.approveDailyReport(${r.id})">Approve</button>
           <button class="btn-sm reject"  onclick="APP.flagDailyReport(${r.id})">Flag</button>
@@ -7010,7 +7342,8 @@ APP.renderDailyReports = async function() {
           </div>
           <span class="badge b-red">Flagged</span>
         </div>
-        ${r.flag_reason ? `<div class="rc-note" style="color:var(--red)">⚠ ${r.flag_reason.substring(0,120)}</div>` : ''}
+        ${r.flag_reason ? `<div class="rc-note" style="color:var(--red)">${r.flag_reason.substring(0,120)}</div>` : ''}
+        ${r.file_url ? `<div style="margin-top:4px"><a href="${r.file_url}" target="_blank" class="btn-sm" style="text-decoration:none">View Attachment</a></div>` : ''}
         <div class="btn-row" style="margin-top:8px">
           <button class="btn-sm approve" onclick="APP.approveDailyReport(${r.id})">Approve anyway</button>
         </div>
@@ -7035,6 +7368,7 @@ APP.renderDailyReports = async function() {
         <span class="badge b-green">Approved</span>
       </div>
       ${r.overall_notes ? `<div class="rc-note">"${r.overall_notes.substring(0,120)}"</div>` : ''}
+      ${r.file_url ? `<div style="margin-top:4px"><a href="${r.file_url}" target="_blank" class="btn-sm" style="text-decoration:none">View Attachment</a></div>` : ''}
     </div>`;
   });
 
@@ -7067,6 +7401,7 @@ APP.renderGRN = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/grn/${pid}`);
   if (!data) return;
@@ -7141,6 +7476,7 @@ APP.renderGRN = async function() {
           <span class="badge ${badge}" style="float:right;margin-top:4px">${g.status}</span>
         </div>
       </div>
+      ${(g.delivery_note_url || g.invoice_url) ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${g.delivery_note_url ? `<a href="${g.delivery_note_url}" target="_blank" class="btn-sm" style="font-size:11px">📄 Delivery Note</a>` : ''}${g.invoice_url ? `<a href="${g.invoice_url}" target="_blank" class="btn-sm" style="font-size:11px">🧾 Invoice</a>` : ''}</div>` : ''}
       ${canFlagGRN && g.status === 'approved' && !g.nonconformance_flagged ? `<button class="btn-sm" style="width:100%;margin-top:8px;color:var(--red)" onclick="APP.showFlagGRNNonconformance(${g.id})">⚠ Flag Non-Conformance</button>` : ''}
       ${g.nonconformance_flagged ? '<div class="card-meta" style="margin-top:6px;color:var(--red)">⚠ Non-conformance flagged</div>' : ''}
     </div>`;
@@ -7204,6 +7540,10 @@ APP.showGRNForm = async function() {
       <input type="number" id="grn-rate" placeholder="0"></div>
     <div class="field-row"><label class="field-label" for="grn-date">Delivery Date</label>
       <input type="date" id="grn-date" value="${UI.todayIST()}"></div>
+    <div class="field-row"><label class="field-label">Delivery Note <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="file" id="grn-delivery-note" accept="image/*,.pdf" style="font-size:13px"></div>
+    <div class="field-row"><label class="field-label">Invoice <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="file" id="grn-invoice" accept="image/*,.pdf" style="font-size:13px"></div>
     <button class="btn-primary" onclick="APP.submitGRN()">Submit GRN</button>
   `);
 };
@@ -7212,18 +7552,21 @@ APP.submitGRN = async function() {
   const qty = parseFloat(document.getElementById('grn-qty').value||0);
   const rate= parseFloat(document.getElementById('grn-rate').value||0);
   const engagementIdVal = document.getElementById('grn-vendor').value;
-  const body = {
-    engagement_id:     engagementIdVal ? parseInt(engagementIdVal, 10) : null,
-    description:       document.getElementById('grn-material').value,
-    quantity_received: qty,
-    unit:              document.getElementById('grn-unit').value,
-    unit_rate:         rate,
-    delivery_date:     document.getElementById('grn-date').value,
-  };
-  if (!body.engagement_id || !body.description || !body.quantity_received) {
+  if (!engagementIdVal || !document.getElementById('grn-material').value || !qty) {
     UI.toast('Fill in vendor, material and quantity'); return;
   }
-  const res = await API.post(`/grn/${pid}`, body);
+  const fd = new FormData();
+  fd.append('engagement_id', engagementIdVal);
+  fd.append('description',   document.getElementById('grn-material').value);
+  fd.append('quantity_received', qty);
+  fd.append('unit',          document.getElementById('grn-unit').value);
+  fd.append('unit_rate',     rate);
+  fd.append('delivery_date', document.getElementById('grn-date').value);
+  const dn = document.getElementById('grn-delivery-note')?.files?.[0];
+  const inv = document.getElementById('grn-invoice')?.files?.[0];
+  if (dn)  fd.append('delivery_note', dn);
+  if (inv) fd.append('invoice', inv);
+  const res = await API.call('POST', `/grn/${pid}`, fd, true);
   if (res?.success) { APP.closeModal(); UI.toast('GRN raised ✓'); APP.renderGRN(); }
   else { UI.toast(res?.error || 'Failed to submit GRN'); }
 };
@@ -7236,7 +7579,7 @@ APP.renderIssues = async function() {
   const data = await API.get('/issues/all');
   if (!data) return;
   let issues = data.issues || [];
-  const availableProjects = data.projects || [];
+  const availableProjects = (data.projects || []).filter(p => p.status !== 'initialising');
   APP.state.issueProjects = availableProjects; // cache for showIssueForm
 
   const role = APP.user.role;
@@ -7386,14 +7729,18 @@ APP.openIssueDetail = async function(issueId) {
   if (!data) return;
   const issue = (data.issues || []).find(x => x.id === issueId);
   if (!issue) { UI.toast('Issue not found'); return; }
-  const photos = photosRes?.photos || [];
+  // Merge /photos endpoint results with file_path stored directly on the issue row
+  let photos = photosRes?.photos || [];
+  if (!photos.length && issue?.file_path) {
+    photos = [{ file_path: issue.file_path, caption: '', submitted_by_name: issue.raised_by_name }];
+  }
 
   const me = APP.user || {};
   const role = me.role;
   const isAssignee = issue.assigned_to === me.id;
   const isStreamHead  = ['design_head','services_head'].includes(role);
   const isPMCorUp     = ['principal','design_principal','pmc_head'].includes(role);
-  const isSiteOrUp    = ['site_manager','senior_site_manager'].includes(role);
+  const isSiteOrUp    = ['senior_site_manager'].includes(role); // site_manager cannot resolve
 
   // Determine action availability per current status + role
   const canResolve = (issue.status === 'open' || issue.status === 'in_progress') &&
@@ -7439,8 +7786,8 @@ APP.openIssueDetail = async function(issueId) {
           const url = API.fileUrl(p.file_path, 'issues');
           const name = (p.file_path || '').split('/').pop() || 'photo';
           return `<div style="position:relative;width:90px;height:90px;border-radius:6px;overflow:hidden;border:1px solid var(--border);flex-shrink:0">
-            <img src="${url}" alt="Issue photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${url}','_blank')">
-            <a href="${url}" download="${UI.escapeAttr(name)}" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;text-align:center;padding:3px;text-decoration:none">↓ Download</a>
+            <img src="${url}" alt="Issue photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="APP._photoLightbox('${url}','${UI.escapeAttr(name)}')">
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;text-align:center;padding:3px;pointer-events:none">tap to enlarge</div>
           </div>`;
         }).join('')}
       </div>
@@ -7572,6 +7919,20 @@ APP._issuePhotoClear = function() {
   document.getElementById('iss-photo-preview').style.display = 'none';
   document.getElementById('iss-photo-label').style.display = '';
 };
+APP._photoLightbox = function(url, filename) {
+  const overlay = document.createElement('div');
+  overlay.id = 'photo-lightbox';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px';
+  overlay.innerHTML = `
+    <img src="${url}" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:4px">
+    <div style="display:flex;gap:12px">
+      <a href="${url}" download="${filename}" style="padding:10px 24px;background:var(--navy,#1D3D62);color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">↓ Download</a>
+      <button onclick="document.getElementById('photo-lightbox').remove()" style="padding:10px 24px;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">Close</button>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+};
 APP.submitIssue = async function() {
   const pidEl = document.getElementById('iss-project');
   const pid = pidEl ? parseInt(pidEl.value, 10) : null;
@@ -7600,6 +7961,7 @@ APP.renderMOMs = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/meetings/${pid}`);
   if (!data) return;
@@ -7635,23 +7997,26 @@ APP.renderMOMs = async function() {
   if (!moms.length) { html += UI.empty('','No MOMs yet'); }
   else {
     APP._momCache = {};
-    moms.slice(0,15).forEach(m => { APP._momCache[m.id] = m; });
-    moms.slice(0,15).forEach(m => {
-    const statusBadge = m.status === 'approved' ? 'b-green' : m.status === 'issued' ? 'b-navy' : 'b-amber';
+    moms.forEach(m => { APP._momCache[m.id] = m; });
+    moms.forEach(m => {
+    const accentColor = m.status === 'approved' ? 'var(--green,#4A8A5A)' : m.status === 'issued' ? 'var(--navy,#1D3D62)' : 'var(--amber,#C8A040)';
+    const statusLabel = m.status || 'draft';
     const pending = (m.action_items||[]).filter(a => !a.completed).length;
-    html += `<button class="mom-item" style="min-height:44px" onclick="APP.viewMOM(${m.id})">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="flex:1">
-          <div class="mom-num">${m.mom_number||'MOM-'+m.id}</div>
-          <div class="mom-title">${m.title||m.project_name}</div>
-          <div class="mom-meta">${UI.fmtDate(m.meeting_date)} · ${m.created_by_name||'—'}</div>
+    const overdue  = (m.action_items||[]).filter(a => !a.completed && a.due_date && new Date(a.due_date) < new Date()).length;
+    html += `<button onclick="APP.viewMOM(${m.id})" style="display:block;width:100%;text-align:left;background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-left:4px solid ${accentColor};border-radius:var(--r2,8px);padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:var(--shadow,0 1px 3px rgba(0,0,0,.06));transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='var(--shadow,0 1px 3px rgba(0,0,0,.06))'">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:3px">${m.mom_number||'MOM-'+m.id}</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(m.title||m.project_name||'—')}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:11px;color:var(--muted)">${UI.fmtDate(m.meeting_date)}</span>
+            <span style="font-size:11px;color:var(--muted)">· ${UI.escapeText(m.created_by_name||'—')}</span>
+            ${pending ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${overdue?'var(--red,#c0392b)':'var(--amber,#C8A040)'};color:#fff;white-space:nowrap">${overdue?overdue+' overdue':pending+' open'}</span>` : ''}
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <span class="badge ${statusBadge}">${m.status||'draft'}</span>
-          ${pending ? `<span class="badge b-amber">${pending} open</span>` : ''}
-        </div>
+        <span style="font-size:10px;padding:3px 10px;border-radius:10px;background:${accentColor};color:#fff;white-space:nowrap;flex-shrink:0;margin-top:2px">${statusLabel.toUpperCase()}</span>
       </div>
-    </div>`;
+    </button>`;
   }); }  // close forEach + else
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -7659,28 +8024,70 @@ APP.renderMOMs = async function() {
 
 APP.viewMOM = async function(id) {
   const mom = APP._momCache?.[id];
-  const data = await API.get(`/meetings/${id}/action-items`);
-  if (!data) return;
-  const actions = data.action_items || [];
   const role = APP.user?.role;
   const uid = APP.user?.id;
   const isPMC = role === 'pmc_head';
   const isPrincipal = role === 'principal' || role === 'design_principal';
+  // roles allowed to upload photos (mirrors server requireRole in meetings.js)
+  const canUploadPhoto = ['pmc_head','principal','design_principal','design_head','services_head',
+    'site_manager','senior_site_manager'].includes(role);
+
+  const [actionsData, docsData] = await Promise.all([
+    API.get(`/meetings/${id}/action-items`),
+    API.get(`/meetings/${id}/documents`).catch(() => null),
+  ]);
+  if (!actionsData) return;
+  const actions = actionsData.action_items || [];
+  const docs = docsData?.documents || [];
+  const photos = docs.filter(d => d.doc_type === 'photo' || d.doc_type === 'attachment');
+
   const statusLabel = mom?.status || 'draft';
   const statusBadge = statusLabel === 'approved' ? 'b-green' : statusLabel === 'issued' ? 'b-navy' : 'b-amber';
   const momActions = (isPMC || isPrincipal) ? `
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-      ${isPMC && statusLabel === 'draft' ? `<button class="btn-primary" onclick="APP.approveMOM(${id})">✓ Approve MOM</button>` : ''}
-      ${isPMC && statusLabel === 'approved' ? `<button class="btn-primary" onclick="APP.issueToClient(${id}, '${mom?.meeting_number||''}')">📤 Issue to Client</button>` : ''}
-      ${isPMC && statusLabel === 'issued' ? `<button class="btn-sm" onclick="APP.reissueMOM(${id})">↺ Reissue</button>` : ''}
-      ${isPrincipal && (statusLabel === 'issued' || statusLabel === 'approved') ? `<button class="btn-sm" onclick="APP.unlockMOM(${id})">🔓 Unlock</button>` : ''}
+      ${isPMC && statusLabel === 'draft' ? `<button class="btn-sm navy" onclick="APP.approveMOM(${id})">Approve MOM</button>` : ''}
+      ${isPMC && statusLabel === 'approved' ? `<button class="btn-sm navy" onclick="APP.issueToClient(${id}, '${mom?.meeting_number||''}')">Issue to Client</button>` : ''}
+      ${isPMC && statusLabel === 'issued' ? `<button class="btn-sm" onclick="APP.reissueMOM(${id})">Reissue</button>` : ''}
+      ${isPMC ? `<button class="btn-sm" onclick="APP.showAddObservation(${id})">+ Observation</button>` : ''}
+      ${isPrincipal && (statusLabel === 'issued' || statusLabel === 'approved') ? `<button class="btn-sm" onclick="APP.unlockMOM(${id})">Unlock</button>` : ''}
     </div>` : '';
+
+  // Attendees display
+  const attendeesInternal = mom?.attendees_internal || mom?.attendees || '';
+  const attendeesExternal = mom?.attendees_external || '';
+  const attendeesHtml = (attendeesInternal || attendeesExternal) ? `
+    <div style="margin-bottom:14px;padding:10px 12px;background:var(--surface,#f8f9fa);border-radius:6px;font-size:13px">
+      ${attendeesInternal ? `<div><span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Internal · </span>${UI.escapeText(attendeesInternal)}</div>` : ''}
+      ${attendeesExternal ? `<div style="margin-top:4px"><span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">External · </span>${UI.escapeText(attendeesExternal)}</div>` : ''}
+    </div>` : '';
+
+  // Photos section
+  const photosHtml = `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono)">Site Photos &amp; Observations (${photos.length})</span>
+        ${canUploadPhoto ? `<button class="btn-sm" onclick="APP._uploadMOMPhoto(${id})">+ Photo</button>` : ''}
+      </div>
+      ${photos.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${photos.map(p => {
+          const url = API.fileUrl(p.file_path, 'documents');
+          const fname = p.file_path.split(/[/\\]/).pop();
+          return `<div style="position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="APP._photoLightbox('${url}','${fname}')">
+            <img src="${url}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'">
+            ${p.caption ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${UI.escapeText(p.caption)}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic">No photos attached yet</div>`}
+    </div>`;
+
   UI.openModal(mom ? `${mom.meeting_number||'MOM'} — ${mom.title||''}` : 'MOM Details', `
     ${mom ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <span class="badge ${statusBadge}">${statusLabel}</span>
       <span style="font-size:12px;color:var(--muted)">${UI.fmtDate(mom.meeting_date)}</span>
     </div>` : ''}
     ${momActions}
+    ${attendeesHtml}
+    ${photosHtml}
     <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em">${actions.length} action item${actions.length !== 1 ? 's' : ''}</div>
     ${actions.map(a => {
       const isDone = a.status === 'completed';
@@ -7691,7 +8098,7 @@ APP.viewMOM = async function(id) {
       <div class="ar-who" style="font-weight:600;font-size:12px;min-width:60px">${(a.assigned_to_name || a.assignee_name ||'—').split(' ')[0]}</div>
       <div class="ar-text" style="flex:1;font-size:13px${isDone?';text-decoration:line-through':''}">${UI.escapeText(text)}</div>
       <div class="ar-due ${isOverdue?'overdue':''}" style="font-size:11px;font-family:var(--mono);margin-right:8px">${UI.fmtDate(a.due_date)}</div>
-      ${isDone ? `<span style="font-size:14px;color:var(--green)">✓ Done</span>` :
+      ${isDone ? `<span style="font-size:12px;color:var(--green);font-weight:600">Done</span>` :
         a.assigned_to === uid && a.status === 'pending' ? `<button class="btn-sm" onclick="APP.acknowledgeAction(${a.id}, ${id})">Ack</button>` :
         a.countersign_by === uid && a.status === 'acknowledged' ? `<div style="display:flex;gap:4px"><button class="btn-sm approve" onclick="APP.countersignAction(${a.id}, ${id}, true)">✓</button><button class="btn-sm reject" onclick="APP.countersignAction(${a.id}, ${id}, false)">✗</button></div>` :
         `<button class="btn-sm approve" onclick="APP.doneAction(${a.id}, ${id})">Done</button>`}
@@ -7699,6 +8106,63 @@ APP.viewMOM = async function(id) {
     }).join('')}
     ${!actions.length ? UI.empty('','No action items') : ''}
   `);
+};
+
+APP._uploadMOMPhoto = function(momId) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = async function() {
+    const file = inp.files[0];
+    if (!file) return;
+    const caption = (await UI.prompt('Caption (optional):', '')) ?? '';
+    if (caption === null) return; // user cancelled the dialog
+    UI.toast('Uploading…');
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('doc_type', 'photo');
+    if (caption.trim()) fd.append('caption', caption.trim());
+    const json = await API.call('POST', `/meetings/${momId}/upload`, fd, true);
+    if (json?.success) {
+      UI.toast('Photo attached ✓');
+      await APP.viewMOM(momId);
+    } else {
+      UI.toast(json?.error || 'Upload failed');
+    }
+  };
+  inp.click();
+};
+
+APP.showAddObservation = function(momId) {
+  UI.openModal('Add Observation', `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+      Record a site observation for this meeting. Attach a photo or document as evidence.
+    </div>
+    <div class="field-row">
+      <label class="field-label">Observation *</label>
+      <textarea id="obs-text" rows="3" placeholder="Describe the site observation, deficiency, or note..."></textarea>
+    </div>
+    <div class="field-row">
+      <label class="field-label">Photo / Attachment <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input type="file" id="obs-file" accept="image/*,.pdf">
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn-primary" onclick="APP._submitObservation(${momId})">Submit</button>
+      <button class="btn-secondary" onclick="UI.closeModal()">Cancel</button>
+    </div>
+  `);
+};
+
+APP._submitObservation = async function(momId) {
+  const observation = document.getElementById('obs-text')?.value?.trim();
+  if (!observation) { UI.toast('Observation text required'); return; }
+  const file = document.getElementById('obs-file')?.files?.[0];
+  const fd = new FormData();
+  fd.append('observation', observation);
+  if (file) fd.append('photo', file);
+  const res = await API.call('POST', `/meetings/${momId}/observation`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Observation added ✓'); APP.viewMOM(momId); }
+  else UI.toast(res?.error || 'Failed');
 };
 
 APP.doneAction = async function(id, momId) {
@@ -7745,8 +8209,29 @@ APP.showMOMForm = function() {
       <input type="date" id="mom-date" value="${UI.todayIST()}"></div>
     <div class="field-row"><label class="field-label" for="mom-attendees">Attendees</label>
       <input type="text" id="mom-attendees" placeholder="Names separated by commas"></div>
+    <div class="field-row">
+      <label class="field-label">Site Photos <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input type="file" id="mom-photos" accept="image/*" multiple style="font-size:13px;padding:6px 0">
+      <div id="mom-photo-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+    </div>
     <button class="btn-primary" onclick="APP.submitMOM()">Create MOM</button>
   `);
+  // Live preview
+  setTimeout(() => {
+    const inp = document.getElementById('mom-photos');
+    const preview = document.getElementById('mom-photo-preview');
+    if (inp && preview) {
+      inp.addEventListener('change', () => {
+        preview.innerHTML = '';
+        Array.from(inp.files).forEach(f => {
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(f);
+          img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)';
+          preview.appendChild(img);
+        });
+      });
+    }
+  }, 50);
 };
 APP.submitMOM = async function() {
   const pid = APP.state.selectedProject;
@@ -7756,9 +8241,22 @@ APP.submitMOM = async function() {
     attendees:    document.getElementById('mom-attendees').value,
   };
   if (!body.title || !body.meeting_date) { UI.toast('Fill in title and date'); return; }
+  const photoFiles = Array.from(document.getElementById('mom-photos')?.files || []);
   const res = await API.post(`/meetings/${pid}`, body);
-  if (res?.success) { APP.closeModal(); UI.toast('MOM created ✓'); APP.renderMOMs(); }
-  else { UI.toast(res?.error || 'Failed to create MOM'); }
+  if (!res?.success) { UI.toast(res?.error || 'Failed to create MOM'); return; }
+  const momId = res.meeting_id || res.id;
+  if (photoFiles.length && momId) {
+    UI.toast(`Uploading ${photoFiles.length} photo${photoFiles.length > 1 ? 's' : ''}…`);
+    for (const file of photoFiles) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('doc_type', 'photo');
+      await API.call('POST', `/meetings/${momId}/upload`, fd, true).catch(() => {});
+    }
+  }
+  APP.closeModal();
+  UI.toast('MOM created ✓');
+  APP.renderMOMs();
 };
 
 APP.approveMOM = async function(id) {
@@ -7777,14 +8275,38 @@ APP.issueToClient = async function(id, meetingNumber) {
   if (!entered) return;
   if (entered.trim() !== meetingNumber) { UI.toast('MOM number does not match — send cancelled'); return; }
   const res = await API.post(`/meetings/${id}/issue-to-client`, { confirmation: 'SEND', meeting_number: meetingNumber });
-  if (res?.success) { UI.toast('MOM issued to client ✓'); UI.closeModal(); APP.renderMOMs(); }
+  if (res?.success) { UI.toast(res.message || 'MOM issued to client ✓'); UI.closeModal(); APP.renderMOMs(); }
   else UI.toast(res?.error || 'Failed to issue MOM');
 };
 
-APP.reissueMOM = async function(id) {
-  const ok = await UI.confirm('Reissue this MOM to client?');
-  if (!ok) return;
-  const res = await API.post(`/meetings/${id}/reissue`, {});
+APP.reissueMOM = function(id) {
+  UI.openModal('Reissue MOM', `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+      Opens a new revision window for the client. Upload a revised PDF if applicable.
+    </div>
+    <div class="field-row">
+      <label class="field-label">Reason for Reissue *</label>
+      <input id="mri-reason" placeholder="e.g. Updated action item due dates">
+    </div>
+    <div class="field-row">
+      <label class="field-label">Revised PDF <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input type="file" id="mri-doc" accept=".pdf">
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn-primary" onclick="APP._submitReissueMOM(${id})">Reissue</button>
+      <button class="btn-secondary" onclick="UI.closeModal()">Cancel</button>
+    </div>
+  `);
+};
+
+APP._submitReissueMOM = async function(id) {
+  const reason = document.getElementById('mri-reason')?.value?.trim();
+  if (!reason) { UI.toast('Reason required'); return; }
+  const docFile = document.getElementById('mri-doc')?.files?.[0];
+  const fd = new FormData();
+  fd.append('reason', reason);
+  if (docFile) fd.append('doc', docFile);
+  const res = await API.call('POST', `/meetings/${id}/reissue`, fd, true);
   if (res?.success) { UI.toast('MOM reissued ✓'); UI.closeModal(); APP.renderMOMs(); }
   else UI.toast(res?.error || 'Failed to reissue MOM');
 };
@@ -7794,6 +8316,7 @@ APP.renderLabour = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/labour/${pid}`);
   if (!data) return;
@@ -8101,6 +8624,7 @@ APP.renderPayments = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
   if (!data) return;
@@ -8117,9 +8641,11 @@ APP.renderPayments = async function() {
 
   let html = APP._projectSelectHtml('APP.renderPayments()');
 
-  const canApprove = ['principal','design_principal','pmc_head'].includes(APP.user.role);
+  const role = APP.user.role;
+  const canApprove = ['principal','design_principal','pmc_head'].includes(role);
+  const canRaiseRequest = ['site_manager','senior_site_manager','pmc_head','principal','design_principal'].includes(role);
 
-  if (pending.length) {
+  if (pending.length || canRaiseRequest) {
     const total = pending.reduce((s,p) => s + parseFloat(p.amount_requested||0), 0);
     if (canApprove) {
       html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;border-left:3px solid var(--navy)">
@@ -8135,7 +8661,10 @@ APP.renderPayments = async function() {
         </div>
       </div>`;
     }
-    html += `<div class="sec-label" style="margin-bottom:8px">Payment Queue</div>`;
+    html += `<div class="sec-hdr-row" style="margin-bottom:8px">
+      <div class="sec-label" style="margin:0;flex:1">Payment Queue</div>
+      ${canRaiseRequest ? `<button class="btn-sm navy" onclick="APP.showRaisePaymentPicker(${pid})">+ Raise Request</button>` : ''}
+    </div>`;
     html += APP._sortToggleHTML('payments', ['default','age']);
     const sortedPending = APP._applySort(pending, APP._getSortMode('payments'), { ageField:'created_at' });
     sortedPending.forEach(p => {
@@ -8156,15 +8685,22 @@ APP.renderPayments = async function() {
               ${canApprove ? `<button class="btn-sm approve" onclick="APP.approvePayment(${p.id})">Approve</button>` : ''}
             </div>
           </div>
+          ${p.evidence_files?.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px">
+            ${p.evidence_files.map((f,i) => `<a href="${f.url}" target="_blank" class="btn-sm" style="text-decoration:none;font-size:11px">Evidence ${i+1}</a>`).join('')}
+          </div>` : ''}
         </div>
       </div>`;
     });
   } else {
-    html += UI.empty('','No payments pending approval');
+    html += `<div class="sec-hdr-row" style="margin-bottom:8px">
+      <div class="sec-label" style="margin:0;flex:1">Payment Queue</div>
+      ${canRaiseRequest ? `<button class="btn-sm navy" onclick="APP.showRaisePaymentPicker(${pid})">+ Raise Request</button>` : ''}
+    </div>`;
+    html += `<div style="font-size:12px;color:var(--muted);padding:10px 0">No payments pending approval.</div>`;
   }
 
   // ── Urgent Payments section ──────────────────────────────────────
-  const URGENT_ROLES = ['site_manager','senior_site_manager','pmc_head','principal','design_principal','finance_admin'];
+  const URGENT_ROLES = ['pmc_head','principal','design_principal','finance_admin'];
   if (URGENT_ROLES.includes(APP.user.role)) {
     const uData = await API.get(`/urgent-payments/${pid}`);
     const urgents = uData?.payments || [];
@@ -8182,11 +8718,41 @@ APP.renderPayments = async function() {
             <div style="flex:1">
               <div style="font-weight:700;font-size:13px;color:var(--navy)">${UI.escapeText(u.description||'Urgent payment')}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${u.is_adhoc ? '(Adhoc — '+UI.escapeText(u.adhoc_name||'no vendor') + ')' : 'Engagement-based'} · ${UI.fmtDate(u.created_at)}</div>
+              ${u.evidence_files?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${u.evidence_files.map((f,i)=>`<a href="${f.url}" target="_blank" class="btn-sm" style="text-decoration:none;font-size:11px">${f.type==='upi_qr'?'QR Code':f.type==='invoice'?'Invoice':'File '+(i+1)}</a>`).join('')}</div>` : ''}
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--navy)">₹${parseFloat(u.amount||0).toLocaleString('en-IN')}</div>
               <span class="badge ${badge}">${u.status}</span>
             </div>
+          </div>
+        </div>`;
+      });
+    }
+  }
+
+  // ── Direct Payments section (Principal / Design Principal / Finance Admin) ──
+  const DIRECT_PAY_ROLES = ['principal','design_principal','finance_admin'];
+  if (pid && DIRECT_PAY_ROLES.includes(APP.user.role)) {
+    const dpData = await API.get(`/finance/${pid}/direct-payments`).catch(() => null);
+    const directPayments = dpData?.payments || [];
+    const canRecord = ['principal','design_principal'].includes(APP.user.role);
+    html += `<div class="sec-hdr-row" style="margin-top:18px">
+      <div class="sec-label" style="margin:0;flex:1">Direct Payments (${directPayments.length})</div>
+      ${canRecord ? `<button class="btn-sm navy" onclick="APP.showAddDirectPayment(${pid})">+ Record</button>` : ''}
+    </div>`;
+    if (!directPayments.length) {
+      html += `<div style="font-size:12px;color:var(--muted);padding:10px 0">No direct payments recorded yet.</div>`;
+    } else {
+      directPayments.slice(0, 10).forEach(p => {
+        html += `<div class="card" style="padding:12px 14px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px;color:var(--navy)">${UI.escapeText(p.paid_to||'—')}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${UI.fmtDate(p.payment_date)} · ${(p.payment_type||'').replace(/_/g,' ')} · ${UI.escapeText(p.description||'—')}</div>
+              ${p.upi_ref ? `<div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Ref: ${p.upi_ref}</div>` : ''}
+              ${p.receipt_url ? `<a href="${p.receipt_url}" target="_blank" class="btn-sm" style="font-size:11px;margin-top:4px;display:inline-block">🧾 Receipt</a>` : ''}
+            </div>
+            <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--red);white-space:nowrap">-${Money.formatRupee(p.amount||0)}</div>
           </div>
         </div>`;
       });
@@ -8216,6 +8782,8 @@ APP.showUrgentPaymentForm = function(pid) {
         <input type="text" id="up-adhoc-phone" placeholder="10-digit mobile"></div>
       <div class="field-row"><label class="field-label">UPI ID or Bank A/C + IFSC *</label>
         <input type="text" id="up-upi" placeholder="UPI ID (e.g. name@upi) or leave blank for bank details"></div>
+      <div class="field-row"><label class="field-label">UPI QR Code <span style="color:var(--muted);font-weight:400">(optional — photo of QR)</span></label>
+        <input type="file" id="up-upi-qr" accept="image/*" style="font-size:13px"></div>
       <div class="field-row" style="display:flex;gap:8px">
         <div style="flex:1"><label class="field-label">Bank Account</label>
           <input type="text" id="up-bank-acc" placeholder="Account number"></div>
@@ -8252,6 +8820,8 @@ APP.submitUrgentPayment = async function(pid) {
     fd.append('adhoc_name', adhocName);
     fd.append('adhoc_phone', adhocPhone);
     if (upi) fd.append('adhoc_upi_id', upi);
+    const upiQr = document.getElementById('up-upi-qr')?.files?.[0];
+    if (upiQr) fd.append('upi_qr', upiQr);
     if (bankAcc) fd.append('adhoc_bank_account', bankAcc);
     if (ifsc) fd.append('adhoc_bank_ifsc', ifsc);
   }
@@ -8292,6 +8862,7 @@ APP.renderPaymentsFin = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/payment-requests/${pid}/weekly-batch`);
   if (!data) return;
@@ -8512,8 +9083,9 @@ APP.renderPI = async function() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="sec-label" style="margin:0">Proforma Invoices</div>
       <div style="display:flex;gap:6px">
-        ${isFinance ? `<button class="btn-sm" onclick="APP.downloadAllTally(${pid})">📥 All Tally</button>` : ''}
-        ${canRaise ? `<button class="btn-primary" onclick="APP.showRaisePI(${pid})">+ Raise PI</button>` : ''}
+        ${isFinance ? `<button class="btn-sm" onclick="APP.showFeeScheduleUpload(${pid})">Fee Schedule</button>` : ''}
+        ${isFinance ? `<button class="btn-sm" onclick="APP.downloadAllTally(${pid})">All Tally</button>` : ''}
+        ${canRaise ? `<button class="btn-sm navy" onclick="APP.showRaisePI(${pid})">+ Raise PI</button>` : ''}
       </div>
     </div>`;
   if (!pis.length) { html += UI.empty('','No invoices raised yet'); }
@@ -8626,7 +9198,7 @@ APP.renderPettyCash = async function() {
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
   const data = await API.get(`/finance/${pid}/petty-cash`);
   if (!data) return;
-  const entries = data.entries || [];
+  const entries = data.transactions || data.entries || [];
   const balance = data.balance || 0;
 
   let html = APP._projectSelectHtml('APP.renderPettyCash()') + `
@@ -8644,12 +9216,13 @@ APP.renderPettyCash = async function() {
   <div class="sec-label">Recent Transactions</div>`;
   entries.slice(0,10).forEach(e => {
     html += `<div class="card">
-      <div style="display:flex;justify-content:space-between">
-        <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1">
           <div class="card-title">${e.description||'—'}</div>
-          <div class="card-meta">${UI.fmtDate(e.created_at)} · ${e.created_by_name||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(e.txn_date||e.created_at)} · ${e.recorded_by_name||e.created_by_name||'—'} · ${(e.category||'').replace(/_/g,' ')}</div>
+          ${e.bill_url ? `<a href="${e.bill_url}" target="_blank" class="btn-sm" style="margin-top:5px;text-decoration:none;display:inline-block;font-size:11px">View Bill</a>` : ''}
         </div>
-        <div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--red)">-${Money.formatRupee(e.amount)}</div>
+        <div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--red);flex-shrink:0;margin-left:12px">-${Money.formatRupee(e.amount)}</div>
       </div>
     </div>`;
   });
@@ -10057,6 +10630,7 @@ APP.renderNCR = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/issues/ncr/${pid}`);
   if (!data) return;
@@ -10149,6 +10723,7 @@ APP.renderSubmittals = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   const data = await API.get(`/submittals/${pid}`);
   if (!data) return;
@@ -10325,6 +10900,7 @@ APP.renderScheduleCompliance = async function() {
   const el = UI.contentEl();
   const pid = APP._ensurePid();
   if (!pid) { el.innerHTML = UI.empty('','Select a project first'); return; }
+  if (APP._guardInitialisingProject(el, pid)) return;
 
   let html = APP._projectSelectHtml('APP.renderScheduleCompliance()') + `
   <div class="card" style="margin-bottom:16px;border-left:3px solid var(--navy)">
@@ -10571,6 +11147,54 @@ APP.renderProjectDetail = async function() {
         </div>
       </div>
     </button>`;
+  }
+
+  // ── Documents section ──
+  const docRoles = ['principal','design_principal','pmc_head','design_head','services_head',
+                    'senior_site_manager','site_manager','team_lead','services_engineer',
+                    'coordinator','finance_admin'];
+  if (docRoles.includes(APP.user.role)) {
+    const docsRes = await API.get(`/documents/${pid}`).catch(() => null);
+    const docs = docsRes?.documents || [];
+    const canUpload = ['principal','design_principal','pmc_head','design_head','services_head',
+                       'senior_site_manager','site_manager'].includes(APP.user.role);
+    const catLabels = { contract:'Contracts', drawing:'Drawings', quote:'Quotes', approval:'Approvals',
+      statutory:'Statutory', invoice:'Invoices', photo:'Photos', report:'Reports', other:'Other' };
+    const catOrder = ['contract','approval','statutory','drawing','quote','invoice','report','photo','other'];
+
+    html += `<div class="sec-hdr-row" style="margin-top:20px">
+      <div class="sec-label" style="margin:0;flex:1">Documents (${docs.length})</div>
+      ${canUpload ? `<button class="btn-sm navy" onclick="APP.showNewDocumentForm(${pid})">+ Upload</button>` : ''}
+    </div>`;
+
+    if (!docs.length) {
+      html += `<div style="font-size:12px;color:var(--muted);padding:10px 0">No documents uploaded yet.</div>`;
+    } else {
+      const byCat = {};
+      docs.forEach(d => { const c = d.category||d.doc_type||'other'; (byCat[c]=byCat[c]||[]).push(d); });
+      catOrder.forEach(cat => {
+        const list = byCat[cat];
+        if (!list?.length) return;
+        html += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">${catLabels[cat]||cat}</div>`;
+        list.forEach(d => {
+          html += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:32px;height:32px;border-radius:8px;background:rgba(29,61,98,0.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">
+                ${d.category==='photo'?'🖼️':d.category==='drawing'?'📐':d.category==='contract'?'📜':'📄'}
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(d.title||d.file_name)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:1px">v${d.current_version_number} · ${Math.round(d.file_size_kb||0)} KB · ${UI.fmtDate(d.uploaded_at)}</div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn-sm" onclick="APP.viewDocumentFile(${d.latest_version_id})">View</button>
+                ${canUpload ? `<button class="btn-sm" onclick="APP.uploadDocumentVersion(${pid},${d.id})" title="Upload new version">↑</button>` : ''}
+              </div>
+            </div>
+          </div>`;
+        });
+      });
+    }
   }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
@@ -11319,57 +11943,81 @@ APP.renderDesignDashboard = async function() {
   const role = APP.user.role;
   const streamLabel = role === 'design_head' ? 'Design' : 'Services';
   const ac = data.action_centre || {};
-  APP._dashAC = ac; // Store for triage modal
+  APP._dashAC = ac;
 
-  let html = `
-  <div class="sec-label">Pending — ${streamLabel} Stream</div>`;
+  // Deduplicate queries by id — a query can appear in both overdue and fresh
+  const allQueryIds = new Set();
+  const allQueries = [...(ac.overdue_queries || []), ...(ac.fresh_queries || [])].filter(q => {
+    if (allQueryIds.has(q.id)) return false;
+    allQueryIds.add(q.id);
+    return true;
+  });
 
-  // Read correct keys from action_centre
-  // Keep sliced versions for display lists, but track full counts separately
   const pending = (ac.pending_approvals || []).slice(0, 5);
-  const queries = [...(ac.overdue_queries || []), ...(ac.fresh_queries || [])].slice(0, 5);
-  const pendingChanges = (ac.pending_changes || []).slice(0, 5);
-  const pendingChangesTotal = (ac.pending_changes || []).length;
+  const queries = allQueries.slice(0, 5);
+  const pendingChanges = (ac.pending_changes || []);
+  const totalPending = pending.length;
+  const totalQueries = allQueries.length;
+  const totalChanges = pendingChanges.length;
 
-  if (!pending.length && !queries.length && !pendingChanges.length) {
-    html += `<div class="card" style="text-align:center;padding:20px">
-      <div style="font-size:24px;margin-bottom:8px"></div>
-      <div style="font-size:13px;font-weight:600;color:var(--navy)">Nothing pending</div>
+  // Summary stats row
+  let html = `<div class="sec-label">Pending — ${streamLabel} Stream</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+    <button class="stat-card" onclick="APP.switchTab('drawings')">
+      <span class="stat-val">${totalPending}</span>
+      <span class="stat-lbl">Pending Review</span>
+    </button>
+    <button class="stat-card" onclick="APP.switchTab('issues')">
+      <span class="stat-val">${totalQueries}</span>
+      <span class="stat-lbl">Queries Open</span>
+    </button>
+    <button class="stat-card" onclick="APP.showActionTriage('pending_changes')">
+      <span class="stat-val">${totalChanges}</span>
+      <span class="stat-lbl">CNs Pending</span>
+    </button>
+  </div>`;
+
+  if (!totalPending && !totalQueries && !totalChanges) {
+    html += `<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:20px;text-align:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--green)">All clear — nothing pending</div>
     </div>`;
   }
 
   if (pending.length) {
+    html += `<div class="sec-label">Drawings Pending Review</div>`;
     html += pending.map(p => `
-    <button class="action-item c-navy" style="min-height:44px" onclick="APP.switchTab('drawings')">
-      <div class="ai-icon">📐</div>
+    <button class="action-item c-amber" style="min-height:52px;width:100%;text-align:left" onclick="APP.switchTab('drawings')">
+      <div class="ai-icon" style="font-size:16px;flex-shrink:0">📐</div>
       <div class="ai-body">
-        <div class="ai-title">${p.drawing_number||p.title||'Drawing'} — ${p.drawing_name||p.request_type||''}</div>
-        <div class="ai-meta">${p.project_name||'—'}</div>
+        <div class="ai-title">${UI.escapeText(p.drawing_number||p.title||'Drawing')} — ${UI.escapeText(p.drawing_name||p.request_type||'')}</div>
+        <div class="ai-meta">${UI.escapeText(p.project_name||'—')}</div>
       </div>
-      <span class="badge b-amber">Approve</span>
+      <span class="badge b-amber" style="flex-shrink:0">Review</span>
     </button>`).join('');
   }
 
   if (queries.length) {
     html += `<div class="sec-label">Drawing Queries</div>`;
-    html += queries.map(q => `
-    <button class="action-item c-${q.days_open>=3?'red':'amber'}" style="min-height:44px" onclick="APP.switchTab('queries')">
-      <div class="ai-icon"></div>
+    html += queries.map(q => {
+      const isOverdue = (q.days_open || 0) >= 3;
+      const pid = q.project_id || 0;
+      return `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:52px;width:100%;text-align:left" onclick="if(${pid})APP.state.selectedProject=${pid},APP._updateTopbar();APP.switchTab('issues')">
+      <div class="ai-icon" style="font-size:16px;flex-shrink:0">${isOverdue?'🔴':'🟡'}</div>
       <div class="ai-body">
-        <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
-        <div class="ai-meta">${q.project_name||'—'} · ${q.days_open||0}d open</div>
+        <div class="ai-title">${UI.escapeText(q.drawing_number||'—')} — ${UI.escapeText((q.description||'').slice(0,60))}</div>
+        <div class="ai-meta">${UI.escapeText(q.project_name||'—')} · ${q.days_open||0}d open</div>
       </div>
-      <span class="badge b-${q.days_open>=3?'red':'amber'}">${q.days_open>=3?'Overdue':'Open'}</span>
-    </button>`).join('');
+      <span class="badge b-${isOverdue?'red':'amber'}" style="flex-shrink:0">${isOverdue?'Overdue':'Open'}</span>
+    </button>`;
+    }).join('');
   }
 
   if (pendingChanges.length) {
-    // APP._dashAC already set above — do NOT reference `data` in onclick (not in global scope)
-    html += `<div class="action-item c-blue" style="min-height:44px;cursor:pointer;width:100%" onclick="APP.showActionTriage('pending_changes')">
-      <div class="ai-icon"></div>
-      <div class="ai-body"><div class="ai-title">Change notices — signatures pending</div><div class="ai-meta">${pendingChangesTotal} need sign-off</div></div>
-      <span class="badge b-blue">SIGN</span>
-    </div>`;
+    html += `<button class="action-item c-blue" style="min-height:52px;width:100%;text-align:left" onclick="APP.showActionTriage('pending_changes')">
+      <div class="ai-icon" style="font-size:16px;flex-shrink:0">📝</div>
+      <div class="ai-body"><div class="ai-title">Change notices — signatures pending</div><div class="ai-meta">${totalChanges} need sign-off</div></div>
+      <span class="badge b-blue" style="flex-shrink:0">SIGN</span>
+    </button>`;
   }
 
   // Active projects for this head
@@ -11387,43 +12035,113 @@ APP.renderDesignDashboard = async function() {
 // FINANCE DASHBOARD
 APP.renderFinanceDashboard = async function() {
   const el = UI.contentEl();
-  const pid = APP.state.selectedProject;
-  // Check what day it is
-  const now = new Date();
+  el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading brief…</div>';
+
+  const now  = new Date();
   const isSaturday = now.getDay() === 6;
   const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const dateStr = now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
-  let html = `<div class="sec-label">Finance Dashboard</div>`;
+  const brief = await API.get('/finance/morning-brief').catch(() => null);
 
-  if (isSaturday && hour >= 17) {
-    html += `<button class="action-item c-green" style="min-height:44px" onclick="APP.switchTab('payments_fin')">
-      <div class="ai-icon"></div>
-      <div class="ai-body">
-        <div class="ai-title">Payment Excel ready</div>
-        <div class="ai-meta">Principal has approved — download and upload to ICICI</div>
-      </div>
-      <span class="badge b-green">Ready</span>
+  // ── Quick-action grid (always visible)
+  const quickGrid = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
+    <button class="action-card" onclick="APP.switchTab('payments_fin')">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      <span style="font-size:12px;font-weight:600">Payments</span>
+    </button>
+    <button class="action-card" onclick="APP.switchTab('pi')">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span style="font-size:12px;font-weight:600">Invoices</span>
+    </button>
+    <button class="action-card" onclick="APP.switchTab('petty_cash')">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span style="font-size:12px;font-weight:600">Petty Cash</span>
+    </button>
+    <button class="action-card" onclick="APP.renderTallyExport?.();APP.currentTab='tally'">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2v20l8-4 8 4V2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
+      <span style="font-size:12px;font-weight:600">Tally Export</span>
+    </button>
+  </div>`;
+
+  let html = `
+  <div style="margin-bottom:16px">
+    <div style="font-size:11px;color:var(--muted);letter-spacing:0.4px;text-transform:uppercase;margin-bottom:2px">${dateStr}</div>
+    <div style="font-size:18px;font-weight:700;color:var(--navy)">${greeting}, ${(APP.user?.full_name||'').split(' ')[0] || 'Finance'}</div>
+  </div>`;
+
+  if (!brief) {
+    html += quickGrid;
+    el.innerHTML = `<div class="fade-in">${html}</div>`;
+    return;
+  }
+
+  // ── Saturday ICICI alert
+  if (isSaturday && hour >= 17 && brief.pending_payments > 0) {
+    html += `<div style="background:rgba(29,61,98,0.08);border:1px solid rgba(29,61,98,0.2);border-radius:10px;padding:14px 16px;margin-bottom:14px;cursor:pointer" onclick="APP.switchTab('payments_fin')">
+      <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Payment Batch Ready</div>
+      <div style="font-size:13px;color:var(--text)">${brief.pending_payments} approved payment${brief.pending_payments>1?'s':''} pending ICICI upload</div>
     </div>`;
   }
 
-  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-    <button class="action-card" onclick="APP.switchTab('payments_fin')">
-      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-      <span style="font-size:13px;font-weight:600">Payments</span>
-    </button>
-    <button class="action-card" onclick="APP.switchTab('pi')">
-      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      <span style="font-size:13px;font-weight:600">Invoices</span>
-    </button>
-    <button class="action-card" onclick="APP.switchTab('petty_cash')">
-      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-      <span style="font-size:13px;font-weight:600">Petty Cash</span>
-    </button>
-    <button class="action-card" onclick="APP.renderTallyExport();APP.currentTab='tally'">
-      <svg style="width:24px;height:24px;margin-bottom:6px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2v20l8-4 8 4V2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
-      <span style="font-size:13px;font-weight:600">Tally Export</span>
-    </button>
+  // ── Stat pills row
+  const _statPill = (label, value, sub, color, tab) => `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:${tab?'pointer':'default'}"
+      ${tab ? `onclick="APP.switchTab('${tab}')"` : ''}>
+      <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">${label}</div>
+      <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--mono)">${value}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}
+    </div>`;
+
+  const pendingColor = brief.pending_payments > 0 ? 'var(--amber)' : 'var(--green)';
+  const overdueColor = brief.overdue_pi > 0 ? 'var(--red)' : 'var(--green)';
+
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+    ${_statPill('Pending Batch', brief.pending_payments, 'approved, awaiting ICICI', pendingColor, 'payments_fin')}
+    ${_statPill('Overdue PIs', brief.overdue_pi, 'past due date', overdueColor, 'pi')}
+    ${_statPill("Today's Requests", brief.today_requests, `+ ${brief.today_urgent} urgent`, 'var(--navy)', 'payments_fin')}
+    ${_statPill('Petty Cash Today', brief.today_petty_count > 0 ? Money.formatRupee(brief.today_petty_total) : '—', brief.today_petty_count > 0 ? `${brief.today_petty_count} transaction${brief.today_petty_count>1?'s':''}` : 'No spends', 'var(--text)', 'petty_cash')}
   </div>`;
+
+  html += quickGrid;
+
+  // ── Recent payment requests
+  if (brief.recent_requests?.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Recent Payment Requests</div>`;
+    brief.recent_requests.forEach(r => {
+      const badge = r.status === 'approved' ? 'b-green' : r.status === 'pending' ? 'b-amber' : r.status === 'rejected' ? 'b-red' : 'b-silver';
+      const typeLabel = (r.payment_type||'').replace(/_/g,' ');
+      html += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(r.vendor_name||'—')} <span style="color:var(--muted);font-weight:400">· ${UI.escapeText(r.project_name||'')}</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">${typeLabel} · ${UI.fmtDate(r.created_at)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--navy)">${Money.formatRupee(r.amount_requested)}</span>
+            <span class="badge ${badge}">${r.status}</span>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // ── Recent petty cash
+  if (brief.recent_petty?.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Recent Petty Cash</div>`;
+    brief.recent_petty.forEach(p => {
+      html += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${UI.escapeText(p.description||'—')}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">${UI.escapeText(p.project_name||'')} · ${p.category||'other'} · ${UI.fmtDate(p.txn_date)}</div>
+          </div>
+          <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--red);flex-shrink:0">-${Money.formatRupee(p.amount)}</span>
+        </div>
+      </div>`;
+    });
+  }
 
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
@@ -11474,19 +12192,19 @@ APP.renderTeamDashboard = async function() {
     html += `<div class="sec-label">Drawing Queries</div>`;
     allQ.slice(0, 6).forEach(q => {
       const isOverdue = (q.days_open || 0) >= 3;
-      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:44px" onclick="APP.state.issuesViewMode='all';APP.state.selectedProjectFilter=q.project_id||APP.state.selectedProject;APP.switchTab('issues')">
-        <div class="ai-icon"></div>
+      const qPid = q.project_id || 0;
+      html += `<button class="action-item c-${isOverdue?'red':'amber'}" style="min-height:52px;width:100%;text-align:left" onclick="if(${qPid})APP.state.selectedProject=${qPid},APP._updateTopbar();APP.switchTab('issues')">
+        <div class="ai-icon" style="font-size:16px;flex-shrink:0">${isOverdue?'🔴':'🟡'}</div>
         <div class="ai-body">
           <div class="ai-title">${q.drawing_number||'—'} — ${(q.description||'').slice(0,60)}</div>
           <div class="ai-meta">${q.project_name||'—'} · ${q.days_open||0}d open</div>
         </div>
-        <span class="badge b-${isOverdue?'red':'amber'}">${isOverdue?'Overdue':'Open'}</span>
+        <span class="badge b-${isOverdue?'red':'amber'}" style="flex-shrink:0">${isOverdue?'Overdue':'Open'}</span>
       </button>`;
     });
   } else if (role !== 'coordinator') {
-    html += `<div class="card" style="text-align:center;padding:16px;margin-bottom:12px">
-      <div style="font-size:22px;margin-bottom:6px"></div>
-      <div style="font-size:13px;font-weight:600;color:var(--navy)">No open queries</div>
+    html += `<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:16px;text-align:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--green)">No open queries</div>
     </div>`;
   }
 
@@ -12422,7 +13140,8 @@ APP.renderClientBOQ = async function() {
   const data = await API.call('GET', `/client-boq/${pid}`);
   if (!data) { el.innerHTML = UI.empty('','Failed to load'); return; }
   const items = data.items || [];
-  const version = data.version || null;
+  // GET returns 'versions' array (one per stream); pick first current one for the header
+  const version = (data.versions && data.versions.length) ? data.versions[0] : null;
 
   const me = APP.user;
   const canEditRate = ['principal','design_principal','pmc_head','design_head','services_head'].includes(me.role);
@@ -12431,12 +13150,25 @@ APP.renderClientBOQ = async function() {
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="card-title">Client Contract BOQ</div>
-        <div class="card-meta">${version ? `${UI.escapeText(version.label||'v1')} · ${items.length} line items` : 'No BOQ uploaded yet — upload the client contract schedule'}</div>
+        <div class="card-meta">${(() => {
+          const vs = data.versions || [];
+          if (!vs.length) return 'No BOQ uploaded yet — upload the client contract schedule';
+          return vs.map(v => `${v.stream === 'civil' ? 'Civil' : 'Services'}: ${v.label} · ${v.item_count||0} items`).join(' &nbsp;|&nbsp; ');
+        })()}</div>
       </div>
-      ${canEditRate ? `<label>
+      ${canEditRate ? `<div style="display:flex;gap:8px;align-items:center">
+        <select id="client-boq-stream" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
+          <option value="civil">Civil / Design</option>
+          <option value="services">Services / MEP</option>
+        </select>
+        <a href="/templates/client_boq_template.xlsx" download="client_boq_template.xlsx"
+           style="font-size:12px;color:var(--navy);text-decoration:underline;display:flex;align-items:center;gap:4px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Template
+        </a>
         <input type="file" id="client-boq-file" accept=".xlsx,.xls" style="display:none" onchange="APP.uploadClientBOQ(${pid},this)">
         <button class="btn-sm gold" onclick="document.getElementById('client-boq-file').click()">Upload</button>
-      </label>` : ''}
+      </div>` : ''}
     </div>
   </div>`;
 
@@ -12452,9 +13184,9 @@ APP.renderClientBOQ = async function() {
 
   const fmt = n => (n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
   const renderItem = (item, indent) => {
-    const hasRate = item.rate != null && item.rate !== '';
-    const rate    = hasRate ? fmt(item.rate) : '—';
-    const amount  = hasRate ? fmt((item.quantity || 0) * item.rate) : '—';
+    const hasRate = item.client_rate != null && item.client_rate !== '';
+    const rate    = hasRate ? fmt(item.client_rate) : '—';
+    const amount  = hasRate ? fmt((item.quantity || 0) * item.client_rate) : '—';
     const bgStyle = item.is_section ? 'background: #f8fafc; border-left: 3px solid var(--navy);' : '';
     const leftBorder = indent && !item.is_section ? `border-left: 2px solid var(--border); margin-left: ${indent * 12}px;` : '';
 
@@ -12493,8 +13225,10 @@ APP.renderClientBOQ = async function() {
 APP.uploadClientBOQ = async function(pid, input) {
   const file = input.files[0];
   if (!file) return;
+  const stream = document.getElementById('client-boq-stream')?.value || 'civil';
   const fd = new FormData();
   fd.append('client_boq', file);
+  fd.append('stream', stream);
   UI.toast('Uploading…');
   const res = await API.call('POST', `/client-boq/${pid}/upload`, fd, true);
   if (res?.success) { UI.toast(res.message || 'Uploaded ✓'); APP.renderClientBOQ(); }
@@ -12510,7 +13244,7 @@ APP.showEditClientBOQItem = async function(pid, itemId) {
     : '';
   UI.openModal(`Edit: ${item.item_name}`, `
     <div class="field-row"><label class="field-label" for="cb-rate">Rate (₹ per ${UI.escapeText(item.unit||'unit')})</label>
-      <input type="number" step="0.01" id="cb-rate" value="${item.rate || ''}">
+      <input type="number" step="0.01" id="cb-rate" value="${item.client_rate || ''}">
     </div>
     <div class="field-row"><label class="field-label" for="cb-hsn">HSN Code</label>
       <input type="text" id="cb-hsn" value="${UI.escapeAttr(item.hsn_code || '')}" maxlength="8">
@@ -12683,7 +13417,8 @@ APP.renderMeasurements = async function() {
         <button class="btn-sm" onclick="APP.showMeasurementItems(${pid},${m.id})">View Items</button>
         ${isStreamHead && m.status === 'draft' ? `<button class="btn-sm approve" onclick="APP.measurementRsSignoff(${pid},${m.id})">RS Signoff</button>` : ''}
         ${isPMC && m.status === 'rs_signed' ? `<button class="btn-sm gold" onclick="APP.showMeasurementClientAccept(${pid},${m.id})">Client Accept</button>` : ''}
-        ${m.status === 'client_accepted' ? `<button class="btn-sm" onclick="APP.downloadMeasurementCert(${pid},${m.id})">📄 Certificate</button>` : ''}
+        ${m.status === 'client_accepted' ? `<button class="btn-sm" onclick="APP.downloadMeasurementCert(${pid},${m.id})">Certificate</button>` : ''}
+        ${isPMC && m.status === 'client_accepted' ? `<button class="btn-sm" onclick="APP.showUploadSignedCert(${pid},${m.id})">Upload Signed Cert</button>` : ''}
       </div>
     </div>`;
   });
@@ -12769,6 +13504,32 @@ APP._submitMeasurementClientAccept = async function(pid, mid) {
   const res = await API.call('POST', `/measurements/${pid}/${mid}/client-acceptance`, fd, true);
   if (res?.success) { UI.closeModal(); UI.toast('Client acceptance recorded ✓'); APP.renderMeasurements(); }
   else UI.toast(res?.error || 'Failed');
+};
+
+APP.showUploadSignedCert = function(pid, mid) {
+  UI.openModal('Upload Signed Certificate', `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+      Upload the client-signed measurement certificate for RA Bill #${mid}.
+    </div>
+    <div class="field-row">
+      <label class="field-label">Signed Certificate *</label>
+      <input type="file" id="usc-cert" accept=".pdf,image/*">
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn-primary" onclick="APP._submitSignedCert(${pid},${mid})">Upload</button>
+      <button class="btn-secondary" onclick="UI.closeModal()">Cancel</button>
+    </div>
+  `);
+};
+
+APP._submitSignedCert = async function(pid, mid) {
+  const file = document.getElementById('usc-cert')?.files?.[0];
+  if (!file) { UI.toast('Select a file first'); return; }
+  const fd = new FormData();
+  fd.append('signed_certificate', file);
+  const res = await API.call('POST', `/measurements/${pid}/${mid}/signed-cert`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Signed certificate uploaded ✓'); APP.renderMeasurements(); }
+  else UI.toast(res?.error || 'Upload failed');
 };
 
 APP.downloadMeasurementCert = async function(pid, mid) {
@@ -12923,7 +13684,7 @@ APP.renderForms = async function() {
           </div>
           <div style="display:flex;gap:6px">
             ${t.status === 'draft' && canManageTemplates ? `<button class="btn-sm approve" onclick="APP.approveFormTemplate(${pid},${t.id})">Approve</button>` : ''}
-            ${t.status === 'active' && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.name||'')}')">Fill Form</button>` : ''}
+            ${t.status === 'approved' && canSubmit ? `<button class="btn-sm gold" onclick="APP.showSubmitForm(${pid},${t.id},'${UI.escapeAttr(t.name||'')}')">Fill Form</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -12939,12 +13700,14 @@ APP.renderForms = async function() {
   else submissions.slice(0,10).forEach(s => {
     const badge = s.status === 'approved' ? 'b-green' : s.status === 'pending_review' ? 'b-amber' : 'b-silver';
     html += `<div class="card">
-      <div style="display:flex;justify-content:space-between">
-        <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1">
           <div class="card-title">${UI.escapeText(s.template_name||'—')}</div>
           <div class="card-meta">${UI.fmtDate(s.submitted_at)} · ${s.submitted_by_name||'—'}</div>
+          ${s.notes ? `<div class="card-meta" style="margin-top:2px;font-style:italic">${UI.escapeText(s.notes)}</div>` : ''}
+          ${s.file_url ? `<a href="${s.file_url}" target="_blank" class="btn-sm" style="margin-top:6px;display:inline-block">📎 Attachment</a>` : ''}
         </div>
-        <span class="badge ${badge}">${s.status||'submitted'}</span>
+        <span class="badge ${badge}" style="flex-shrink:0;margin-left:8px">${s.status||'submitted'}</span>
       </div>
     </div>`;
   });
@@ -12954,8 +13717,9 @@ APP.renderForms = async function() {
 
 APP.showNewFormTemplate = function(pid) {
   UI.showModal('New Form Template', `
-    <div class="field"><label>Title</label><input id="ft-title" placeholder="e.g. Concrete Pour Checklist"></div>
-    <div class="field"><label>Category</label>
+    <div class="field-row"><label class="field-label">Title *</label>
+      <input id="ft-title" placeholder="e.g. Concrete Pour Checklist"></div>
+    <div class="field-row"><label class="field-label">Category</label>
       <select id="ft-cat">
         <option value="Quality">Quality</option>
         <option value="Safety">Safety</option>
@@ -12964,18 +13728,28 @@ APP.showNewFormTemplate = function(pid) {
         <option value="General">General</option>
       </select>
     </div>
-    <div class="field"><label>Fields (one per line)</label><textarea id="ft-fields" rows="4" placeholder="Pour location&#10;Slump value&#10;Temperature&#10;Supervisor sign-off"></textarea></div>
+    <div class="field-row"><label class="field-label">Upload Excel Template <span style="color:var(--muted);font-weight:400">(optional — or type fields below)</span></label>
+      <input type="file" id="ft-excel" accept=".xlsx,.xls,.csv"></div>
+    <div class="field-row"><label class="field-label">Fields <span style="color:var(--muted);font-weight:400">(one per line — skip if uploading Excel)</span></label>
+      <textarea id="ft-fields" rows="4" placeholder="Pour location&#10;Slump value&#10;Temperature&#10;Supervisor sign-off"></textarea></div>
     <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitFormTemplate(${pid})">Create Template</button>
   `);
 };
 
 APP._submitFormTemplate = async function(pid) {
-  const name     = document.getElementById('ft-title')?.value?.trim();
-  const category = document.getElementById('ft-cat')?.value;
+  const name      = document.getElementById('ft-title')?.value?.trim();
+  const category  = document.getElementById('ft-cat')?.value;
   const fieldText = document.getElementById('ft-fields')?.value || '';
-  const fields   = fieldText.split('\n').map(f => f.trim()).filter(Boolean).map(label => ({ label, type: 'text' }));
+  const excelFile = document.getElementById('ft-excel')?.files?.[0];
   if (!name) { UI.toast('Title required'); return; }
-  const res = await API.post(`/forms/templates`, { name, category, fields_json: JSON.stringify(fields), project_id: pid });
+  const fields = fieldText.split('\n').map(f => f.trim()).filter(Boolean).map(label => ({ label, type: 'text' }));
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('category', category || 'General');
+  fd.append('fields_json', JSON.stringify(fields));
+  if (pid) fd.append('project_id', pid);
+  if (excelFile) fd.append('excel', excelFile);
+  const res = await API.call('POST', '/forms/templates', fd, true);
   if (res?.success) { UI.closeModal(); UI.toast('Template created ✓'); APP.renderForms(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -12986,21 +13760,53 @@ APP.approveFormTemplate = async function(pid, templateId) {
   else UI.toast(res?.error || 'Failed');
 };
 
-APP.showSubmitForm = function(pid, templateId, templateTitle) {
-  UI.showModal(`Submit: ${templateTitle}`, `
-    <div class="card-meta" style="margin-bottom:10px">Fill each field and submit — PMC will review</div>
-    <div class="field"><label>Responses (JSON or free text)</label><textarea id="sf-responses" rows="5" placeholder='{"Pour location":"Block A","Slump value":"120mm"}'></textarea></div>
-    <div class="field"><label>Notes</label><input id="sf-notes" placeholder="Optional notes"></div>
-    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitFilledForm(${pid},${templateId})">Submit Form</button>
+APP.showSubmitForm = async function(pid, templateId, templateTitle) {
+  // Fetch template to get fields
+  const tplData = await API.get('/forms/templates').catch(() => null);
+  const tpl = (tplData?.templates || []).find(t => t.id == templateId);
+  let fields = [];
+  try { fields = JSON.parse(tpl?.fields_json || '[]'); } catch(e) {}
+
+  let fieldsHtml = '';
+  if (fields.length) {
+    fieldsHtml = fields.map((f,i) => `
+      <div class="field-row">
+        <label class="field-label">${UI.escapeText(f.label||`Field ${i+1}`)}${f.required?' *':''}</label>
+        <input id="sf-field-${i}" data-label="${UI.escapeAttr(f.label||`Field ${i+1}`)}"
+          placeholder="${UI.escapeAttr(f.label||'')}">
+      </div>`).join('');
+  } else {
+    fieldsHtml = `<div class="field-row"><label class="field-label">Response *</label>
+      <textarea id="sf-field-0" data-label="Response" rows="4" placeholder="Describe the inspection findings..."></textarea></div>`;
+    fields = [{ label: 'Response' }];
+  }
+
+  UI.openModal(`Submit: ${templateTitle}`, `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${tpl?.category||'General'} inspection — PMC will review your submission</div>
+    ${fieldsHtml}
+    <div class="field-row"><label class="field-label">Photo / Attachment <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="file" id="sf-file" accept="image/*,.pdf"></div>
+    <div class="field-row"><label class="field-label">Notes</label>
+      <input id="sf-notes" placeholder="Any additional notes..."></div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitFilledForm(${pid},${templateId},${fields.length})">Submit Form</button>
   `);
 };
 
-APP._submitFilledForm = async function(pid, templateId) {
-  const responsesRaw = document.getElementById('sf-responses')?.value?.trim();
-  const notes = document.getElementById('sf-notes')?.value?.trim();
-  let responses;
-  try { responses = JSON.parse(responsesRaw); } catch(e) { responses = { response: responsesRaw }; }
-  const res = await API.post(`/forms/${pid}/submit`, { template_id: templateId, responses_json: JSON.stringify(responses), notes });
+APP._submitFilledForm = async function(pid, templateId, fieldCount) {
+  const count = fieldCount || 1;
+  const responses = {};
+  for (let i = 0; i < count; i++) {
+    const el = document.getElementById(`sf-field-${i}`);
+    if (el) responses[el.dataset.label || `Field ${i+1}`] = el.value?.trim() || '';
+  }
+  const notes   = document.getElementById('sf-notes')?.value?.trim();
+  const file    = document.getElementById('sf-file')?.files?.[0];
+  const fd = new FormData();
+  fd.append('template_id', templateId);
+  fd.append('responses_json', JSON.stringify(responses));
+  if (notes) fd.append('notes', notes);
+  if (file)  fd.append('form', file);
+  const res = await API.call('POST', `/forms/${pid}/submit`, fd, true);
   if (res?.success) { UI.closeModal(); UI.toast('Form submitted ✓'); APP.renderForms(); }
   else UI.toast(res?.error || 'Failed');
 };
@@ -13234,9 +14040,10 @@ APP.renderDirectPayments = async function() {
     html += `<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div class="card-title">${p.payee||'—'}</div>
-          <div class="card-meta">${UI.fmtDate(p.payment_date)} · ${p.purpose||'—'}</div>
-          ${p.utr ? `<div class="card-meta" style="font-family:var(--mono)">UTR: ${p.utr}</div>` : ''}
+          <div class="card-title">${p.paid_to||'—'}</div>
+          <div class="card-meta">${UI.fmtDate(p.payment_date)} · ${(p.payment_type||'').replace(/_/g,' ')} · ${p.description||'—'}</div>
+          ${p.upi_ref ? `<div class="card-meta" style="font-family:var(--mono)">Ref: ${p.upi_ref}</div>` : ''}
+          ${p.receipt_url ? `<a href="${p.receipt_url}" target="_blank" class="btn-sm" style="font-size:11px;margin-top:6px;display:inline-block">🧾 Receipt</a>` : ''}
         </div>
         <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--red)">-${Money.formatRupee(p.amount||0)}</div>
       </div>
@@ -13248,24 +14055,46 @@ APP.renderDirectPayments = async function() {
 
 APP.showAddDirectPayment = function(pid) {
   UI.showModal('Record Direct Payment', `
-    <div class="field"><label>Payee Name</label><input id="dp-payee" placeholder="Name of person/entity paid"></div>
-    <div class="field"><label>Amount (₹)</label><input type="number" id="dp-amount" min="0"></div>
-    <div class="field"><label>Payment Date</label><input type="date" id="dp-date" value="${UI.todayIST()}"></div>
-    <div class="field"><label>Purpose</label><input id="dp-purpose" placeholder="e.g. Site visit expenses"></div>
-    <div class="field"><label>UTR / Reference</label><input id="dp-utr" placeholder="Optional"></div>
+    <div class="field"><label>Paid To *</label><input id="dp-paid-to" placeholder="Name of person/entity paid"></div>
+    <div class="field"><label>Amount (₹) *</label><input type="number" id="dp-amount" min="0"></div>
+    <div class="field"><label>Payment Date *</label><input type="date" id="dp-date" value="${UI.todayIST()}"></div>
+    <div class="field"><label>Payment Type *</label>
+      <select id="dp-type">
+        <option value="upi">UPI</option>
+        <option value="cash">Cash</option>
+        <option value="bank_transfer">Bank Transfer</option>
+        <option value="cheque">Cheque</option>
+        <option value="card">Card</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Description *</label><input id="dp-description" placeholder="e.g. Site visit expenses"></div>
+    <div class="field"><label>UPI / UTR Reference</label><input id="dp-upi-ref" placeholder="Optional"></div>
+    <div class="field"><label>Receipt <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="file" id="dp-receipt" accept="image/*,.pdf" style="font-size:13px"></div>
     <button class="btn-primary" style="width:100%;margin-top:8px" onclick="APP._submitDirectPayment(${pid})">Save</button>
   `);
 };
 
 APP._submitDirectPayment = async function(pid) {
-  const payee        = document.getElementById('dp-payee')?.value?.trim();
+  const paid_to      = document.getElementById('dp-paid-to')?.value?.trim();
   const amount       = document.getElementById('dp-amount')?.value;
   const payment_date = document.getElementById('dp-date')?.value;
-  const purpose      = document.getElementById('dp-purpose')?.value?.trim();
-  const utr          = document.getElementById('dp-utr')?.value?.trim();
-  if (!payee || !amount || !payment_date) { UI.toast('Payee, amount and date required'); return; }
-  const res = await API.post(`/finance/${pid}/direct-payments`, { payee, amount: parseFloat(amount), payment_date, purpose, utr });
-  if (res?.success) { UI.closeModal(); UI.toast('Payment recorded ✓'); APP.renderDirectPayments(); }
+  const payment_type = document.getElementById('dp-type')?.value;
+  const description  = document.getElementById('dp-description')?.value?.trim();
+  const upi_ref      = document.getElementById('dp-upi-ref')?.value?.trim();
+  const receiptFile  = document.getElementById('dp-receipt')?.files?.[0];
+  if (!paid_to || !amount || !payment_date || !description) { UI.toast('Fill all required fields'); return; }
+  const fd = new FormData();
+  fd.append('paid_to',      paid_to);
+  fd.append('amount',       amount);
+  fd.append('payment_date', payment_date);
+  fd.append('payment_type', payment_type);
+  fd.append('description',  description);
+  if (upi_ref) fd.append('upi_ref', upi_ref);
+  if (receiptFile) fd.append('receipt', receiptFile);
+  const res = await API.call('POST', `/finance/${pid}/direct-payments`, fd, true);
+  if (res?.success) { UI.closeModal(); UI.toast('Payment recorded ✓'); APP.renderPayments(); }
   else UI.toast(res?.error || 'Failed');
 };
 

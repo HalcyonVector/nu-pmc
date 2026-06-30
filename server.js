@@ -601,31 +601,57 @@ if (require.main === module) {
         from_date date NOT NULL,
         to_date date NOT NULL,
         reason varchar(500) DEFAULT NULL,
-        created_at datetime NOT NULL DEFAULT current_timestamp(),
-        PRIMARY KEY (id),
-        KEY idx_ulr_user_dates (user_id, from_date, to_date),
-        CONSTRAINT fk_ulr_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`);
+        created_at datetime NOT NULL DEFAULT current_timestamp()
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`).catch(() => {});
 
-      // Ensure deputy_overridden_at column exists (added in schema v2)
-      // Use INFORMATION_SCHEMA check instead of IF NOT EXISTS — compatible with MySQL 5.7+
-      const [[colCheck]] = await db.query(
-        `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'deputy_overridden_at'`
-      );
-      if (colCheck.cnt === 0) {
-        await db.query(`ALTER TABLE users ADD COLUMN deputy_overridden_at datetime DEFAULT NULL`);
-      }
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deputy_overridden_at datetime DEFAULT NULL`).catch(() => {});
 
-      console.log('[migrate] Schema checks complete');
+      // Remove standalone tabs that were moved into other tabs
+      await db.query(`DELETE FROM role_nav WHERE tab_key = 'direct_payments'`).catch(() => {});
+      await db.query(`DELETE FROM role_nav WHERE tab_key = 'documents'`).catch(() => {});
+
+      // signed_certificate_path column on measurements
+      await db.query(`ALTER TABLE measurements ADD COLUMN IF NOT EXISTS signed_certificate_path varchar(500) DEFAULT NULL`).catch(() => {});
+
+      // Handover tab — PMC roles
+      await db.query(`INSERT IGNORE INTO role_nav (role, bucket, tab_key, sort_order, is_visible) VALUES
+        ('pmc_head',         'work', 'handover', 30, 1),
+        ('principal',        'work', 'handover', 30, 1),
+        ('design_principal', 'work', 'handover', 30, 1)`).catch(() => {});
+
+      // Forms tab — PMC Head + site roles + principals
+      await db.query(`INSERT IGNORE INTO role_nav (role, bucket, tab_key, sort_order, is_visible) VALUES
+        ('pmc_head',               'work', 'forms', 8, 1),
+        ('site_manager',           'work', 'forms', 8, 1),
+        ('senior_site_manager',    'work', 'forms', 8, 1),
+        ('principal',              'work', 'forms', 25, 1),
+        ('design_principal',       'work', 'forms', 25, 1)`).catch(() => {});
+
+      // Daily + Weekly Reports nav — ensure all roles have these entries
+      await db.query(`INSERT IGNORE INTO role_nav (role, bucket, tab_key, sort_order, is_visible) VALUES
+        ('pmc_head',         'work', 'reports_daily',  1, 1),
+        ('pmc_head',         'work', 'reports_weekly', 2, 1),
+        ('principal',        'more', 'reports_daily',  5, 1),
+        ('principal',        'more', 'reports_weekly', 6, 1),
+        ('design_principal', 'more', 'reports_daily',  5, 1),
+        ('design_principal', 'more', 'reports_weekly', 6, 1),
+        ('audit',            'more', 'reports_daily', 10, 1),
+        ('audit',            'more', 'reports_weekly',11, 1),
+        ('design_head',      'more', 'reports_daily',  2, 1),
+        ('design_head',      'more', 'reports_weekly', 3, 1),
+        ('services_head',    'more', 'reports_daily',  2, 1),
+        ('services_head',    'more', 'reports_weekly', 3, 1)`).catch(() => {});
+
     } catch (e) {
       console.warn('[migrate] Non-fatal:', e.message);
     }
   })();
 
-  // Production safety checks (LOW-1 fix)
+  console.log('[migrate] Schema checks complete');
+
+  // Production safety checks
   if (process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== '1') {
-    console.warn('\x1b[33m[SECURITY WARNING] Session cookies are NOT marked Secure. Set FORCE_HTTPS=1 in production to prevent session theft over HTTP.\x1b[0m');
+    console.warn('\x1b[33m[SECURITY WARNING] Session cookies are NOT marked Secure. Set FORCE_HTTPS=1 in production.\x1b[0m');
   }
 
   const server = app.listen(PORT, () => {
@@ -633,7 +659,6 @@ if (require.main === module) {
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 
-  // Graceful shutdown on SIGTERM (PM2 sends this before SIGKILL).
   process.on('SIGTERM', () => {
     console.log('[SIGTERM] Graceful shutdown initiated');
     server.close(() => {

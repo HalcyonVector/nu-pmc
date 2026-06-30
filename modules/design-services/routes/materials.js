@@ -173,17 +173,13 @@ router.post('/:project_id/boq/upload', requireAuth, requireProjectScope(),
         cnt++;
       }
 
-      // Update project checklist inside the same transaction.
-      // Onboarding is required at module scope — see top of file.
-      if (boqStream === 'design') {
-        await Onboarding.functions.setChecklistFlag(pid, 'checklist_design_boq', conn);
-      } else {
-        await Onboarding.functions.setChecklistFlag(pid, 'checklist_services_boq', conn);
-      }
-
       return { count: cnt, vResult: vR };
     });
     });
+
+    // Set checklist flag AFTER tx commits so activateIfReady sees the committed row
+    const flagName = boqStream === 'design' ? 'checklist_design_boq' : 'checklist_services_boq';
+    await Onboarding.functions.setChecklistFlag(pid, flagName);
 
     res.json({
       success: true,

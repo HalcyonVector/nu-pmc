@@ -137,7 +137,11 @@ router.get('/:project_id/submissions', requireAuth, requireProjectScope(), async
     );
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(subs.map(s => s.submitted_by).filter(Boolean));
-    subs.forEach(s => { s.submitted_by_name = users.get(s.submitted_by)?.full_name || null; });
+    const fileUrls = require('../../../services/file-url');
+    subs.forEach(s => {
+      s.submitted_by_name = users.get(s.submitted_by)?.full_name || null;
+      s.file_url = s.file_path ? fileUrls.fileUrl(s.file_path) : null;
+    });
     res.json({ submissions: subs });
   }));
 

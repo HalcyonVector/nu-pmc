@@ -21,9 +21,11 @@ router.get('/:project_id/petty-cash', requireAuth, requireRole(...FINANCE_ROLES)
     );
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(txns.flatMap(t => [t.recorded_by, t.approved_by].filter(Boolean)));
+    const fileUrls = require('../../../services/file-url');
     txns.forEach(t => {
       t.recorded_by_name = users.get(t.recorded_by)?.full_name || null;
       t.approved_by_name = users.get(t.approved_by)?.full_name || null;
+      t.bill_url = t.file_path ? fileUrls.fileUrl(t.file_path) : null;
     });
     // Calculate balance
     const opens  = txns.filter(t=>t.txn_type==='replenishment').reduce((s,t)=>s+parseFloat(t.amount),0);
@@ -101,7 +103,7 @@ router.post('/:project_id/petty-cash/replenish', requireAuth, requireProjectScop
 
 // ── PRINCIPAL DIRECT PAYMENTS (UPI / cash)
 
-router.get('/:project_id/direct-payments', requireAuth, requireRole(...PMC_ROLES), asyncHandler(async (req, res) => {
+router.get('/:project_id/direct-payments', requireAuth, requireRole(...PMC_ROLES, 'finance_admin', 'principal', 'design_principal'), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const [payments] = await db.query(
       `SELECT * FROM principal_direct_payments
@@ -110,9 +112,11 @@ router.get('/:project_id/direct-payments', requireAuth, requireRole(...PMC_ROLES
     );
     const Auth = require('../../auth/contract');
     const users = await Auth.functions.getUsers(payments.flatMap(p => [p.recorded_by, p.tagged_by].filter(Boolean)));
+    const fileUrls = require('../../../services/file-url');
     payments.forEach(p => {
       p.recorded_by_name = users.get(p.recorded_by)?.full_name || null;
       p.tagged_by_name   = users.get(p.tagged_by)?.full_name   || null;
+      p.receipt_url = p.file_path ? fileUrls.fileUrl(p.file_path) : null;
     });
     res.json({ payments });
   }));
@@ -247,8 +251,57 @@ router.post('/advance-recovery', requireAuth, requirePMC, asyncHandler(async (re
     );
     audit.log({ userId: req.session.user.id, action: 'advance_recovery.create',
       entityType: 'advance_recovery_schedule', entityId: arResult.insertId,
-      details: { engagement_id: parseInt(engagement_id, 10), advance_type: advance_type||'mobilisation', advance_amount, advance_date, recovery_pct_per_bill: recovery_pct_per_bill||10 }, req });
-    res.json({ success: true });
-  }));
+      details: { engagement_id: parseInt(engagement_id, 10), advance_type: advance_type||'mobilisation', advance_amount: parseFloat(advance_amount) }, req });
+    res.json({ success: true, id: arResult.insertId });
+}));
+
+// ── FINANCE MORNING BRIEF (cross-project, Finance Admin only)
+router.get('/morning-brief', requireAuth, requireRole('finance_admin','principal','design_principal','pmc_head'), asyncHandler(async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [[pendingPay]]     = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE status='approved' AND DATE(created_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
+  const [[todayReqs]]      = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE DATE(created_at)=?`, [today]);
+  const [[todayUrgent]]    = await db.query(`SELECT COUNT(*) AS n FROM urgent_payments WHERE DATE(created_at)=?`, [today]);
+  const [[todayPettyCash]] = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM petty_cash_transactions WHERE DATE(txn_date)=? AND txn_type='spend'`, [today]);
+  const [[todayDirectPay]] = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM principal_direct_payments WHERE DATE(payment_date)=?`, [today]);
+  const [[overduePI]]      = await db.query(`SELECT COUNT(*) AS n FROM proforma_invoices WHERE status IN ('draft','sent') AND due_date < CURDATE()`);
+  const [[weekPI]]         = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_ex_gst),0) AS total FROM proforma_invoices WHERE DATE(created_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
+
+  // Recent payment requests (last 5)
+  const [recentReqs] = await db.query(
+    `SELECT pr.id, pr.amount_requested, pr.payment_type, pr.status, pr.created_at,
+            p.name AS project_name, v.vendor_name
+     FROM payment_requests pr
+     JOIN projects p ON pr.project_id = p.id
+     LEFT JOIN engagements e ON pr.engagement_id = e.id
+     LEFT JOIN vendors v ON e.vendor_id = v.id
+     ORDER BY pr.created_at DESC LIMIT 5`
+  );
+
+  // Recent petty cash (last 5)
+  const [recentPetty] = await db.query(
+    `SELECT pc.amount, pc.description, pc.txn_date, pc.category, p.name AS project_name
+     FROM petty_cash_transactions pc
+     JOIN projects p ON pc.project_id = p.id
+     WHERE pc.txn_type='spend'
+     ORDER BY pc.txn_date DESC, pc.id DESC LIMIT 5`
+  );
+
+  res.json({
+    today,
+    pending_payments:   pendingPay.n,
+    today_requests:     todayReqs.n,
+    today_urgent:       todayUrgent.n,
+    today_petty_count:  todayPettyCash.n,
+    today_petty_total:  parseFloat(todayPettyCash.total),
+    today_direct_count: todayDirectPay.n,
+    today_direct_total: parseFloat(todayDirectPay.total),
+    overdue_pi:         overduePI.n,
+    week_pi_count:      weekPI.n,
+    week_pi_total:      parseFloat(weekPI.total),
+    recent_requests:    recentReqs,
+    recent_petty:       recentPetty,
+  });
+}));
 
 module.exports = router;
