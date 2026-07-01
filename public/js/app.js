@@ -10188,7 +10188,10 @@ APP._renderClientsLegacy = async function() {
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div class="sec-label" style="margin:0">Client Master</div>
-      <button class="btn-primary" onclick="APP.showNewClient()">+ New Client</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        ${['principal','design_principal','finance_admin'].includes(APP.user.role) ? `<input type="file" id="clients-bulk-file" accept=".xlsx,.xls" style="display:none" onchange="APP.bulkUploadClients(this)"><button class="btn-sm" onclick="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>` : ''}
+        <button class="btn-primary" onclick="APP.showNewClient()">+ New Client</button>
+      </div>
     </div>`;
 
   if (incomplete.length) {
@@ -10291,6 +10294,28 @@ APP.submitCompleteClient = async function(id) {
 };
 
 // ── Modal: proactively add a new client (master-complete from the start)
+APP.bulkUploadClients = async function(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  input.value = '';
+  const fd = new FormData();
+  fd.append('clients', file);
+  UI.toast('Uploading clients…');
+  const res = await API.call('POST', '/clients/bulk-upload', fd, true);
+  if (res?.success) {
+    let summary = `<p style="font-size:13px">Added <strong>${res.added || 0}</strong> &middot; Skipped <strong>${res.skipped || 0}</strong></p>`;
+    if (Array.isArray(res.errors) && res.errors.length) {
+      summary += `<div class="sec-label" style="color:#C87060;margin-top:8px">Rows needing attention (${res.errors.length})</div>`;
+      res.errors.forEach(e => { summary += `<div style="padding:6px;border-left:3px solid #C87060;background:var(--bg);margin-bottom:4px;font-size:12px">${UI.escapeText(String(e))}</div>`; });
+    }
+    summary += `<p style="font-size:11px;color:var(--muted);margin-top:10px">GSTIN is required (15 chars); state is auto-derived. Duplicates are skipped.</p>`;
+    UI.openModal('Bulk Upload Result', summary);
+    APP.renderClients();
+  } else {
+    UI.toast(res?.error || 'Bulk upload failed');
+  }
+};
+
 APP.showNewClient = function() {
   UI.openModal('New Client', `
     <div class="field-row"><label class="field-label" for="nc-name">Client Name *</label>
@@ -13156,7 +13181,7 @@ APP.renderClientBOQ = async function() {
           return vs.map(v => `${v.stream === 'civil' ? 'Civil' : 'Services'}: ${v.label} · ${v.item_count||0} items`).join(' &nbsp;|&nbsp; ');
         })()}</div>
       </div>
-      ${canEditRate ? `<div style="display:flex;gap:8px;align-items:center">
+      ${['principal','design_principal','design_head','services_head'].includes(APP.user.role) ? `<div style="display:flex;gap:8px;align-items:center">
         <select id="client-boq-stream" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
           <option value="civil">Civil / Design</option>
           <option value="services">Services / MEP</option>
@@ -13419,6 +13444,7 @@ APP.renderMeasurements = async function() {
         ${isPMC && m.status === 'rs_signed' ? `<button class="btn-sm gold" onclick="APP.showMeasurementClientAccept(${pid},${m.id})">Client Accept</button>` : ''}
         ${m.status === 'client_accepted' ? `<button class="btn-sm" onclick="APP.downloadMeasurementCert(${pid},${m.id})">Certificate</button>` : ''}
         ${isPMC && m.status === 'client_accepted' ? `<button class="btn-sm" onclick="APP.showUploadSignedCert(${pid},${m.id})">Upload Signed Cert</button>` : ''}
+        ${m.signed_certificate_url ? `<a class="btn-sm" href="${m.signed_certificate_url}" target="_blank" rel="noopener">Signed Cert ↓</a>` : ''}
       </div>
     </div>`;
   });

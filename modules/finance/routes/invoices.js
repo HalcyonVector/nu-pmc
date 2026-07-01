@@ -38,9 +38,6 @@ router.post('/:project_id/fee-schedule/upload', requireAuth, requireProjectScope
 
     const rows = await xl.readFile(file.path);
 
-    // Deactivate existing
-    await db.query('UPDATE fee_schedule SET is_active = 0 WHERE project_id = ?', [pid]);
-
     // Optional: client posts contract_value_total to convert percentages to amounts
     const { parseIndianAmount, validateGSTRate } = require('../../../services/payment-validation');
     const contractTotal = parseIndianAmount(req.body.contract_value_total || 0) || 0;
@@ -60,6 +57,9 @@ router.post('/:project_id/fee-schedule/upload', requireAuth, requireProjectScope
 
     let count = 0, skipped = 0;
     const errors = [];
+    // B5: deactivate old + insert new atomically (was two separate non-transactional statements)
+    await db.tx(async (conn) => {
+    await conn.query('UPDATE fee_schedule SET is_active = 0 WHERE project_id = ?', [pid]);
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       // Accept 'Milestone', 'Milestone Description', 'Stage', 'Description'
@@ -88,12 +88,13 @@ router.post('/:project_id/fee-schedule/upload', requireAuth, requireProjectScope
       const gstCheck = validateGSTRate(pick(row, 'GST %', 'gst_pct') || '18');
       const gstPct = gstCheck.ok ? gstCheck.pct : 18;
 
-      await db.query(
+      await conn.query(
         'INSERT INTO fee_schedule (project_id, milestone_name, amount, gst_pct, display_order, created_by) VALUES (?,?,?,?,?,?)',
         [pid, name, amt, gstPct, i, req.session.user.id]
       );
       count++;
     }
+    });
 
     audit.log({ userId: req.session.user.id, action: 'fee_schedule.upload',
       entityType: 'fee_schedule', entityId: null,

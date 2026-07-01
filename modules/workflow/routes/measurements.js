@@ -8,6 +8,7 @@ const { requireAuth, requireRole, requireProjectScope } = require('../../../midd
 const { requirePermission } = require('../../../middleware/permissions');
 const { validators } = require('../../../middleware/validate');
 const { upload, UPLOAD_DIR } = require('../../../middleware/upload');
+const fileUrls = require('../../../services/file-url');
 const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
 const {
@@ -39,6 +40,8 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       m.recorded_by_name = users.get(m.recorded_by)?.full_name || null;
       m.checked_by_name  = users.get(m.checked_by)?.full_name  || null;
       m.approved_by_name = users.get(m.approved_by)?.full_name || null;
+      m.signed_certificate_url = m.signed_certificate_path
+        ? fileUrls.fileUrl(m.signed_certificate_path, { defaultSubdir: 'documents' }) : null; // B12
     });
 
     res.json({ measurements });

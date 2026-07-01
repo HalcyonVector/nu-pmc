@@ -42,7 +42,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.xlsx', '.xls', '.dwg', '.dxf'];
+  const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.xlsx', '.xls', '.dwg', '.dxf', '.doc', '.docx', '.csv']; // B13: match UI accept attrs
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowed.includes(ext)) return cb(null, true);
   cb(new Error(`File type ${ext} not allowed`));
@@ -76,6 +76,9 @@ const MAGIC_MIME_MAP = {
   // XLSX is a ZIP (PK header); XLS is OLE2 (D0CF header)
   '.xlsx': new Set(['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']),
   '.xls':  new Set(['application/vnd.ms-excel', 'application/x-cfb']),
+  // B13: DOCX is OOXML zip (PK header, like xlsx); DOC is OLE2 (D0CF, like xls); CSV is plain text (no magic, extension-only).
+  '.docx': new Set(['application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+  '.doc':  new Set(['application/msword', 'application/x-cfb']),
   '.dwg':  new Set(['application/x-autocad', 'image/x-dwg', 'application/acad']),
   // .dxf -- ASCII text, no magic bytes, skip (extension-only check is fine)
 };

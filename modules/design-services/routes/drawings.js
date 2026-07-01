@@ -341,7 +341,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
         }
 
         // Existing: revision-change analysis (for main drawings with a prior revision)
-        if (dType === 'main' && drawing.version_count > 0 && await aiToggles.isEnabled('revision_change_analysis')) {
+        if (dType === 'main' && await aiToggles.isEnabled('revision_change_analysis')) { // B15: was gated on non-existent drawing.version_count; the prev-version query below is the real guard
           const [[prev]] = await db.query(
             'SELECT id, file_path FROM drawing_versions WHERE drawing_id = ? ORDER BY revision_number DESC LIMIT 1 OFFSET 1',
             [drawing.id]

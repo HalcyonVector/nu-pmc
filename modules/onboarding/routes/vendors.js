@@ -1220,7 +1220,7 @@ router.patch('/master/:id/validate-pan', requireAuth, asyncHandler(async (req, r
   }));
 
 // POST /api/vendors/:project_id/engagements/bulk-upload — bulk engage vendors on a project
-router.post('/:project_id/engagements/bulk-upload', requireAuth, requirePMC, upload.single('engagements'), asyncHandler(async (req, res) => {
+router.post('/:project_id/engagements/bulk-upload', requireAuth, requireRole(...HEADS_ROLES), upload.single('engagements'), asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file' });
     const rows = await xl.readFile(req.file.path);
     const pid  = req.params.project_id;
