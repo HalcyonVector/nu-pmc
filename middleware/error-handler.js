@@ -21,6 +21,13 @@ function errorHandler(err, req, res, _next) {
     return res.status(413).json({ error: `File too large. Maximum allowed size is ${mb} MB.`, code: 'FILE_TOO_LARGE' });
   }
 
+  // Upload validation errors (disallowed extension / bad magic bytes / multer) → 400,
+  // not 500. The file is correctly rejected; the status should reflect a client error.
+  if (err.name === 'MulterError' || err.code === 'INVALID_MAGIC_BYTES' ||
+      /File (type|content) .* (not allowed|does not match)/.test(err.message || '')) {
+    return res.status(400).json({ error: err.message, code: err.code || 'INVALID_UPLOAD' });
+  }
+
   const status = err.status || err.statusCode || 500;
   const code   = err.code   || (status === 400 ? 'BAD_REQUEST' :
                                 status === 401 ? 'UNAUTHORIZED' :
