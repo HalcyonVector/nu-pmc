@@ -442,10 +442,13 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(), requirePM
       if (endDate && (!maxEndDate || endDate > maxEndDate)) maxEndDate = endDate;
     }
 
-    // Calculate drift
-    const r0End   = new Date(project.r0_end_date);
-    const newEnd  = new Date(maxEndDate);
-    const drift   = Math.round((newEnd - r0End) / 86400000);
+    // Calculate drift. B16 fix: guard against null r0_end_date / maxEndDate so
+    // drift is 0 (unknown) rather than NaN — a NaN drift forced the approval path
+    // and wrote "NaN days drift" into the version + notification.
+    const r0End   = project.r0_end_date ? new Date(project.r0_end_date) : null;
+    const newEnd  = maxEndDate ? new Date(maxEndDate) : null;
+    const drift   = (r0End && newEnd && !isNaN(r0End) && !isNaN(newEnd))
+                      ? Math.round((newEnd - r0End) / 86400000) : 0;
 
     // First schedule for a project auto-approves (no prior baseline)
     // Subsequent uploads with drift need Principal/Design Principal approval

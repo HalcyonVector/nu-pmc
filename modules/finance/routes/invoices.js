@@ -3,6 +3,7 @@ const express = require('express');
 const db      = require('../../../middleware/db');
 const users = require('../../../services/users-lookup');
 const { requireAuth, requirePMC, requirePrincipal, requireRole, requireProjectScope } = require('../../../middleware/auth');
+const { FINANCE_ROLES } = require('../../../services/roles');
 const { upload } = require('../../../middleware/upload');
 const xl      = require('../../../middleware/excel');
 const asyncHandler = require('../../../middleware/asyncHandler');
@@ -29,7 +30,7 @@ router.get('/:project_id/fee-schedule', requireAuth,
   }));
 
 // POST /api/invoices/:project_id/fee-schedule/upload — upload Excel from appointment letter
-router.post('/:project_id/fee-schedule/upload', requireAuth, requireProjectScope(), requirePrincipal,
+router.post('/:project_id/fee-schedule/upload', requireAuth, requireProjectScope(), requireRole(...FINANCE_ROLES), // B5: finance_admin is the documented owner (was requirePrincipal, 403'd them)
   upload.single('fee_schedule'), asyncHandler(async (req, res) => {
     const pid  = req.params.project_id;
     const file = req.file;

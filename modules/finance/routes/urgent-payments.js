@@ -28,7 +28,10 @@ const asyncHandler = require('../../../middleware/asyncHandler');
 const audit = require('../../../services/audit');
 const router   = express.Router();
 
-const upload = multer({ dest: 'uploads/urgent-payments/' });
+// B7 fix: use the shared upload middleware so magic-byte validation, the
+// extension allow-list and the 20MB cap apply, and files land under a
+// /api/files-served subdir (was a bare multer writing to an unserved dir).
+const { upload } = require('../../../middleware/upload');
 
 // Roles that may raise an urgent payment OR view urgent payments on a project.
 // Site managers (both grades) can raise because urgent requests often originate
@@ -121,6 +124,15 @@ router.post('/:project_id',
         await db.query(
           'INSERT INTO payment_request_evidence (payment_request_id, file_path, file_type, uploaded_by) VALUES (?,?,?,?)',
           [result.insertId, invoicePath, 'photo', me.id]
+        );
+      }
+
+      // B7 fix: persist the UPI-QR as downloadable evidence too (was decoded then dropped,
+      // so finance_admin could never open it).
+      if (upiPath) {
+        await db.query(
+          'INSERT INTO payment_request_evidence (payment_request_id, file_path, file_type, uploaded_by) VALUES (?,?,?,?)',
+          [result.insertId, upiPath, 'photo', me.id]
         );
       }
 

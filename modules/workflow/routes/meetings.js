@@ -301,7 +301,7 @@ router.post('/:id/issue-to-client', requireAuth, requirePMC, asyncHandler(async 
   }));
 
 // ── POST /api/meetings/:id/reissue — author reissues with changes (within window)
-router.post('/:id/reissue', requireAuth, requirePMC, upload.single('doc'), asyncHandler(async (req, res) => {
+router.post('/:id/reissue', requireAuth, requirePMC, requireScopeFromEntity('meetings', 'id'), upload.single('doc'), asyncHandler(async (req, res) => {
     const [[mom]] = await db.query('SELECT * FROM meetings WHERE id = ?', [req.params.id]);
     if (!mom) return res.status(404).json({ error: 'MOM not found' });
     if (mom.status !== 'issued') return res.status(400).json({ error: 'MOM must be issued before reissuing' });
@@ -340,6 +340,15 @@ router.post('/:id/reissue', requireAuth, requirePMC, upload.single('doc'), async
       if (title) {
         await conn.query('UPDATE meetings SET title=?, meeting_date=?, attendees_internal=?, agenda=?, notes=? WHERE id=?',
           [title, meeting_date, attendees||null, agenda||null, notes||null, req.params.id]);
+      }
+      // B14 fix: surface the reissued PDF in the MOM documents grid (was stored on
+      // meeting_revisions only and never shown in the viewer).
+      if (req.file) {
+        await conn.query(
+          `INSERT INTO meeting_photos (meeting_id, file_path, caption, doc_type, uploaded_by)
+           VALUES (?, ?, ?, 'attachment', ?)`,
+          [req.params.id, req.file.path, `Reissue v${nextVersion}`, req.session.user.id]
+        );
       }
     });
 

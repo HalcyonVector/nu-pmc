@@ -1272,8 +1272,8 @@ router.post('/:project_id/engagements/bulk-upload', requireAuth, requirePMC, upl
         let vid = vendorMap[p.vendorName];
         if (!vid) {
           const [vr] = await conn.query(
-            `INSERT INTO vendors (vendor_name, trade, contact_person, phone, bank_account, bank_ifsc, registered_by)
-             VALUES (?,?,?,?,?,?,?)`,
+            `INSERT INTO vendors (vendor_name, trade, contact_person, phone, bank_account, bank_ifsc, registered_by, clearance_status)
+             VALUES (?,?,?,?,?,?,?, 'pending')`, // B10: enter finance-clearance pipeline, don't bypass it
             [p.vendorName, p.trade||'General', p.contact, p.phone, p.account, p.ifsc, req.session.user.id]
           );
           vid = vr.insertId;

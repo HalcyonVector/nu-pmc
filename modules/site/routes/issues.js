@@ -118,6 +118,7 @@ router.get('/:project_id', requireAuth, requireProjectScope(), asyncHandler(asyn
       i.assigned_to_name  = users.get(i.assigned_to)?.full_name || null;
       i.confirmed_by_name = users.get(i.confirmed_by)?.full_name || null;
       i.vendor_name       = vendors.get(i.assigned_vendor_id)?.vendor_name || null;
+      i.file_url          = i.file_path ? fileUrls.fileUrl(i.file_path, { defaultSubdir: 'photos' }) : null; // B17
     });
     res.json({ issues });
   }));

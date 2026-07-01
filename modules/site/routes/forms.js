@@ -18,13 +18,8 @@ router.get('/templates', requireAuth, asyncHandler(async (req, res) => {
       [req.session.user.id]
     );
     const Auth = require('../../auth/contract');
-    const fileUrls = require('../../../services/file-url');
     const users = await Auth.functions.getUsers(templates.map(t => t.created_by).filter(Boolean));
-    templates.forEach(t => {
-      t.created_by_name = users.get(t.created_by)?.full_name || null;
-      t.template_url = t.file_path ? fileUrls.fileUrl(t.file_path) : null;
-      delete t.file_path;
-    });
+    templates.forEach(t => { t.created_by_name = users.get(t.created_by)?.full_name || null; });
     res.json({ templates });
   }));
 
@@ -35,34 +30,18 @@ router.post('/templates', requireAuth, upload.single('excel'), asyncHandler(asyn
     if (!name) return res.status(400).json({ error: 'Template name required' });
 
     // Principals auto-approved, others need approval
-    const isAutoApproved = [...PMC_ROLES, ...PRINCIPALS].includes(me.role);
+    const isAutoApproved = PRINCIPALS.includes(me.role);
 
     // If Excel uploaded — parse fields from it
     let fields = fields_json ? JSON.parse(fields_json) : [];
     if (req.file && !fields.length) {
       const rows = await xl.readFile(req.file.path);
-      // Detect format: inspection checklist (has "Check Item") vs field-definition sheet (has "Field Label")
-      const sample = rows[0] || {};
-      if ('Check Item' in sample || 'check_item' in sample || 'Item' in sample) {
-        // Inspection checklist — each row IS a check item; use it as the field label
-        fields = rows
-          .filter(r => r['Check Item'] || r['Item'] || r['S.No.'])
-          .map((r, i) => ({
-            id: i + 1,
-            label: r['Check Item'] || r['Item'] || `Item ${i+1}`,
-            type: 'text',
-            required: false,
-            spec: r['Specification'] || r['Spec'] || '',
-          }));
-      } else {
-        // Standard field-definition format
-        fields = rows.map((row, i) => ({
-          id: i + 1,
-          label: row['Field Label'] || row['Label'] || `Field ${i+1}`,
-          type:  row['Type'] || 'text',
-          required: row['Required'] === 'Yes',
-        }));
-      }
+      fields = rows.map((row, i) => ({
+        id: i + 1,
+        label: row['Field Label'] || row['Label'] || `Field ${i+1}`,
+        type:  row['Type'] || 'text',
+        required: row['Required'] === 'Yes',
+      }));
     }
 
     const [result] = await db.query(
@@ -107,28 +86,21 @@ router.patch('/templates/:id/approve', requireAuth, requireRole(...PMC_ROLES), a
     res.json({ success: true, message: 'Template approved — available for use on all projects.' });
   }));
 
-// GET /api/forms/templates/:id/download — serve original file if uploaded, else generate XLSX
+// GET /api/forms/templates/:id/download — download as Excel for offline editing
 router.get('/templates/:id/download', requireAuth, asyncHandler(async (req, res) => {
     const [[template]] = await db.query('SELECT * FROM form_templates WHERE id = ?', [req.params.id]);
     if (!template) return res.status(404).json({ error: 'Template not found' });
 
-    // If an original file was uploaded, serve it directly
-    if (template.file_path) {
-      const path = require('path');
-      const fs   = require('fs');
-      const ext  = path.extname(template.file_path) || '.xlsx';
-      const filename = `${template.name.replace(/[^a-zA-Z0-9_\-]/g,'_')}_template${ext}`;
-      if (fs.existsSync(template.file_path)) {
-        return res.download(template.file_path, filename);
-      }
-    }
-
-    // Fall back: generate XLSX from fields_json
     const fields = JSON.parse(template.fields_json || '[]');
     const data   = [
-      ['Field Label', 'Specification', 'Status (OK/NOT OK/NA)', 'Remarks'],
-      ...fields.map(f => [f.label, f.spec || '', '', '']),
+      ['Field Label', 'Type', 'Required', 'Options (comma separated)'],
+      ...fields.map(f => [f.label, f.type || 'text', f.required ? 'Yes' : 'No', f.options || '']),
+      // Empty rows for adding new fields
+      ['', 'text', 'No', ''],
+      ['', 'text', 'No', ''],
+      ['', 'text', 'No', ''],
     ];
+
     const outPath = `/tmp/form_template_${template.id}_${Date.now()}.xlsx`;
     await xl.writeFile(data, outPath, template.name);
     res.download(outPath, `${template.name.replace(/\s/g,'_')}_template.xlsx`);
@@ -152,6 +124,24 @@ router.post('/:project_id/submit', requireAuth, requireProjectScope(), upload.si
       entityType: 'form_submissions', entityId: r.insertId,
       details: { project_id: parseInt(req.params.project_id, 10), template_id: parseInt(template_id, 10), template_version: template.version }, req });
     res.json({ success: true, message: 'Form submitted.' });
+  }));
+
+// PATCH /api/forms/submissions/:id/review — PMC closes a submission (B11 fix)
+router.patch('/submissions/:id/review', requireAuth, requireRole(...PMC_ROLES), asyncHandler(async (req, res) => {
+    const { decision, note } = req.body; // 'approved' | 'flagged'
+    if (!['approved', 'flagged'].includes(decision)) {
+      return res.status(400).json({ error: "decision must be 'approved' or 'flagged'" });
+    }
+    const [[sub]] = await db.query('SELECT id, status FROM form_submissions WHERE id = ?', [req.params.id]);
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    await db.query(
+      'UPDATE form_submissions SET status=?, reviewed_by=?, reviewed_at=NOW(), review_note=? WHERE id=?',
+      [decision, req.session.user.id, note || null, req.params.id]
+    );
+    audit.log({ userId: req.session.user.id, action: 'form_submission.review',
+      entityType: 'form_submissions', entityId: parseInt(req.params.id, 10),
+      details: { decision }, req });
+    res.json({ success: true, status: decision });
   }));
 
 // GET /api/forms/:project_id/submissions
