@@ -37,6 +37,9 @@ router.get('/:project_id/petty-cash', requireAuth, requireRole(...FINANCE_ROLES)
 router.post('/:project_id/petty-cash', requireAuth, requireProjectScope(), requirePMC, upload.single('bill'), asyncHandler(async (req, res) => {
     const { txn_date, description, amount, category } = req.body;
     if (!txn_date || !description || !amount) return res.status(400).json({ error: 'Required fields missing' });
+    // N1 fix: validate category against the DB enum (bad value previously 500'd as WARN_DATA_TRUNCATED)
+    const VALID_PC_CATS = ['labour','material','site_expense','other'];
+    if (category && !VALID_PC_CATS.includes(category)) return res.status(400).json({ error: `Invalid category '${category}'. Must be one of: ${VALID_PC_CATS.join(', ')}` });
     // Numeric validation
     const { validateAmount } = require('../../../services/payment-validation');
     const amtCheck = validateAmount(amount, 'Amount');
@@ -259,23 +262,23 @@ router.post('/advance-recovery', requireAuth, requirePMC, asyncHandler(async (re
 router.get('/morning-brief', requireAuth, requireRole('finance_admin','principal','design_principal','pmc_head'), asyncHandler(async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [[pendingPay]]     = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE status IN ('pmc_approved','principal_approved') AND is_urgent=0 AND DATE(raised_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
-  const [[todayReqs]]      = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE is_urgent=0 AND DATE(raised_at)=?`, [today]);
-  const [[todayUrgent]]    = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE is_urgent=1 AND DATE(raised_at)=?`, [today]);
+  const [[pendingPay]]     = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE status='approved' AND DATE(created_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
+  const [[todayReqs]]      = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE DATE(created_at)=?`, [today]);
+  const [[todayUrgent]]    = await db.query(`SELECT COUNT(*) AS n FROM urgent_payments WHERE DATE(created_at)=?`, [today]);
   const [[todayPettyCash]] = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM petty_cash_transactions WHERE DATE(txn_date)=? AND txn_type='spend'`, [today]);
   const [[todayDirectPay]] = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM principal_direct_payments WHERE DATE(payment_date)=?`, [today]);
-  const [[overduePI]]      = await db.query(`SELECT COUNT(*) AS n FROM proforma_invoices WHERE status IN ('draft','sent') AND raised_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`);
-  const [[weekPI]]         = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_ex_gst),0) AS total FROM proforma_invoices WHERE raised_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+  const [[overduePI]]      = await db.query(`SELECT COUNT(*) AS n FROM proforma_invoices WHERE status IN ('draft','sent') AND due_date < CURDATE()`);
+  const [[weekPI]]         = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_ex_gst),0) AS total FROM proforma_invoices WHERE DATE(created_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
 
   // Recent payment requests (last 5)
   const [recentReqs] = await db.query(
-    `SELECT pr.id, pr.amount_requested, pr.payment_type, pr.status, pr.raised_at AS created_at,
+    `SELECT pr.id, pr.amount_requested, pr.payment_type, pr.status, pr.created_at,
             p.name AS project_name, v.vendor_name
      FROM payment_requests pr
      JOIN projects p ON pr.project_id = p.id
-     LEFT JOIN vendor_engagements e ON pr.engagement_id = e.id
+     LEFT JOIN engagements e ON pr.engagement_id = e.id
      LEFT JOIN vendors v ON e.vendor_id = v.id
-     ORDER BY pr.raised_at DESC LIMIT 5`
+     ORDER BY pr.created_at DESC LIMIT 5`
   );
 
   // Recent petty cash (last 5)
