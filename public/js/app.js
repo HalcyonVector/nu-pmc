@@ -5749,13 +5749,17 @@ Tomorrow: start formwork on next bay."
     });
   },
 
-  async approvePayment(id) {
-    const pid = APP.state.selectedProject;
-    if (!pid) { UI.toast('Select a project first'); return; }
+  async approvePayment(id, status) {
     const ok = await UI.confirm('Approve this payment?');
     if (!ok) return;
-    const res = await API.approvePayment(pid, id);
-    if (res?.success) { UI.toast('Payment approved ✓'); APP.renderVendors(); }
+    // BUGFIX: the payment queue is payment_requests (from /payment-requests/:pid/weekly-batch),
+    // so approvals must go through the payment-request review endpoints — not the
+    // vendor_payments approve route (which 404'd with "Payment not found").
+    // pending_pmc -> PMC review; pmc_approved -> Principal review (mirrors "Approve All").
+    const res = (status === 'pending_pmc')
+      ? await API.pmcReviewPaymentRequest(id, { action: 'approve' })
+      : await API.principalReviewPaymentRequest(id, { action: 'approve' });
+    if (res?.success) { UI.toast('Payment approved \u2713'); APP.renderPayments(); }
     else UI.toast(res?.error || 'Approval failed');
   },
 
@@ -8682,7 +8686,7 @@ APP.renderPayments = async function() {
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
               <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--navy)">${Money.formatRupee(p.amount_requested)}</div>
-              ${canApprove ? `<button class="btn-sm approve" onclick="APP.approvePayment(${p.id})">Approve</button>` : ''}
+              ${canApprove ? `<button class="btn-sm approve" onclick="APP.approvePayment(${p.id}, '${p.status}')">Approve</button>` : ''}
             </div>
           </div>
           ${p.evidence_files?.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px">
