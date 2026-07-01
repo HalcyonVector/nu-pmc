@@ -16,7 +16,15 @@
   <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div class="sec-label" style="margin:0">Client Master</div>
-      <button class="btn-primary" @click="openNewClient()">+ New Client</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <template x-if="canBulkUpload">
+          <span>
+            <input type="file" id="clients-bulk-file" accept=".xlsx,.xls" style="display:none" @change="bulkUpload($event)">
+            <button class="btn-sm" @click="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>
+          </span>
+        </template>
+        <button class="btn-primary" @click="openNewClient()">+ New Client</button>
+      </div>
     </div>
 
     <!-- Incomplete / pending completion -->

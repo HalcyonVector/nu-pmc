@@ -10188,10 +10188,7 @@ APP._renderClientsLegacy = async function() {
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div class="sec-label" style="margin:0">Client Master</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${['principal','design_principal','finance_admin'].includes(APP.user.role) ? `<input type="file" id="clients-bulk-file" accept=".xlsx,.xls" style="display:none" onchange="APP.bulkUploadClients(this)"><button class="btn-sm" onclick="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>` : ''}
-        <button class="btn-primary" onclick="APP.showNewClient()">+ New Client</button>
-      </div>
+      <button class="btn-primary" onclick="APP.showNewClient()">+ New Client</button>
     </div>`;
 
   if (incomplete.length) {
@@ -11785,22 +11782,29 @@ APP.showActionTriage = function(key) {
 
 // Override the existing renderDashboard to be role-aware
 const _origRenderDashboard = APP.renderDashboard;
+APP._dashGreeting = function() {
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const dateStr = now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+  const name = (APP.user?.full_name||'').split(' ')[0] || '';
+  return `<div class="dash-greeting" style="margin-bottom:16px">
+    <div style="font-size:11px;color:var(--muted);letter-spacing:0.4px;text-transform:uppercase;margin-bottom:2px">${dateStr}</div>
+    <div style="font-size:18px;font-weight:700;color:var(--navy)">${greeting}${name ? ', ' + name : ''}</div>
+  </div>`;
+};
+
 APP.renderDashboard = async function() {
   const role = APP.user?.role;
-  if (role === 'site_manager' || role === 'senior_site_manager') {
-    return APP.renderSiteDashboard();
-  }
-  if (role === 'finance_admin') {
-    return APP.renderFinanceDashboard();
-  }
-  if (role === 'design_head' || role === 'services_head') {
-    return APP.renderDesignDashboard();
-  }
-  if (['team_lead','coordinator','jr_architect','services_engineer'].includes(role)) {
-    return APP.renderTeamDashboard();
-  }
-  // principal / design_principal — original dashboard
-  return _origRenderDashboard.call(APP);
+  if (role === 'finance_admin') return APP.renderFinanceDashboard(); // has its own greeting
+  let sub;
+  if (role === 'site_manager' || role === 'senior_site_manager') sub = APP.renderSiteDashboard();
+  else if (role === 'design_head' || role === 'services_head') sub = APP.renderDesignDashboard();
+  else if (['team_lead','coordinator','jr_architect','services_engineer'].includes(role)) sub = APP.renderTeamDashboard();
+  else sub = _origRenderDashboard.call(APP); // principal / design_principal
+  try { await sub; } catch (e) { /* sub-render manages its own errors */ }
+  const el = UI.contentEl();
+  if (el && !el.querySelector('.dash-greeting')) el.insertAdjacentHTML('afterbegin', APP._dashGreeting());
 };
 
 // PMC DASHBOARD
@@ -12072,20 +12076,20 @@ APP.renderFinanceDashboard = async function() {
 
   // ── Quick-action grid (always visible)
   const quickGrid = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
-    <button class="action-card" onclick="APP.switchTab('payments_fin')">
-      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    <button class="action-card" style="background:var(--navy) !important;border-color:var(--navy) !important;color:#fff !important" onclick="APP.switchTab('payments_fin')">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       <span style="font-size:12px;font-weight:600">Payments</span>
     </button>
-    <button class="action-card" onclick="APP.switchTab('pi')">
-      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <button class="action-card" style="background:var(--navy) !important;border-color:var(--navy) !important;color:#fff !important" onclick="APP.switchTab('pi')">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span style="font-size:12px;font-weight:600">Invoices</span>
     </button>
-    <button class="action-card" onclick="APP.switchTab('petty_cash')">
-      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+    <button class="action-card" style="background:var(--navy) !important;border-color:var(--navy) !important;color:#fff !important" onclick="APP.switchTab('petty_cash')">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       <span style="font-size:12px;font-weight:600">Petty Cash</span>
     </button>
-    <button class="action-card" onclick="APP.renderTallyExport?.();APP.currentTab='tally'">
-      <svg style="width:22px;height:22px;margin-bottom:5px;color:var(--navy)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2v20l8-4 8 4V2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
+    <button class="action-card" style="background:var(--navy) !important;border-color:var(--navy) !important;color:#fff !important" onclick="APP.renderTallyExport?.();APP.currentTab='tally'">
+      <svg style="width:22px;height:22px;margin-bottom:5px;color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2v20l8-4 8 4V2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
       <span style="font-size:12px;font-weight:600">Tally Export</span>
     </button>
   </div>`;

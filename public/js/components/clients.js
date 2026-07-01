@@ -37,6 +37,15 @@ window.Components['clients'] = function() {
       this.loading = false;
     },
 
+    get canBulkUpload() { return ['principal','design_principal','finance_admin'].includes(APP?.user?.role); },
+
+    async bulkUpload(e) {
+      const input = e.target;
+      if (!input.files || !input.files[0]) return;
+      if (typeof APP?.bulkUploadClients === 'function') await APP.bulkUploadClients(input);
+      await this.refresh();
+    },
+
     openNewClient() {
       if (typeof APP?.showNewClient === 'function') APP.showNewClient();
     },
