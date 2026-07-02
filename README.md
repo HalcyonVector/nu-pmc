@@ -1,397 +1,266 @@
-# nu PMC
+# 🏗️ nu associates — PMC
 
-**nu associates — Project Management & Control**
-
-A role-based PWA for architecture firms to manage the full project lifecycle: onboarding, design & services coordination, site operations, finance, approvals, and reporting. Built on Node.js + MySQL with real-time notifications via Matrix.
-
----
-
-## Table of Contents
-
-- [Architecture](#architecture)
-- [Roles](#roles)
-- [Prerequisites](#prerequisites)
-- [Local Setup (without Docker)](#local-setup-without-docker)
-- [Local Setup (with Docker)](#local-setup-with-docker)
-- [Environment Variables](#environment-variables)
-- [Deploying to EC2](#deploying-to-ec2)
-- [Running Tests](#running-tests)
-- [Project Structure](#project-structure)
-- [Known Issues](#known-issues)
+**Project Management & Control** platform for architecture & construction
+delivery — projects, drawings, BOQ, vendors, payments, meetings, site reports,
+measurements and handover, all driven by a database-configured navigation and a
+150-action permission matrix. Built as a lightweight progressive web app on
+Node.js + MySQL, with WhatsApp notifications and one-command deployment.
 
 ---
 
-## Architecture
+## 🎯 Features
 
-```
-Express (server.js)
-├── modules/
-│   ├── auth              — login, sessions, user management
-│   ├── onboarding        — projects, clients, vendor master, client BOQ
-│   ├── readiness-gate    — project activation gate (initialising → active)
-│   ├── design-services   — drawings, register, schedule, BOQ
-│   ├── site              — daily reports, GRN, issues, photos, snags
-│   ├── finance           — vendor payments, budget, client billing, GST/TDS
-│   ├── workflow          — meetings, change notices, approvals, submittals
-│   ├── reporting         — dashboard, pending, needs-you, Gantt
-│   └── system            — nav config, notifications, WhatsApp, AI triggers
-├── middleware/           — auth, permissions, CSRF, rate-limit, upload
-├── services/             — Matrix adapter, email, WhatsApp, state machines
-└── public/               — PWA frontend (vanilla JS + CSS)
-```
+### Core Modules
+- **Projects & Setup** — project lifecycle, PMC/team assignments, scope, SLAs, setup checklists and closure/handover sign-off
+- **Design & Services** — drawings register with versioning, submittals, RFIs/queries, and AI-assisted drawing sanity checks
+- **BOQ & Budget** — client & vendor BOQs, cost-head budgets, threshold alerts, material requests and approvals
+- **Finance** — vendor engagements, payments (batch, urgent/adhoc, ICICI relay, petty cash), client receipts, claims, proforma invoices, GST & TDS
+- **Site** — daily reports, check-ins, labour register & compliance, photos with review, GRNs, snags and measurements
+- **Meetings & MOMs** — minutes with versioned reissue windows, action items and client acknowledgement
+- **Workflow & Approvals** — configurable multi-signer sign-offs, change notices, NCRs and state machines
+- **Governance** — role-based nav, permission matrix, notification triggers and audit logging
 
-Database: MySQL 8.0 / MariaDB 10.11, utf8mb4, timezone +05:30.
-Notifications: Matrix homeserver (real-time) + Twilio WhatsApp + AWS SES email.
-AI: Anthropic Claude (lessons retrospective, photo tagging, AI triggers).
+### Platform
+- **Role-driven UI** — 17 roles; every tab and action is gated by DB config (`role_nav` + `role_permissions`), no code changes to re-scope a role
+- **PWA** — installable, offline-aware service worker, single-file vanilla-JS front end with Alpine.js components
+- **Notifications** — WhatsApp (Twilio) and email digests; optional Matrix integration
+- **Auditability** — every privileged action recorded; must-change-password on first login
 
 ---
 
-## Roles
+## 🛠️ Tech Stack
 
-17 roles with role-based nav and per-action permissions:
-
-| Role | Description |
-|------|-------------|
-| `principal` | Firm principal — full access |
-| `design_principal` | Design lead |
-| `pmc_head` | PMC project head |
-| `design_head` | Design department head |
-| `services_head` | Services department head |
-| `site_manager` / `senior_site_manager` | On-site management |
-| `coordinator` | Project coordinator |
-| `team_lead` | Team lead |
-| `jr_architect` | Junior architect |
-| `detailing` | Detailing team |
-| `services_engineer` | Services engineer |
-| `finance_admin` | Finance & billing |
-| `trainee` | Trainee (read-only, limited scope) |
-| `audit` | Auditor (read-only, full visibility) |
-| `it_admin` | IT admin — user & nav management |
+| Component | Technology | Details |
+|-----------|-----------|---------|
+| **Runtime** | Node.js 20 + Express | Modular route architecture under `modules/*/routes` |
+| **Database** | MySQL 8 (AWS RDS) | `mysql2` pool; schema in `schema.sql`, config seeds + governance sheets |
+| **Frontend** | Vanilla JS + Alpine.js | Single-file `public/js/app.js` + Alpine components; PWA service worker |
+| **Auth/Session** | express-session + bcryptjs | Sessions persisted in MySQL (`express-mysql-session`); CSRF + helmet |
+| **Validation** | Zod | Request schemas in `services/schemas.js` |
+| **Files** | multer + sharp + pdfkit + exceljs | Uploads, image processing, PDF & Excel generation |
+| **Notifications** | Twilio (WhatsApp) + nodemailer | Optional Matrix adapter for internal comms |
+| **Process/Proxy** | pm2 + nginx | Single fork instance behind nginx; auto-deploy via GitHub Actions |
 
 ---
 
-## Prerequisites
-
-- Node.js 20+
-- MySQL 8.0+ or MariaDB 10.11+
-- npm 9+
-- (Optional) Docker + Docker Compose v2 for containerised setup
-- (Optional) PM2 for production process management: `npm install -g pm2`
+## 📋 Prerequisites
+- **Node.js 20+** — [nodejs.org](https://nodejs.org)
+- **MySQL 8** — local instance or an AWS RDS endpoint
+- **pm2** (production) — `npm install -g pm2`
+- A configured **`.env`** (copy from `.env.example`)
 
 ---
 
-## Local Setup (without Docker)
+## 🚀 Quick Start
 
-### 1. Install dependencies
-
+### Option 1: One-command server setup ⭐
+On a fresh Ubuntu box with `.env` filled in:
 ```bash
-cd nu-pmc
+cp .env.example .env      # then edit DB creds, PORT, etc.
+bash setup.sh             # installs deps, loads schema + config, starts pm2, configures nginx
+```
+
+### Option 2: Local development
+```bash
 npm install
-```
-
-### 2. Create the database
-
-```bash
-mysql -u root -p -e "CREATE DATABASE nu_pmc CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-```
-
-### 3. Load schema and seed data
-
-```bash
-# Step 1: Base install (schema + embedded migration history to 2026-05-02)
-mysql -u root -p nu_pmc < nu-pmc-install-20260502.sql
-
-# Step 2: Required sync patch (tables/columns added after May-02 dump)
-mysql -u root -p nu_pmc < migrations/install-sync-2026-06-27.sql
-
-# Step 3: Config seed (signoff_workflows, role_nav, notifications_config, etc.)
+cp .env.example .env      # point DB_* at your local MySQL, set PORT=5100
+mysql -u root -p nu_pmc < schema.sql
 mysql -u root -p nu_pmc < seed-config.sql
-
-# Step 4: Optional — example users (passwords: Welcome@123)
-mysql -u root -p nu_pmc < nu-pmc-seed-example.sql
+node scripts/load-governance-sheets.js   # REQUIRED: loads the permission matrix
+npm run dev               # nodemon on http://localhost:5100
 ```
 
-The sync patch (Step 2) covers: `matrix_reader_cursor` fix, June-22 soft-delete columns, RFI fields on issues, OIDC tables, `ai_feature_toggles`, and all new tables present in `schema.sql` but absent from the May dump. It is idempotent — safe to re-run.
+> The app listens on **PORT 5100** by default (set in `.env`). Log in with a
+> role account (e.g. `principal`) — initial password `Start@123`, changed on
+> first login.
 
-### 4. Configure environment
+---
 
+## 📖 Detailed Setup Instructions
+
+### Production (EC2 + RDS)
 ```bash
+# 1. Clone and enter
+git clone <repo-url> nu-pmc && cd nu-pmc
+
+# 2. Configure environment
 cp .env.example .env
+#    Set: DB_HOST (RDS endpoint), DB_USER, DB_PASSWORD, DB_NAME, PORT=5100,
+#         NODE_ENV=production, FORCE_HTTPS=1, and Twilio vars if using WhatsApp.
+
+# 3. Provision the database (schema + config + governance matrix)
+bash setup.sh
+#    or manually:
+mysql -h "$DB_HOST" -u "$DB_USER" -p "$DB_NAME" < schema.sql
+mysql -h "$DB_HOST" -u "$DB_USER" -p "$DB_NAME" < seed-config.sql
+node scripts/load-governance-sheets.js
+
+# 4. Verify completeness (tables, columns, config, features)
+node scripts/verify-and-provision.js          # report only
+node scripts/verify-and-provision.js --apply    # apply anything missing
+
+# 5. Start under pm2
+pm2 start ecosystem.config.js --env production
+pm2 save
 ```
 
-Edit `.env` — minimum required values for local development:
-
-```
-NODE_ENV=development
-PORT=5100
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=<your mysql password>
-DB_NAME=nu_pmc
-SESSION_SECRET=<any random 32+ character string>
-PWA_BASE_URL=http://localhost:5100
-APP_URL=http://localhost:5100
-NOTIFICATIONS=disabled
-```
-
-See [Environment Variables](#environment-variables) for the full list.
-
-### 5. Start the app
-
+### Local (Windows / macOS / Linux)
 ```bash
-# Development (with auto-reload via nodemon)
+npm install
+cp .env.example .env         # DB_* -> local MySQL, PORT=5100, NODE_ENV=development
+mysql -u root -p nu_pmc < schema.sql
+mysql -u root -p nu_pmc < seed-config.sql
+node scripts/load-governance-sheets.js
 npm run dev
-
-# Or plain Node
-npm start
-```
-
-Open: http://localhost:5100
-
-### 6. Log in
-
-After loading `nu-pmc-seed-example.sql`, these users are available (password: `Welcome@123`):
-
-- `principal` — principal
-- `design_principal` — design_principal
-- `admin1` — it_admin (password: `Welcome@123`)
-
-First login as `admin1` and go to **Settings → Account Setup** to set company details.
-
-### Dev role switcher
-
-When `NODE_ENV=development`, a special user lets you switch between any role without creating separate accounts:
-
-- Username: `user1` / Password: `Start@123`
-- After login, a role picker appears — select any role to browse as that user
-
-To disable, set `NODE_ENV=production` in `.env` and restart.
-
----
-
-## Local Setup (with Docker)
-
-Runs the app + database in containers. No local MySQL required.
-
-### First-time setup
-
-```bash
-cp .env.docker.example .env
-# Edit .env — set DB_ROOT_PASSWORD, DB_PASSWORD, SESSION_SECRET to real values
-
-docker compose up -d db
-sleep 30  # wait for DB to become healthy
-docker compose --profile seed run --rm seed  # applies schema + seed data
-docker compose up -d app
-```
-
-Verify:
-```bash
-docker compose ps     # both db and app should show "healthy"
-curl http://localhost:3100/
-```
-
-### Daily ops
-
-```bash
-docker compose up -d db app    # start
-docker compose down            # stop (data persists)
-docker compose down -v         # stop and wipe all data
-docker compose logs -f app     # tail logs
-docker compose restart app     # restart app only
-```
-
-### Optional DB UI (Adminer)
-
-```bash
-docker compose --profile debug up -d adminer
-# Open http://localhost:8080
-# Server: db | User: nu_app | Password: from .env | DB: nu_pmc
 ```
 
 ---
 
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PORT` | Yes | `5100` | App port |
-| `NODE_ENV` | Yes | — | `development` or `production` |
-| `SESSION_SECRET` | Yes | — | Random 32+ character string |
-| `DB_HOST` | Yes | `localhost` | MySQL host |
-| `DB_PORT` | No | `3306` | MySQL port |
-| `DB_USER` | Yes | — | MySQL user |
-| `DB_PASSWORD` | Yes | — | MySQL password |
-| `DB_NAME` | Yes | `nu_pmc` | Database name |
-| `PWA_BASE_URL` | Yes | — | Full URL the app is served from |
-| `NOTIFICATIONS` | No | `disabled` | `disabled`, `matrix`, or `all` |
-| `MATRIX_HOMESERVER` | If notifications | — | e.g. `https://nuassociates.ems.host` |
-| `MATRIX_BOT_TOKEN` | If notifications | — | Matrix bot access token |
-| `MATRIX_BOT_USER_ID` | If notifications | — | e.g. `@nu_pmc_bot:server.com` |
-| `AI_PROVIDER` | No | `anthropic` | AI provider |
-| `ANTHROPIC_API_KEY` | For AI features | — | Anthropic API key |
-| `EMAIL_PROVIDER` | No | `ses` | `ses` or `smtp` |
-| `AWS_ACCESS_KEY_ID` | If email=ses | — | AWS SES credentials |
-| `AWS_SECRET_ACCESS_KEY` | If email=ses | — | AWS SES credentials |
-| `TWILIO_ACCOUNT_SID` | For WhatsApp | — | Twilio credentials |
-| `TWILIO_AUTH_TOKEN` | For WhatsApp | — | Twilio credentials |
-| `TWILIO_WA_NUMBER` | For WhatsApp | — | WhatsApp sender number |
-
-Full list with all optional keys: see `.env.example`.
-
----
-
-## Deploying to EC2
-
-The production server runs Node directly via PM2 (not Docker). The app is on port 5100, fronted by nginx.
-
-### First-time deploy
-
-Follow the full guide in `deploy/GURU-AWS-DEPLOY.md`.
-
-### Pushing a code update
-
-On your local machine:
-
-```bash
-# Exclude node_modules and .git to keep the archive small
-zip -r nu-pmc-updated.zip . -x "node_modules/*" ".git/*" "logs/*" "uploads/*"
-
-# Copy to server (replace key and username as needed — try ubuntu or ec2-user)
-scp -i your-key.pem nu-pmc-updated.zip ubuntu@<EC2_IP>:/tmp/
-```
-
-On the server:
-
-```bash
-ssh -i your-key.pem ubuntu@<EC2_IP>
-
-# Check where the app lives
-pm2 list
-
-# Backup current version
-cp -r /opt/nu-pmc /opt/nu-pmc-backup-$(date +%Y%m%d)
-
-# Extract update — -x .env preserves production secrets
-cd /opt/nu-pmc
-unzip -o /tmp/nu-pmc-updated.zip -x ".env"
-
-# Reinstall in case package.json changed
-npm install --production
-
-# Restart
-pm2 restart nu-pmc
-
-# Watch logs for 30 seconds to confirm clean start
-pm2 logs nu-pmc --lines 40
-```
-
-### nginx reverse proxy
-
-Config is in `deploy/nginx.conf`. After changes:
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-### Useful PM2 commands
-
-```bash
-pm2 list                        # status of all processes
-pm2 logs nu-pmc --lines 50     # recent logs
-pm2 restart nu-pmc             # graceful restart
-pm2 stop nu-pmc                # stop without removing
-pm2 startup                    # configure PM2 to start on boot
-pm2 save                       # save process list for startup
-```
-
----
-
-## Running Tests
-
-### Module unit tests
-
-```bash
-npm test
-# or just the module tests
-npm run test:modules
-```
-
-### Module boundary lint
-
-```bash
-npm run lint:boundaries
-```
-
-### E2E tests (Playwright)
-
-Runs real browser clicks against a live server. Set up once:
-
-```bash
-npm install --save-dev playwright
-npx playwright install chromium
-```
-
-Run:
-
-```bash
-cd tests/e2e
-npx playwright test
-```
-
-Spec files:
-
-| File | Covers |
-|------|--------|
-| `01-destructive-safety.spec.js` | Destructive actions require confirmation |
-| `02-role-gates.spec.js` | Routes blocked for unauthorised roles |
-| `03-happy-paths.spec.js` | Core user journeys end-to-end |
-| `04-ui-wiring.spec.js` | Buttons/forms correctly wired to API |
-| `05-preview-before-send.spec.js` | Preview modal before sends/approvals |
-| `06-audit-log.spec.js` | Audit trail for key actions |
-| `07-semantic-click-inference.spec.js` | Semantic action routing |
-| `08-v5-critical-paths.spec.js` | V5 regression suite |
-
----
-
-## Project Structure
-
+## 📁 Project Structure
 ```
 nu-pmc/
-├── server.js                  # Entry point
-├── ecosystem.config.js        # PM2 config
-├── docker-compose.yml         # Docker Compose full stack
-├── Dockerfile                 # Multi-stage production image
-├── .env.example               # Environment variable template
+├── server.js                  # Express entry point (loads .env, mounts modules, runs startup migrations)
+├── package.json               # Scripts + dependencies
+├── ecosystem.config.js        # pm2 process config
+├── setup.sh                   # One-command deploy (db + nginx + pm2)
+├── Dockerfile / docker-compose.yml
 │
-├── modules/                   # Feature modules (each has contract.js + routes + tests)
-│   ├── auth/
-│   ├── design-services/
-│   ├── finance/
-│   ├── onboarding/
-│   ├── readiness-gate/
-│   ├── reporting/
-│   ├── site/
-│   ├── system/
-│   └── workflow/
+├── schema.sql                 # Full table structure (source of truth)
+├── seed-config.sql            # Baseline config (role_nav, workflows, toggles…)
+├── seed-firm.sql              # Optional firm-specific data (entities, thresholds)
+├── dev-seed.sql               # Local dev user
+├── nu-pmc-seed-example.sql    # Example role users
 │
-├── middleware/                # Express middleware (auth, permissions, CSRF, upload…)
-├── services/                  # Shared services (Matrix, WhatsApp, email, state machines…)
-├── public/                    # PWA frontend — HTML, JS, CSS
-├── governance_sheets/         # Excel sheets that drive role_permissions in DB
-├── scripts/                   # One-off scripts, seed helpers, verify scripts
-├── tests/
-│   └── e2e/                  # Playwright E2E specs
+├── middleware/                # auth, csrf, db pool, validation, guards
+├── modules/                   # Feature modules, each with routes/ + tests/ + contract.js
+│   ├── auth/  onboarding/  design-services/  finance/
+│   ├── site/  workflow/  reporting/  readiness-gate/  system/
+├── services/                  # Cross-cutting logic (notifications, schemas, state machines…)
+├── scripts/                   # Operational + provisioning scripts (see below)
+├── migrations/                # Idempotent SQL migrations
+├── governance_sheets/         # Permission matrix + workflow definitions (loaded into DB)
+├── public/                    # PWA front end (app.js, Alpine components, sw.js, css)
 │
-├── nu-pmc-install-20260502.sql  # Complete schema + all migrations (use this for fresh installs)
-├── nu-pmc-seed-example.sql      # Example users and placeholder data
-├── patch-schema-*.sql           # Incremental patches (already included in install SQL above)
-│
-└── deploy/
-    ├── GURU-AWS-DEPLOY.md    # Full AWS EC2 setup guide
-    └── nginx.conf            # nginx reverse proxy config
+├── handover/                  # Handover pack: employee guide, credentials, runbooks
+├── docs/                      # Architecture & schema docs
+└── .github/workflows/         # CI + auto-deploy to EC2
 ```
 
---
-- **`.env` must not be committed** — `.env.example` is the safe template to commit. The actual `.env` is gitignored and must be created manually on each environment with real secrets. Never reuse development credentials in production.
+---
+
+## 🔐 Roles & Access
+
+Access is **100% data-driven** — no role logic is hardcoded in the UI.
+
+| Layer | Table | Purpose |
+|-------|-------|---------|
+| Navigation | `role_nav` | Which tabs/buckets each role sees |
+| Permissions | `role_permissions` | 150+ actions × 17 roles (loaded from `governance_sheets`) |
+| Workflows | `signoff_workflows`, `approval_type_config` | Multi-signer approval definitions |
+
+**Roles:** principal, design_principal, pmc_head, design_head, services_head,
+team_lead, jr_architect, jr_engineer, detailing, services_engineer,
+coordinator, site_manager, senior_site_manager, finance_admin, trainee, audit,
+it_admin.
+
+All accounts start with password **`Start@123`** and are forced to change it on
+first login. See `handover/USER-CREDENTIALS.txt`.
+
+---
+
+## 🖥️ Deployment
+
+### EC2 + pm2 + nginx
+The app runs as a single pm2 fork (`nu-pmc`) on **port 5100**, behind nginx.
+`setup.sh` wires nginx and (optionally) a Let's Encrypt certificate.
+
+### Auto-deploy (GitHub Actions)
+`.github/workflows/deploy.yml` runs on every push to `main`:
+
+| Job | Action |
+|-----|--------|
+| `test` | Runs the jest suite + module-boundary check (gate) |
+| `deploy` | If tests pass, SSHes to EC2 → `git pull` → `npm install` → `pm2 restart` |
+
+> Deploy is gated on the test job. Requires the `EC2_HOST` and `EC2_SSH_KEY`
+> repo secrets.
+
+### Pre-production checklist
+Set `NODE_ENV=production` and `FORCE_HTTPS=1` in `.env`, confirm a real admin
+login exists, and review `handover/PRE-PRODUCTION-CHECKLIST.md`.
+
+---
+
+## 🔧 Available Scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| **Start** | `npm start` | Run the server (`node server.js`) |
+| **Dev** | `npm run dev` | Nodemon with live reload |
+| **Load permissions** | `node scripts/load-governance-sheets.js` | Load the permission matrix (required after schema) |
+| **Verify + provision** | `node scripts/verify-and-provision.js [--apply]` | Check/apply all migrations, config and features |
+| **Schema diff** | `node scripts/schema-diff.js [--apply]` | Column-level drift check vs `schema.sql` |
+| **Create admin** | `node scripts/create-admin.js` | Create/reset an admin account |
+| **Reset passwords** | `node scripts/set-passwords.js` | Reset role users to the default password |
+| **Handover reset** | `node scripts/reset-for-handover.js [--confirm]` | Wipe operational data, keep config + seed users |
+| **Health** | `node scripts/vps-health.js` | VPS/DB health probe (cron) |
+| **Overdue checker** | `node scripts/overdue-checker.js` | Nightly SLA/auto-lock cron |
+
+---
+
+## 🚨 Troubleshooting
+
+### Issue: `ECONNREFUSED` / `connect ... 3306` when running a script
+**Solution:** Standalone scripts need `.env` loaded. Either the script auto-loads it, or run:
+```bash
+set -a; source .env; set +a
+node scripts/<script>.js
+```
+
+### Issue: App returns 403 on everything after a fresh install
+**Solution:** `role_permissions` is empty. Load the matrix:
+```bash
+node scripts/load-governance-sheets.js
+```
+
+### Issue: Can't reach the app on port 3000/3100
+**Solution:** It runs on **5100** (`PORT` in `.env`). Target `http://localhost:5100`.
+
+### Issue: Login fails for a role account
+**Solution:** Initial password is `Start@123` (forced change on first login). Reset with `node scripts/set-passwords.js` or `node scripts/create-admin.js`.
+
+### Issue: "Unknown column" / missing table at runtime
+**Solution:** Run the provisioning check and apply:
+```bash
+node scripts/verify-and-provision.js --apply
+node scripts/schema-diff.js --apply
+pm2 restart nu-pmc --update-env
+```
+
+---
+
+## 📈 Future Enhancements
+- [ ] Regenerate `schema.sql` from migrations to remove residual drift
+- [ ] Move standalone scripts' DB config into a shared loader
+- [ ] Staging environment for the integration + e2e suites
+- [ ] Fine-grained field-level audit diffs
+- [ ] In-app notification centre (reduce reliance on WhatsApp)
+- [ ] Mobile-optimised site-manager views
+
+---
+
+## 👨‍💻 Maintainers
+**NU Associates** — internal PMC platform.
+For access or onboarding, contact the IT admin.
+
+---
+
+## 🙋 Support
+Operational runbooks and the role-by-role employee guide are in the
+[`handover/`](./handover) folder. For deployment questions see `setup.sh` and
+`.github/workflows/deploy.yml`.
+
+---
+
+## 📄 License
+Proprietary — © NU Associates. Internal use only. Not for redistribution.

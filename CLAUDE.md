@@ -1,5 +1,10 @@
 # nu-pmc — Project Memory
 
+## Deployment Facts (REMEMBER — do not re-ask/re-derive)
+- **App runs on PORT 5100** (set in `.env`). NOT 3000, NOT 3100. Always target `http://localhost:5100`. The `post-deploy-smoke.sh` default (3000) and `ecosystem.config.js` (3100) are both wrong for this server.
+- **Users are ROLE accounts ONLY.** There is NO user named "naveen" or "anjaneya". The real accounts are the roles: principal, design_principal, pmc_head, design_head, services_head, team_lead, jr_architect, jr_engineer, detailing, services_engineer, coordinator, site_manager, senior_site_manager, finance_admin, trainee, audit, it_admin. `post-deploy-smoke.sh` hardcodes `naveen`/`anjaneya` logins that DO NOT EXIST — its auth-dependent checks fail on a stale fixture, not an app fault. Ignore those specific failures.
+- Server: EC2 (ap-south-2), run via pm2 as `nu-pmc`. DB is RDS `database-2.c74oaeo42yfo.ap-south-2.rds.amazonaws.com`, database `nu_pmc`. Standalone scripts must load `.env` (dotenv) or be run after `set -a; source .env; set +a`.
+
 ## Pre-Production Checklist (MUST do before go-live)
 
 ### Environment variables to set in production .env
