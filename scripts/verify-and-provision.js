@@ -38,10 +38,14 @@
  */
 'use strict';
 
-const mysql = require('mysql2/promise');
-const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+// Load .env from the project root (the app does this via server.js; a standalone
+// script invocation does not, so DB_* would fall back to defaults otherwise).
+try { require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') }); } catch { /* dotenv optional */ }
+
+const mysql = require('mysql2/promise');
+const { spawnSync } = require('child_process');
 
 const APPLY = process.argv.includes('--apply');
 
@@ -73,11 +77,15 @@ const NAV_FEATURES = {
 function log(...a) { console.log(...a); }
 function C(s) { return s.replace(/\s+/g, ' ').trim(); }
 
-// Parse every `CREATE TABLE [IF NOT EXISTS] name` from a SQL file.
+// Parse every `CREATE TABLE [IF NOT EXISTS] name (` from a SQL file.
 function tablesInSql(file) {
   let txt = '';
   try { txt = fs.readFileSync(file, 'utf8'); } catch { return []; }
-  const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?`?([a-z0-9_]+)`?/gi;
+  // Strip comments first so phrases like "CREATE TABLE IF NOT EXISTS is safe"
+  // inside a -- comment don't get parsed as a table named "is".
+  txt = txt.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  // Require the opening paren of a real column list to follow the name.
+  const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?`?([a-z0-9_]+)`?\s*\(/gi;
   const out = [];
   let m;
   while ((m = re.exec(txt))) out.push(m[1].toLowerCase());

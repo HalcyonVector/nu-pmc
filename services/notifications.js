@@ -555,6 +555,7 @@ module.exports = {
   notifyMissingReport,
   notifyPMCDigest,
   notifyVendorDefectRaised,
+  notifyVendor,
   notifyPaymentConfirmed,
   notifyPIRaised,
   notifyUserCreated,

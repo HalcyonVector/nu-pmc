@@ -34,10 +34,14 @@
  */
 'use strict';
 
-const mysql = require('mysql2/promise');
-const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+// Load .env from the project root (the app does this via server.js; a standalone
+// script invocation does not, so DB_* would fall back to defaults otherwise).
+try { require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') }); } catch { /* dotenv optional */ }
+
+const mysql = require('mysql2/promise');
+const { spawnSync } = require('child_process');
 
 // ── Config tables to KEEP (verified against seed-config.sql, seed-firm.sql and
 //    scripts/load-governance-sheets.js). Everything else is treated as data.
