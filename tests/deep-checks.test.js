@@ -416,7 +416,7 @@ describe('Response shape consistency', () => {
                          'over_budget','has_alerts','queue','count','overdue',
                          'document','links','scope','checks','state','date',
                          'complete','required_roles','ai_used','triaged',
-                         'dropped','rows','report','enabled'];
+                         'dropped','rows','report','enabled','cycles'];
       const hasData    = DATA_KEYS.some(k => call.includes(k));
       if (!hasSuccess && !hasError && !hasData) {
         issues.push(`${path.basename(filePath)}: ${call.substring(0, 80)}`);
