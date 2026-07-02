@@ -1080,7 +1080,8 @@ body {
 .btn-sm.reject    { border-color: var(--red-br); color: var(--red); }
 .btn-sm.reject:hover  { background: var(--red-bg); }
 .btn-sm.query     { border-color: var(--blue-br); color: var(--blue); }
-.btn-sm.navy      { border-color: rgba(29,61,98,.3); color: var(--navy); }
+.btn-sm.navy      { background: var(--navy); border-color: var(--navy); color: #fff; }
+.btn-sm.navy:hover { background: var(--navy2); border-color: var(--navy2); color: #fff; }
 .btn-sm.flagged   { border-color: var(--amber-br); color: var(--amber); }
 
 /* ── FILTER CHIPS — used in Flags tab project filter strip ── */

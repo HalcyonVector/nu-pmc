@@ -681,6 +681,36 @@ router.post('/:id/assign-site-manager', requireAuth, requirePMC, asyncHandler(as
 
   }));
 
+// POST /api/projects/:id/assign-role — assign a project-scoped office role
+// (team_lead, jr_architect, services_engineer, coordinator, jr_engineer,
+// trainee) to a project. Firm-wide roles (heads/principals/finance) see every
+// project automatically and are NOT assigned here. Mirrors assign-site-manager
+// but for the other scoped roles, so every scoped role has an assignment path.
+const ASSIGNABLE_SCOPED_ROLES = [
+  'team_lead', 'jr_architect', 'services_engineer', 'coordinator', 'jr_engineer', 'trainee',
+];
+router.post('/:id/assign-role', requireAuth, requirePMC, asyncHandler(async (req, res) => {
+    const { user_id, role } = req.body;
+    const project_id = req.params.id;
+    if (!user_id || !role) return res.status(400).json({ error: 'user_id and role required' });
+    if (!ASSIGNABLE_SCOPED_ROLES.includes(role)) {
+      return res.status(400).json({ error: `Role '${role}' is not an assignable project role. Firm-wide roles see all projects automatically.` });
+    }
+    const user = await Auth.functions.getUser(user_id);
+    if (!user || user.role !== role) {
+      return res.status(400).json({ error: `Selected user is not a ${role.replace(/_/g, ' ')}.` });
+    }
+    await db.query(
+      `INSERT INTO project_assignments (project_id, user_id, role, assigned_by)
+       VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE is_active = 1, role = VALUES(role)`,
+      [project_id, user_id, role, req.session.user.id]
+    );
+    audit.log({ userId: req.session.user.id, action: 'project.assign_role',
+      entityType: 'project_assignments', entityId: null,
+      details: { project_id: parseInt(project_id, 10), user_id: parseInt(user_id, 10), role }, req });
+    res.json({ success: true });
+}));
+
 // POST /api/projects/:id/leave — PMC marks site manager on leave
 router.post('/:id/leave', requireAuth, requirePMC, asyncHandler(async (req, res) => {
     const { user_id, leave_from, leave_to, reason } = req.body;

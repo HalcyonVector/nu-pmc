@@ -234,10 +234,33 @@ const APP = {
     }
     if (res?.user) {
       APP.user = res.user;
+      // Projects are cached on the session at login. Re-pull before first render
+      // so a project created/assigned after this user logged in still appears
+      // (fixes: new project not showing in the selector until logout/login).
+      await APP._refreshProjects();
       APP.showApp();
+      APP._bindProjectRefreshOnFocus();
     } else {
       APP.showLogin();
     }
+  },
+
+  // Re-pull the session's project list from the server and update APP.user.projects.
+  // Best-effort: on any error we keep whatever we had. The /auth/refresh-projects
+  // endpoint returns { projects: [...] } in the same shape as login.
+  async _refreshProjects() {
+    try {
+      const res = await API.refreshProjects();
+      if (res && Array.isArray(res.projects)) APP.user.projects = res.projects;
+    } catch (_e) { /* keep existing list */ }
+  },
+
+  // Keep the project list fresh when the tab regains focus (a project may have
+  // been created elsewhere while this tab was in the background). Bound once.
+  _bindProjectRefreshOnFocus() {
+    if (APP._projRefreshBound) return;
+    APP._projRefreshBound = true;
+    window.addEventListener('focus', () => { APP._refreshProjects(); });
   },
 
   showLogin() {
@@ -1378,7 +1401,7 @@ Tomorrow: start formwork on next bay."
         ['Design BOQ uploaded',              p.checklist_design_boq],
         ['Services BOQ uploaded',            p.checklist_services_boq],
         ['Schedule uploaded',                p.checklist_schedule],
-        ['Site manager assigned',            p.checklist_site_manager],
+        ['Roles assigned',                   p.checklist_site_manager],
       ];
       const done = steps.filter(s => s[1]).length;
       html += `<div style="padding:0 16px 16px; width:100%; text-align:center">
@@ -1485,6 +1508,9 @@ Tomorrow: start formwork on next bay."
       } else {
         UI.toast('Project created ✓');
       }
+      // Pull the new project into this session's cached list so it appears in
+      // the selector immediately (no logout/login needed).
+      await APP._refreshProjects();
       APP.renderProjects();
     } else {
       UI.toast(res?.error || 'Failed to create project');
@@ -8723,7 +8749,7 @@ APP.renderPayments = async function() {
         html += `<div class="card" style="padding:12px 14px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div style="flex:1">
-              <div style="font-weight:700;font-size:13px;color:var(--navy)">${UI.escapeText(u.description||'Urgent payment')}</div>
+              <div style="font-weight:700;font-size:13px;color:var(--navy)">${UI.escapeText(u.reason||u.description||'Urgent payment')}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${u.is_adhoc ? '(Adhoc — '+UI.escapeText(u.adhoc_name||'no vendor') + ')' : 'Engagement-based'} · ${UI.fmtDate(u.created_at)}</div>
               ${u.evidence_files?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${u.evidence_files.map((f,i)=>`<a href="${f.url}" target="_blank" class="btn-sm" style="text-decoration:none;font-size:11px">${f.type==='upi_qr'?'QR Code':f.type==='invoice'?'Invoice':'File '+(i+1)}</a>`).join('')}</div>` : ''}
             </div>
@@ -8787,6 +8813,12 @@ APP.showUrgentPaymentForm = function(pid) {
         <input type="text" id="up-adhoc-name" placeholder="Name of shop/person"></div>
       <div class="field-row"><label class="field-label">Shop owner phone *</label>
         <input type="text" id="up-adhoc-phone" placeholder="10-digit mobile"></div>
+      <div class="field-row" style="display:flex;gap:8px">
+        <div style="flex:1"><label class="field-label">GSTIN <span style="color:var(--muted);font-weight:400">(or PAN — required above ₹10,000)</span></label>
+          <input type="text" id="up-gstin" placeholder="15-char GSTIN" style="text-transform:uppercase"></div>
+        <div style="flex:1"><label class="field-label">PAN</label>
+          <input type="text" id="up-pan" placeholder="ABCDE1234F" style="text-transform:uppercase"></div>
+      </div>
       <div class="field-row"><label class="field-label">UPI ID or Bank A/C + IFSC *</label>
         <input type="text" id="up-upi" placeholder="UPI ID (e.g. name@upi) or leave blank for bank details"></div>
       <div class="field-row"><label class="field-label">UPI QR Code <span style="color:var(--muted);font-weight:400">(optional — photo of QR)</span></label>
@@ -8812,15 +8844,24 @@ APP.submitUrgentPayment = async function(pid) {
   const upi     = document.getElementById('up-upi')?.value?.trim();
   const bankAcc = document.getElementById('up-bank-acc')?.value?.trim();
   const ifsc    = document.getElementById('up-ifsc')?.value?.trim();
+  const gstin   = document.getElementById('up-gstin')?.value?.trim().toUpperCase();
+  const pan     = document.getElementById('up-pan')?.value?.trim().toUpperCase();
 
   if (!amount || !desc) { UI.toast('Amount and description required'); return; }
   if (!invoice) { UI.toast('Invoice photo required'); return; }
   if (isAdhoc && (!adhocName || !adhocPhone)) { UI.toast('Shop owner name and phone required'); return; }
   if (isAdhoc && !upi && (!bankAcc || !ifsc)) { UI.toast('UPI ID or bank account + IFSC required'); return; }
+  // Mirror the backend rule so the user sees it before submitting.
+  if (isAdhoc && parseFloat(amount) > 10000 && !gstin && !pan) {
+    UI.toast('GST or PAN required for payments above ₹10,000'); return;
+  }
 
   const fd = new FormData();
   fd.append('amount', amount);
-  fd.append('description', desc);
+  // Backend schema (UrgentPayment) requires `reason`; the form labels it
+  // "Description". Send it as `reason` (was `description` → Zod rejected as
+  // "Invalid input" because the required `reason` field was missing).
+  fd.append('reason', desc);
   fd.append('is_adhoc', isAdhoc ? '1' : '0');
   fd.append('invoice', invoice);
   if (isAdhoc) {
@@ -8831,6 +8872,8 @@ APP.submitUrgentPayment = async function(pid) {
     if (upiQr) fd.append('upi_qr', upiQr);
     if (bankAcc) fd.append('adhoc_bank_account', bankAcc);
     if (ifsc) fd.append('adhoc_bank_ifsc', ifsc);
+    if (gstin) fd.append('adhoc_gstin', gstin);
+    if (pan) fd.append('adhoc_pan', pan);
   }
   const res = await API.call('POST', `/urgent-payments/${pid}`, fd, true);
   if (res?.success) { UI.closeModal(); UI.toast('Urgent payment raised ✓'); APP.renderPayments(); }
@@ -11118,6 +11161,30 @@ APP.renderProjectDetail = async function() {
     html += `
     <div class="sec-label">Site Manager</div>
     <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">${smRows}</div>`;
+
+    // ── Project Team — the other project-scoped office roles. Firm-wide roles
+    // (heads/principals/finance) see every project automatically and are not
+    // listed here. One row per role, same person-card layout as Site Manager.
+    const TEAM_ROLES = [
+      ['team_lead',         'Team Lead',          ['#E7F5FF','#1971C2']],
+      ['jr_architect',      'Junior Architect',   ['#FFF0F6','#C2255C']],
+      ['services_engineer', 'Services Engineer',  ['#E6FCF5','#0CA678']],
+      ['coordinator',       'Coordinator',        ['#FFF9DB','#E67700']],
+      ['jr_engineer',       'Junior Engineer',    ['#F3F0FF','#7048E8']],
+      ['trainee',           'Trainee',            ['#F1F3F5','#868E96']],
+    ];
+    const teamRows = TEAM_ROLES.map(([role, label, [bg, fg]], idx) => {
+      const members = (teamData?.team || []).filter(m => m.role === role);
+      if (members.length) {
+        return members.map((m, j) =>
+          _personRow(m.full_name, label, bg, fg, `APP.showAssignRole(${pid},'${role}')`, label, idx > 0 || j > 0)
+        ).join('');
+      }
+      return _personRow(null, label, '', '', `APP.showAssignRole(${pid},'${role}')`, label, idx > 0);
+    }).join('');
+    html += `
+    <div class="sec-label">Project Team</div>
+    <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">${teamRows}</div>`;
   }
 
   if (buttons.length) {
@@ -11382,6 +11449,43 @@ APP.doAssignSiteManager = async function(pid) {
     UI.closeModal();
     UI.toast('Site manager(s) assigned ✓');
     APP.renderProjectDetail();
+  }
+};
+
+// ── ASSIGN A PROJECT-SCOPED OFFICE ROLE ──────────────────────────────────
+// Generic version of the site-manager assign, for team_lead / jr_architect /
+// services_engineer / coordinator / jr_engineer / trainee. One dropdown of the
+// active users who hold that role.
+APP.showAssignRole = async function(pid, role) {
+  const usersRes = await API.get('/users');
+  const allUsers = usersRes?.users || [];
+  const eligible = allUsers.filter(u => u.role === role && u.is_active);
+  const label = APP._roleLabel ? APP._roleLabel(role) : role.replace(/_/g, ' ');
+  const options = eligible.length
+    ? eligible.map(u => `<option value="${u.id}">${UI.escapeText ? UI.escapeText(u.full_name) : u.full_name}</option>`).join('')
+    : `<option value="">— No ${label.toLowerCase()} available —</option>`;
+  UI.showModal(`Assign ${label}`, `
+    <div class="field" style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block">${label}</label>
+      <select id="role-assign-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r)">
+        <option value="">— None —</option>
+        ${options}
+      </select>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="APP.doAssignRole(${pid},'${role}')">Assign</button>
+  `);
+};
+
+APP.doAssignRole = async function(pid, role) {
+  const uid = document.getElementById('role-assign-user')?.value;
+  if (!uid) { UI.toast('Select a person'); return; }
+  const res = await API.assignRole(pid, parseInt(uid), role);
+  if (res?.success) {
+    UI.closeModal();
+    UI.toast('Team member assigned ✓');
+    APP.renderProjectDetail();
+  } else {
+    UI.toast(res?.error || 'Failed to assign');
   }
 };
 

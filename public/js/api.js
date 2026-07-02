@@ -164,6 +164,7 @@ const API = {
   login:          (u, p)    => API.call('POST', '/auth/login', { username: u, password: p }),
   logout:         ()        => API.call('POST', '/auth/logout'),
   me:             ()        => API.call('GET',  `/auth/me?_cb=${Date.now()}`),
+  refreshProjects:()        => API.call('POST', '/auth/refresh-projects'),
   changePassword: (c, n)    => API.call('POST', '/auth/change-password', { current_password: c, new_password: n }),
   resetPassword:  (uid, p)  => API.call('POST', '/auth/reset-password', { user_id: uid, new_password: p }),
 
@@ -172,6 +173,7 @@ const API = {
   getProject:     (id)      => API.call('GET',  `/projects/${id}`),
   createProject:  (data)    => API.call('POST', '/projects', data),
   assignSiteMgr:  (id, uid) => API.call('POST', `/projects/${id}/assign-site-manager`, { user_id: uid }),
+  assignRole:     (id, uid, role) => API.call('POST', `/projects/${id}/assign-role`, { user_id: uid, role }),
 
   // Schedule
   getSchedule:    (pid, d)  => API.call('GET',  `/schedule/${pid}?date=${d||''}`),
