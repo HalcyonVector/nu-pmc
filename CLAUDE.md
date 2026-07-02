@@ -4,6 +4,7 @@
 - **App runs on PORT 5100** (set in `.env`). NOT 3000, NOT 3100. Always target `http://localhost:5100`. The `post-deploy-smoke.sh` default (3000) and `ecosystem.config.js` (3100) are both wrong for this server.
 - **Users are ROLE accounts ONLY.** There is NO user named "naveen" or "anjaneya". The real accounts are the roles: principal, design_principal, pmc_head, design_head, services_head, team_lead, jr_architect, jr_engineer, detailing, services_engineer, coordinator, site_manager, senior_site_manager, finance_admin, trainee, audit, it_admin. `post-deploy-smoke.sh` hardcodes `naveen`/`anjaneya` logins that DO NOT EXIST — its auth-dependent checks fail on a stale fixture, not an app fault. Ignore those specific failures.
 - Server: EC2 (ap-south-2), run via pm2 as `nu-pmc`. DB is RDS `database-2.c74oaeo42yfo.ap-south-2.rds.amazonaws.com`, database `nu_pmc`. Standalone scripts must load `.env` (dotenv) or be run after `set -a; source .env; set +a`.
+- **DO NOT DELETE `nu-pmc-install-<date>.sql` at repo root** (e.g. `nu-pmc-install-20260502.sql`). It looks like a stale snapshot but 3 tests parse it as a fixture: `tests/d11-notification-triggers-naming.test.js`, `tests/matrix-room-structure.test.js`, `tests/v6_02-audit-decisions.test.js`. Deleting it fails CI, which blocks the auto-deploy gate in `.github/workflows/deploy.yml`. When checking if a file is safe to delete, grep the WHOLE repo including `tests/`, not just deploy/config files.
 
 ## Pre-Production Checklist (MUST do before go-live)
 
