@@ -48,9 +48,9 @@ const KNOWN_OK = [
   // user-management.js — migrated to notifyNewUserPendingApproval()
   { file: 'modules/design-services/routes/schedule.js',       count: 2, justification: 'schedule editor — design / services head dropdowns (UI lookup, not notification dispatch)' },
   { file: 'modules/finance/routes/budget.js',                 count: 1, justification: 'budget approval — principal selector (UI dropdown)' },
-  { file: 'modules/finance/routes/claims.js',                 count: 2, justification: 'claims dashboard — finance + PMC dropdowns (UI lookup)' },
+  { file: 'modules/finance/routes/claims.js',                 count: 4, justification: 'claims dashboard finance + PMC dropdowns (UI lookup); + claim_raised and claim_invoiced notifications (2026-07-02)' },
   { file: 'modules/finance/routes/payment-requests.js',       count: 3, justification: 'PR detail screens — principal + finance lookups (UI dropdowns, not notification dispatch)' },
-  { file: 'modules/finance/routes/payments.js',               count: 1, justification: 'strike-2 alert finance_admins (Decision 4 — hardcoded by design, May 2026)' },
+  { file: 'modules/finance/routes/payments.js',               count: 2, justification: 'strike-2 alert finance_admins (Decision 4, May 2026); + batch/vendor-payment approval notification (2026-07-02)' },
   // urgent-payments.js — migrated to notifyUrgentPaymentAuto()
   // clients.js — migrated to notifyTallyXmlReady()
   { file: 'modules/onboarding/routes/project-setup.js',       count: 1, justification: 'project setup — principal selector (UI dropdown)' },
