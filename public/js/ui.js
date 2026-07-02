@@ -91,6 +91,11 @@ const UI = {
         body.removeEventListener('keydown', UI._focusTrapHandler);
         UI._focusTrapHandler = null;
       }
+      // Clear stale modal content on close. Without this, form fields from a
+      // closed modal (e.g. #up-amount, #cc-name) linger in the hidden DOM.
+      // A later modal reusing an id would then collide, and getElementById
+      // could return the stale hidden element instead of the live one.
+      if (body) body.innerHTML = '';
     }
   },
 
