@@ -297,7 +297,7 @@ describe('POST /api/users', () => {
     const app = makeApp('principal', [['/api/users', require('../modules/auth/routes/users')]]);
     db.query.mockResolvedValueOnce([{ insertId: 20 }]);
     const res = await request(app).post('/api/users').send({
-      username: 'testuser', full_name: 'Test User', role: 'detailing', stream: 'design'
+      username: 'testuser', full_name: 'Test User', role: 'jr_architect', stream: 'design'
     });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -306,14 +306,14 @@ describe('POST /api/users', () => {
   test('pmc_head cannot create user', async () => {
     const app = makeApp('pmc_head', [['/api/users', require('../modules/auth/routes/users')]]);
     const res = await request(app).post('/api/users').send({
-      username: 'x', full_name: 'X', role: 'detailing'
+      username: 'x', full_name: 'X', role: 'jr_architect'
     });
     expect(res.status).toBe(403);
   });
 
   test('returns 400 if username missing', async () => {
     const app = makeApp('principal', [['/api/users', require('../modules/auth/routes/users')]]);
-    const res = await request(app).post('/api/users').send({ full_name: 'Test', role: 'detailing' });
+    const res = await request(app).post('/api/users').send({ full_name: 'Test', role: 'jr_architect' });
     expect(res.status).toBe(400);
   });
 });
