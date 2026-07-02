@@ -299,8 +299,12 @@ router.patch('/:id/resolve', requireAuth, requireScopeFromEntity('issues'), asyn
       });
     }
 
+    // Site-level authority to resolve rests with senior_site_manager and up
+    // (plain site_manager is capture-only) — the assignee may always resolve
+    // an issue that was routed to them personally. Mirrors the UI gate at
+    // app.js (`site_manager cannot resolve`).
     const canResolve = issue.assigned_to === me.id ||
-      ['pmc_head','design_head','services_head','principal','design_principal','site_manager','senior_site_manager'].includes(me.role);
+      ['pmc_head','design_head','services_head','principal','design_principal','senior_site_manager'].includes(me.role);
     if (!canResolve) return res.status(403).json({ error: 'Not authorised to resolve this issue' });
 
     const sm = require('../../../services/state-machines').issue;

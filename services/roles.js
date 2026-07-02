@@ -87,8 +87,25 @@ const HEADS_WITH_FINANCE = Object.freeze([
   R.PRINCIPAL, R.DESIGN_PRINCIPAL, R.PMC_HEAD, R.DESIGN_HEAD, R.SERVICES_HEAD, R.FINANCE_ADMIN,
 ]);
 
-// Site managers (both grades).
+// Site managers (both grades). Used where BOTH grades capture site data
+// (daily reports, photos, GRN creation, measurements, issues, form submits,
+// payment-request evidence). This is the "submitter" cohort.
 const SITE_MANAGERS = Object.freeze([R.SITE_MANAGER, R.SENIOR_SITE_MANAGER]);
+
+// Explicit alias for the capture/submitter cohort — reads correctly at call
+// sites that mean "anyone on the site team may record this".
+const SITE_SUBMITTERS = SITE_MANAGERS;
+
+// ── SITE-LEVEL AUTHORITY ──────────────────────────────────
+// senior_site_manager is the site-level APPROVER/authority; plain
+// site_manager is capture-only. This is the single source of truth for
+// every "senior site manager and up" gate (GRN approve/reject, issue
+// resolution, schedule issue/send, raising a payment request). It
+// deliberately EXCLUDES R.SITE_MANAGER. Previously this exact array was
+// inlined in grn.js, issues.js and schedule.js — keep it here only.
+const SITE_APPROVERS = Object.freeze([
+  R.SENIOR_SITE_MANAGER, R.PMC_HEAD, R.PRINCIPAL, R.DESIGN_PRINCIPAL,
+]);
 
 // ── EXPORTS ───────────────────────────────────────────────
 module.exports = {
@@ -104,4 +121,6 @@ module.exports = {
   FINANCE_ROLES,
   HEADS_WITH_FINANCE,
   SITE_MANAGERS,
+  SITE_SUBMITTERS,
+  SITE_APPROVERS,
 };

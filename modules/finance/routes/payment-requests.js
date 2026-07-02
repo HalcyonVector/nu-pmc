@@ -102,8 +102,11 @@ router.post('/:project_id', requireAuth, requireProjectScope(),
     const body = loose.data;
     const me = req.session.user;
 
-    // Only allowed roles can raise (M01 audit: senior + regular site managers both allowed)
-    const allowed = ['site_manager','senior_site_manager','design_head','services_head','pmc_head','principal','design_principal'];
+    // Raising a payment request initiates a financial commitment, so it is a
+    // site-level AUTHORITY action: senior_site_manager and up. Plain
+    // site_manager captures evidence/GRNs but does not raise the request
+    // (they can still VIEW requests via the GET route above).
+    const allowed = ['senior_site_manager','design_head','services_head','pmc_head','principal','design_principal'];
     if (!allowed.includes(me.role)) {
       return res.status(403).json({ error: 'You are not permitted to raise payment requests' });
     }

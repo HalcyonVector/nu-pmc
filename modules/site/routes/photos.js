@@ -19,7 +19,12 @@ async function applyTimestampWatermark(filePath, projectCode) {
     const svgText = `<svg width="600" height="40"><text x="10" y="28" font-family="monospace" font-size="18" fill="white" stroke="black" stroke-width="0.5">${text}</text></svg>`;
     const watermark = Buffer.from(svgText);
     const composited = await sharp(filePath).composite([{ input: watermark, gravity: 'southwest' }]).toBuffer();
-    await sharp(composited).toFile(filePath);
+    // Write to a temp file then atomically replace the original. sharp/libvips
+    // cannot reliably read and write the same path — on Windows this failed with
+    // "unable to open for write / The device does not recognize the command".
+    const tmpPath = `${filePath}.wm.tmp`;
+    await sharp(composited).toFile(tmpPath);
+    await require('fs').promises.rename(tmpPath, filePath);
   } catch (e) {
     console.warn('[photos] watermark failed:', e.message);
   }

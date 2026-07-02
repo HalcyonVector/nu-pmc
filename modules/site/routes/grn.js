@@ -4,6 +4,7 @@ const db      = require('../../../middleware/db');
 const users = require('../../../services/users-lookup');
 const { validators } = require('../../../middleware/validate');
 const { requireAuth, requireRole, requirePMC, requireProjectScope, requireScopeFromEntity } = require('../../../middleware/auth');
+const { SITE_APPROVERS } = require('../../../services/roles'); // senior_site_manager + up (NOT plain site_manager)
 const { upload } = require('../../../middleware/upload');
 const router     = express.Router();
 // (waInteractive / waReply imports removed — only this file's GRN-create
@@ -165,7 +166,7 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
   }
 });
 
-router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requireRole('senior_site_manager','pmc_head','principal','design_principal'), asyncHandler(async (req, res) => {
+router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requireRole(...SITE_APPROVERS), asyncHandler(async (req, res) => {
     const me = req.session.user;
     const [[grn]] = await db.query(
       `SELECT g.*,
@@ -226,7 +227,7 @@ router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requir
     res.json({ success: true });
   }));
 
-router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), requireRole('pmc_head','principal','design_principal','senior_site_manager'), asyncHandler(async (req, res) => {
+router.patch('/:id/reject', requireAuth, requireScopeFromEntity('grns'), requireRole(...SITE_APPROVERS), asyncHandler(async (req, res) => {
     const { rejection_reason } = req.body;
     const [[cur]] = await db.query('SELECT status FROM grns WHERE id=?', [req.params.id]);
     if (!cur) return res.status(404).json({ error: 'GRN not found' });

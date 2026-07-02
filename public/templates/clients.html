@@ -20,7 +20,7 @@
         <template x-if="canBulkUpload">
           <span>
             <input type="file" id="clients-bulk-file" accept=".xlsx,.xls" style="display:none" @change="bulkUpload($event)">
-            <button class="btn-sm" @click="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>
+            <button class="btn-secondary" @click="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>
           </span>
         </template>
         <button class="btn-primary" @click="openNewClient()">+ New Client</button>

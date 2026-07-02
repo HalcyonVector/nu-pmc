@@ -262,23 +262,22 @@ router.post('/advance-recovery', requireAuth, requirePMC, asyncHandler(async (re
 router.get('/morning-brief', requireAuth, requireRole('finance_admin','principal','design_principal','pmc_head'), asyncHandler(async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [[pendingPay]]     = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE status='approved' AND DATE(created_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
-  const [[todayReqs]]      = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE DATE(created_at)=?`, [today]);
-  const [[todayUrgent]]    = await db.query(`SELECT COUNT(*) AS n FROM urgent_payments WHERE DATE(created_at)=?`, [today]);
+  const [[pendingPay]]     = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE status='approved' AND DATE(raised_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
+  const [[todayReqs]]      = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE DATE(raised_at)=?`, [today]);
+  const [[todayUrgent]]    = await db.query(`SELECT COUNT(*) AS n FROM payment_requests WHERE is_urgent=1 AND DATE(raised_at)=?`, [today]);
   const [[todayPettyCash]] = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM petty_cash_transactions WHERE DATE(txn_date)=? AND txn_type='spend'`, [today]);
   const [[todayDirectPay]] = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM principal_direct_payments WHERE DATE(payment_date)=?`, [today]);
-  const [[overduePI]]      = await db.query(`SELECT COUNT(*) AS n FROM proforma_invoices WHERE status IN ('draft','sent') AND due_date < CURDATE()`);
-  const [[weekPI]]         = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_ex_gst),0) AS total FROM proforma_invoices WHERE DATE(created_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
+  const [[overduePI]]      = await db.query(`SELECT COUNT(*) AS n FROM proforma_invoices WHERE status='sent' AND sent_at < DATE_SUB(NOW(),INTERVAL 30 DAY)`);
+  const [[weekPI]]         = await db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_ex_gst),0) AS total FROM proforma_invoices WHERE DATE(raised_at) >= DATE_SUB(CURDATE(),INTERVAL 7 DAY)`);
 
   // Recent payment requests (last 5)
   const [recentReqs] = await db.query(
-    `SELECT pr.id, pr.amount_requested, pr.payment_type, pr.status, pr.created_at,
+    `SELECT pr.id, pr.amount_requested, pr.payment_type, pr.status, pr.raised_at AS created_at,
             p.name AS project_name, v.vendor_name
      FROM payment_requests pr
      JOIN projects p ON pr.project_id = p.id
-     LEFT JOIN engagements e ON pr.engagement_id = e.id
-     LEFT JOIN vendors v ON e.vendor_id = v.id
-     ORDER BY pr.created_at DESC LIMIT 5`
+     LEFT JOIN vendors v ON pr.vendor_id = v.id
+     ORDER BY pr.raised_at DESC LIMIT 5`
   );
 
   // Recent petty cash (last 5)

@@ -11,6 +11,7 @@ const asyncHandler = require('../../../middleware/asyncHandler');
 const sequence = require('../../../services/sequence');
 const audit = require('../../../services/audit');
 const ol = require('../../../middleware/optimistic-lock');
+const { SITE_APPROVERS } = require('../../../services/roles'); // senior_site_manager + up
 const router   = express.Router();
 
 // GET /api/schedule/:project_id — current schedule with today's tasks
@@ -893,7 +894,7 @@ module.exports = router;
 router.post('/:project_id/vendor-signoff', requireAuth, requireProjectScope(),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const canSend = ['pmc_head','senior_site_manager','principal','design_principal'].includes(me.role);
+    const canSend = SITE_APPROVERS.includes(me.role);
     if (!canSend) return res.status(403).json({ error: 'Not authorised' });
 
     const { vendor_id, task_ids, message } = req.body;

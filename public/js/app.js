@@ -8647,7 +8647,10 @@ APP.renderPayments = async function() {
 
   const role = APP.user.role;
   const canApprove = ['principal','design_principal','pmc_head'].includes(role);
-  const canRaiseRequest = ['site_manager','senior_site_manager','pmc_head','principal','design_principal'].includes(role);
+  // Raising a payment request is a site-level authority action — senior_site_manager
+  // and up. Plain site_manager captures evidence/GRNs but does not raise (matches the
+  // backend gate in payment-requests.js). They can still view the payments list.
+  const canRaiseRequest = ['senior_site_manager','pmc_head','principal','design_principal'].includes(role);
 
   if (pending.length || canRaiseRequest) {
     const total = pending.reduce((s,p) => s + parseFloat(p.amount_requested||0), 0);
@@ -11996,17 +11999,17 @@ APP.renderDesignDashboard = async function() {
   // Summary stats row
   let html = `<div class="sec-label">Pending — ${streamLabel} Stream</div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
-    <button class="stat-card" onclick="APP.switchTab('drawings')">
-      <span class="stat-val">${totalPending}</span>
-      <span class="stat-lbl">Pending Review</span>
+    <button class="stat-card" style="background:var(--navy);border-color:var(--navy);color:#fff" onclick="APP.switchTab('drawings')">
+      <span class="stat-val" style="color:#fff;font-size:24px;font-weight:800">${totalPending}</span>
+      <span class="stat-lbl" style="color:rgba(255,255,255,0.75)">Pending Review</span>
     </button>
-    <button class="stat-card" onclick="APP.switchTab('issues')">
-      <span class="stat-val">${totalQueries}</span>
-      <span class="stat-lbl">Queries Open</span>
+    <button class="stat-card" style="background:var(--navy);border-color:var(--navy);color:#fff" onclick="APP.switchTab('issues')">
+      <span class="stat-val" style="color:#fff;font-size:24px;font-weight:800">${totalQueries}</span>
+      <span class="stat-lbl" style="color:rgba(255,255,255,0.75)">Queries Open</span>
     </button>
-    <button class="stat-card" onclick="APP.showActionTriage('pending_changes')">
-      <span class="stat-val">${totalChanges}</span>
-      <span class="stat-lbl">CNs Pending</span>
+    <button class="stat-card" style="background:var(--navy);border-color:var(--navy);color:#fff" onclick="APP.showActionTriage('pending_changes')">
+      <span class="stat-val" style="color:#fff;font-size:24px;font-weight:800">${totalChanges}</span>
+      <span class="stat-lbl" style="color:rgba(255,255,255,0.75)">CNs Pending</span>
     </button>
   </div>`;
 
@@ -12123,8 +12126,8 @@ APP.renderFinanceDashboard = async function() {
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:${tab?'pointer':'default'}"
       ${tab ? `onclick="APP.switchTab('${tab}')"` : ''}>
       <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">${label}</div>
-      <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--mono)">${value}</div>
-      ${sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>` : ''}
+      <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--mono)">${value ?? '—'}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub.replace(/undefined/g,'0')}</div>` : ''}
     </div>`;
 
   const pendingColor = brief.pending_payments > 0 ? 'var(--amber)' : 'var(--green)';
