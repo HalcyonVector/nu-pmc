@@ -117,6 +117,11 @@ describe('D11 — notification_triggers event_keys match code', () => {
       'measurement',              // direct send to a single recipient — no role list
       'countersign_needed',       // MOM action-item: direct DM to the named countersigner
       'countersign_disagreed',    // MOM action-item: direct DM to the assignee on reissue
+      'claim_raised',             // claim draft created — FYI to PMC heads, no governance row yet
+      'claim_invoiced',           // claim invoiced — FYI to finance admins, no governance row yet
+      'grn_raised',               // GRN recorded — materials-planning FYI to PMC heads (v6.02: FYI only)
+      'grn_approved',             // GRN approved — direct confirmation to the raiser
+      'report_auto_locked',       // daily report auto-locked by cron — FYI to site mgr + PMC
     ]);
 
     const missing = [];

@@ -2464,7 +2464,7 @@ Tomorrow: start formwork on next bay."
     const drawings = data?.drawings || [];
     const role = APP.user.role;
 
-    const canUpload = ['team_lead','jr_architect','jr_engineer','services_engineer',
+    const canUpload = ['team_lead','jr_architect','jr_engineer','services_engineer','detailing',
                        'design_head','services_head','principal','design_principal'].includes(role);
 
     let html = '<div class="drawings-page">';
@@ -10862,7 +10862,7 @@ APP.renderSubmittals = async function() {
 
   const role = APP.user.role;
   const canSubmit = ['pmc_head','site_manager','senior_site_manager','design_head','services_head',
-                         'team_lead','jr_architect','services_engineer','jr_engineer',
+                         'team_lead','jr_architect','services_engineer','jr_engineer','detailing',
                          'principal','design_principal'].includes(role);
   const canReview = ['design_head','services_head','pmc_head','principal','design_principal'].includes(role);
 

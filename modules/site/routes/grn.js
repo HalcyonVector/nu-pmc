@@ -129,6 +129,18 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole('sit
       entityType: 'grns', entityId: grnId,
       details: { project_id: parseInt(req.params.project_id, 10), grn_number: num, engagement_id: body.engagement_id, quantity_received: validQty, unit_rate: validUnitRate, is_unplanned: !!isUnplanned }, req });
 
+    // FYI to the project's PMC heads that a delivery was recorded (materials
+    // planning — not an approval gate, per the v6.02 decision above). Unplanned
+    // deliveries are called out. Fire-and-forget after the insert committed;
+    // 'grn_raised' is allowlisted in the d11 test.
+    (async () => {
+      const Auth = require('../../auth/contract');
+      const pmcHeads = await Auth.functions.getPmcHeadsForProject(req.params.project_id);
+      const msg = `nu PMC: GRN ${num} raised${isUnplanned ? ' (UNPLANNED delivery)' : ''} — `
+        + `${validQty} ${body.unit || 'units'} of ${(body.description || '').substring(0, 50)}.`;
+      for (const p of pmcHeads) await notif.notify(p.id, 'grn_raised', msg);
+    })().catch(e => console.warn('[grn] raise notify swallowed:', e.message));
+
     // Vendor confirmation poll (F3, friction-reduction brief — v6.02 update)
     // Vendor confirms delivery matches GRN. Poll: ✅ Confirmed / ❌ Disputed
     // Routed through signoff-gate so vendor's vote is captured and the
@@ -224,6 +236,15 @@ router.patch('/:id/approve', requireAuth, requireScopeFromEntity('grns'), requir
     audit.log({ userId: me.id, action: 'grn.approve',
       entityType: 'grns', entityId: parseInt(req.params.id, 10),
       details: { from: grn.status, to: 'approved', approver_role: me.role }, req });
+
+    // Tell the person who raised the GRN that it was approved. Fire-and-forget
+    // after the transition committed; 'grn_approved' is allowlisted in the d11 test.
+    if (grn.raised_by && grn.raised_by !== me.id) {
+      notif.notify(grn.raised_by, 'grn_approved',
+        `nu PMC: GRN ${grn.grn_number} approved.`)
+        .catch(e => console.warn('[grn] approve notify swallowed:', e.message));
+    }
+
     res.json({ success: true });
   }));
 

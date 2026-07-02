@@ -301,6 +301,17 @@ async function run() {
 // flagged (the audit trail reflects what actually happened).
 async function autoLockOverdueDailyReports(db) {
   try {
+    // Capture which reports will lock BEFORE the UPDATE so we can notify the
+    // site manager + PMC afterwards (the bulk UPDATE alone loses per-row info).
+    const [toLock] = await db.query(
+      `SELECT dr.id, dr.project_id, dr.report_date, dr.site_manager_id,
+              p.name AS project_name, p.code AS project_code
+         FROM daily_reports dr
+         JOIN projects p ON p.id = dr.project_id
+        WHERE dr.status = 'pending_review'
+          AND dr.report_date <= DATE_SUB(CURDATE(), INTERVAL 2 DAY)`
+    );
+
     const [result] = await db.query(
       `UPDATE daily_reports
           SET status = 'auto_locked', locked_at = NOW()
@@ -309,6 +320,34 @@ async function autoLockOverdueDailyReports(db) {
     );
     if (result.affectedRows > 0) {
       console.log(`[auto-lock] ${result.affectedRows} daily report(s) auto-locked`);
+
+      // Notify the site manager and the project's PMC heads that the report
+      // auto-locked (the grace window elapsed with no PMC action). Best-effort —
+      // a notify failure must not disturb the lock cron. 'report_auto_locked'
+      // is allowlisted in the d11 test.
+      try {
+        const notif = require('../services/notifications');
+        const Auth  = require('../modules/auth/contract');
+        for (const r of toLock) {
+          const dateStr = r.report_date instanceof Date
+            ? r.report_date.toLocaleDateString('en-CA')
+            : String(r.report_date).slice(0, 10);
+          const msg = `nu PMC: Daily report for ${r.project_code || r.project_name} (${dateStr}) `
+            + `auto-locked — the review window elapsed without PMC action.`;
+          if (r.site_manager_id) {
+            await notif.notify(r.site_manager_id, 'report_auto_locked', msg)
+              .catch(e => console.warn('[auto-lock] site-mgr notify:', e.message));
+          }
+          const pmcHeads = await Auth.functions.getPmcHeadsForProject(r.project_id)
+            .catch(() => []);
+          for (const p of pmcHeads) {
+            await notif.notify(p.id, 'report_auto_locked', msg)
+              .catch(e => console.warn('[auto-lock] pmc notify:', e.message));
+          }
+        }
+      } catch (notifyErr) {
+        console.error('[auto-lock] notify error:', notifyErr.message);
+      }
     }
   } catch (e) {
     console.error('[auto-lock] error:', e.message);

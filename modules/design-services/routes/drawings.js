@@ -124,7 +124,7 @@ router.post('/:project_id/upload', requireAuth, requireProjectScope(),
 
     // Check user can upload to this stream
     const canUpload = ['principal','design_principal'].includes(me.role) ||
-                      (stream === 'design'   && ['design_head','team_lead','team_lead','jr_architect','jr_engineer'].includes(me.role)) ||
+                      (stream === 'design'   && ['design_head','team_lead','jr_architect','jr_engineer','detailing'].includes(me.role)) ||
                       (stream === 'services' && ['services_head','services_engineer'].includes(me.role));
 
     if (!canUpload) return res.status(403).json({ error: 'Cannot upload to this stream' });

@@ -636,6 +636,13 @@ router.post('/:project_id/versions/:version_id/approve', requireAuth, requirePro
     audit.log({ userId: req.session.user.id, action: 'schedule.version.approve',
       entityType: 'schedule_versions', entityId: parseInt(version_id),
       details: { project_id: parseInt(project_id), version_label: ver.label, drift_days: ver.drift_days }, req });
+
+    // Notify PMC + site + stream heads that the baseline was approved (event-based
+    // routing via notification_triggers). Fire-and-forget — a notification failure
+    // must not roll back the approval that already committed above.
+    notif.notifyScheduleApproved(parseInt(project_id), ver.label, parseInt(ver.drift_days || 0))
+      .catch(e => console.warn('[' + require('path').basename(__filename) + '] schedule approved notify swallowed:', e.message));
+
     res.json({ success: true, message: `Schedule ${ver.label} approved and set as current.` });
   }));
 

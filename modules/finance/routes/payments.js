@@ -230,7 +230,7 @@ router.patch('/:project_id/payments/:id/approve', requireAuth, requireProjectSco
     // for the claimed amount; amount_auto_calc / recommended_amount track the
     // validated amount; actual_amount is the approved/paid figure.
     const [[vp]] = await db.query(
-      'SELECT amount_requested, status FROM vendor_payments WHERE id = ? AND project_id = ?',
+      'SELECT amount_requested, status, raised_by FROM vendor_payments WHERE id = ? AND project_id = ?',
       [req.params.id, req.params.project_id]
     );
     if (!vp) return res.status(404).json({ error: 'Payment not found' });
@@ -266,6 +266,16 @@ router.patch('/:project_id/payments/:id/approve', requireAuth, requireProjectSco
       details: { project_id: parseInt(req.params.project_id, 10), amount_requested: parseFloat(vp.amount_requested), actual_amount: validActual, adjustment_reason: adjustment_reason || null, adjusted: Math.abs(validActual - parseFloat(vp.amount_requested)) > 0.01 }, req });
     res.json({ success: true, message: 'Payment approved — ready for ICICI upload.' });
     try { require('../../../modules/system/routes/sse').notifyProject(req.params.project_id, 'payment_update', { project_id: req.params.project_id }); } catch(_e) {}
+
+    // Tell the PMC user who raised the request that it cleared PMC approval and is
+    // now queued for ICICI upload. Fire-and-forget after the transition committed;
+    // 'payment_request_pmc_approved' is a seeded trigger.
+    if (vp.raised_by) {
+      const amtFmt = '₹' + parseFloat(validActual).toLocaleString('en-IN');
+      notif.notify(vp.raised_by, 'payment_request_pmc_approved',
+        `nu PMC: Vendor payment (${amtFmt}) approved by PMC Head — ready for ICICI upload.`)
+        .catch(e => console.warn('[' + require('path').basename(__filename) + '] payment approve notify swallowed:', e.message));
+    }
   }));
 
 // ── POST generate ICICI bulk payment Excel
@@ -995,6 +1005,23 @@ router.post('/:project_id/batch-approve', requireAuth, requireProjectScope(), re
         failedIds.push(row.id);
       }
     }
+    // Batch is now fully approved — tell finance (who does the ICICI upload)
+    // and the project's PMC heads so disbursement can proceed. Fire-and-forget:
+    // the approvals already committed above; a notification failure must not
+    // fail the request. 'payment_request_principal_approved' is a seeded trigger.
+    if (approvedIds.length) {
+      (async () => {
+        const projName = await users.projectName(req.params.project_id);
+        const msg = `nu PMC: ${approvedIds.length} vendor payment${approvedIds.length !== 1 ? 's' : ''} `
+          + `principal-approved for ${projName || ('project ' + req.params.project_id)}. Ready for ICICI upload.`;
+        const financeAdmins = await users.financeAdmins('id');
+        for (const f of financeAdmins) await notif.notify(f.id, 'payment_request_principal_approved', msg);
+        const Auth = require('../../auth/contract');
+        const pmcHeads = await Auth.functions.getPmcHeadsForProject(req.params.project_id);
+        for (const p of pmcHeads) await notif.notify(p.id, 'payment_request_principal_approved', msg);
+      })().catch(e => console.warn('[' + require('path').basename(__filename) + '] batch-approve notify swallowed:', e.message));
+    }
+
     res.json({
       success: true,
       approved: approvedIds.length,

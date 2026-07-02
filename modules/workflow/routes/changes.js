@@ -83,6 +83,14 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requirePrincipal
       entityType: 'change_notices', entityId: result.insertId,
       details: { project_id: parseInt(pid, 10), cn_number: cnNumber, title, source, boq_impact: !!boq_impact, schedule_impact_days: schedule_impact_days || 0 }, req });
 
+    // A freshly-raised CN needs sign-off from the design/services/PMC heads.
+    // Tell the required signatories now so the sign-off collection starts
+    // immediately rather than waiting for someone to notice it in-app.
+    // Fire-and-forget — notification failure must not fail the raise.
+    const { notifyCNSignaturesNeeded } = require('../../../services/notifications');
+    notifyCNSignaturesNeeded(cnNumber, title)
+      .catch(e => console.warn('[' + require('path').basename(__filename) + '] cn raise notify swallowed:', e.message));
+
     res.json({ success: true, id: result.insertId, cn_number: cnNumber });
 
   }));

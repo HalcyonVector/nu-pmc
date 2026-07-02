@@ -357,6 +357,29 @@ router.post('/:id/reissue', requireAuth, requirePMC, requireScopeFromEntity('mee
       entityType: 'meetings', entityId: parseInt(req.params.id, 10),
       details: { version: nextVersion, window_days: winDays, locked: winDays === 0, reason: req.body.reason || null }, req });
 
+    // Re-trigger the client acknowledgement poll on the reissued MOM, mirroring
+    // the initial issue-to-client path (mom_acknowledgement). The client + internal
+    // attendees are re-notified via the gate's recipient resolution. Non-blocking:
+    // gate failure logs and drops — the reissue itself already committed above.
+    try {
+      const signoffGate = require('../../../services/signoff-gate');
+      await signoffGate.triggerSignoff(
+        'mom_acknowledgement',
+        parseInt(req.params.id, 10),
+        mom.project_id,
+        {
+          question: `${mom.meeting_number} (v${nextVersion}) — please acknowledge the revised meeting minutes.`,
+          options: [
+            { id: 'accept',  text: '✅ Accept MOM' },
+            { id: 'changes', text: '🔄 Request changes' },
+          ],
+          triggeredBy: req.session.user.id,
+        }
+      );
+    } catch (gateErr) {
+      console.error('[meetings.reissue] signoff-gate error:', gateErr.message);
+    }
+
     res.json({
       success: true, version: nextVersion, window_days: winDays,
       locked: winDays === 0,

@@ -211,6 +211,25 @@ router.post('/:project_id/:measurement_id/client-acceptance',
       entityType: 'measurements', entityId: parseInt(req.params.measurement_id),
       details: { project_id: parseInt(req.params.project_id), client_rep_name, client_rep_designation: client_rep_designation || null, acceptance_date, has_signed_cert: !!signedFilePath }, req });
 
+    // Client acceptance unlocks the measurement for claiming — tell PMC (project-
+    // scoped) and the principals so a claim can be raised. Fire-and-forget after
+    // the transition committed; 'measurement' is allowlisted for direct sends.
+    const notif = require('../../../services/notifications');
+    const usersLookup = require('../../../services/users-lookup');
+    (async () => {
+      const [[meas]] = await db.query(
+        'SELECT ra_bill_number, discipline FROM measurements WHERE id = ?',
+        [req.params.measurement_id]
+      );
+      const msg = `nu PMC: Measurement client-accepted — RA Bill ${meas?.ra_bill_number || ''}`
+        + `${meas?.discipline ? ' (' + meas.discipline + ')' : ''}. Ready to raise claim.`;
+      const Auth = require('../../auth/contract');
+      const pmcHeads = await Auth.functions.getUsersByRole('pmc_head', req.params.project_id);
+      for (const h of pmcHeads) await notif.notify(h.id, 'measurement', msg);
+      const principals = await usersLookup.principals();
+      for (const p of principals) await notif.notify(p.id, 'measurement', msg);
+    })().catch(e => console.warn('[measurements] client-accept notify swallowed:', e.message));
+
     res.json({ success: true, message: 'Client acceptance recorded' });
   }));
 

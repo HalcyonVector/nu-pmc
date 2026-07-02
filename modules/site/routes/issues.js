@@ -320,6 +320,16 @@ router.patch('/:id/resolve', requireAuth, requireScopeFromEntity('issues'), asyn
     audit.log({ userId: me.id, action: 'issue.resolve',
       entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { from: issue.status, to: 'resolved' }, req });
+
+    // Tell the person who raised the issue that it was resolved (they can now
+    // verify and it can proceed to close). Fire-and-forget after the state
+    // change committed; 'issue' is a seeded trigger.
+    if (issue.raised_by && issue.raised_by !== me.id) {
+      notif.notify(issue.raised_by, 'issue',
+        `nu PMC: Issue ${issue.issue_number} — "${(issue.title || '').substring(0, 60)}" resolved. Please review.`)
+        .catch(e => console.warn('[' + require('path').basename(__filename) + '] issue resolve notify swallowed:', e.message));
+    }
+
     res.json({ success: true });
   }));
 
@@ -331,7 +341,7 @@ router.patch('/:id/close',
   requirePermission('pmc.issue.close-resolved'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
-    const [[issue]] = await db.query('SELECT status FROM issues WHERE id = ?', [req.params.id]);
+    const [[issue]] = await db.query('SELECT status, raised_by, issue_number, title FROM issues WHERE id = ?', [req.params.id]);
     if (!issue) return res.status(404).json({ error: 'Issue not found' });
     if (issue.status !== 'resolved') {
       return res.status(400).json({ error: `Cannot close from status '${issue.status}'. Issue must be resolved first.` });
@@ -346,6 +356,15 @@ router.patch('/:id/close',
     audit.log({ userId: me.id, action: 'issue.close',
       entityType: 'issues', entityId: parseInt(req.params.id, 10),
       details: { from: 'resolved', to: 'closed' }, req });
+
+    // Notify the raiser that their issue is now formally closed. Fire-and-forget
+    // after the state change committed; 'issue' is a seeded trigger.
+    if (issue.raised_by && issue.raised_by !== me.id) {
+      notif.notify(issue.raised_by, 'issue',
+        `nu PMC: Issue ${issue.issue_number} — "${(issue.title || '').substring(0, 60)}" has been closed.`)
+        .catch(e => console.warn('[' + require('path').basename(__filename) + '] issue close notify swallowed:', e.message));
+    }
+
     res.json({ success: true });
   }));
 

@@ -121,6 +121,18 @@ router.post('/:project_id', requireAuth, requireProjectScope(), requireRole(...P
       entityType: 'client_claims', entityId: result.insertId,
       details: { project_id: parseInt(pid, 10), ra_bill_number: body.ra_bill_number, discipline: body.discipline, measurement_id: body.measurement_id || null }, req });
 
+    // A newly-raised claim needs PMC + R/S sign-off before Principal approval.
+    // Notify the PMC heads so the sign-off chain starts. Fire-and-forget after
+    // the insert committed; 'claim_raised' is allowlisted in the d11 test.
+    (async () => {
+      const projName = await users.projectName(pid);
+      const msg = `nu PMC: Client claim raised — RA Bill ${body.ra_bill_number} (${body.discipline}) `
+        + `on ${projName || ('project ' + pid)}. Sign-off needed.`;
+      const pmcUsers = await users.pmcHeads();
+      const { notify } = require('../../../services/notifications');
+      for (const u of pmcUsers) await notify(u.id, 'claim_raised', msg);
+    })().catch(_e => { /* notification failure — non-blocking */ });
+
     res.json({ success: true, id: result.insertId });
   }));
 
@@ -304,6 +316,18 @@ router.patch('/:project_id/:claim_id/invoice-number', requireAuth, requireProjec
     audit.log({ userId: me.id, action: 'claim.invoice_recorded',
       entityType: 'client_claims', entityId: parseInt(req.params.claim_id, 10),
       details: { project_id: parseInt(req.params.project_id, 10), invoice_number, invoice_date: invoice_date || null }, req });
+
+    // Claim is now invoiced — tell finance admins (who track receivables) that the
+    // GST invoice number is recorded. Fire-and-forget after the transition
+    // committed; 'claim_invoiced' is allowlisted in the d11 test.
+    (async () => {
+      const projName = await users.projectName(req.params.project_id);
+      const msg = `nu PMC: Client claim invoiced — invoice ${invoice_number} recorded `
+        + `on ${projName || ('project ' + req.params.project_id)}.`;
+      const financeRecipients = await users.financeAdmins('id');
+      const { notify } = require('../../../services/notifications');
+      for (const fa of financeRecipients) await notify(fa.id, 'claim_invoiced', msg);
+    })().catch(_e => { /* notification failure — non-blocking */ });
 
     res.json({ success: true, message: 'Invoice number recorded — claim marked as invoiced' });
   }));
