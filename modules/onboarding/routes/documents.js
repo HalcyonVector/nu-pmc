@@ -38,13 +38,55 @@ function classifiedFilter(role) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/documents/file/:versionId — download/stream a specific version.
+// MUST be registered BEFORE the '/:projectId' routes below — otherwise
+// '/file/9' matches '/:projectId/:docId' (projectId='file', docId='9') and
+// returns "Document not found". Scope enforced inline (no :project_id in URL).
+router.get('/file/:versionId', requireAuth, asyncHandler(async (req, res) => {
+  const me   = req.session.user;
+  const role = me.role;
+  // NOTE: db.query resolves to [rows, fields]; the previous `.then(r => [r])`
+  // double-wrapped it so `v` became the rows ARRAY (v.file_path === undefined
+  // → fs.existsSync(undefined) → always 410 "File missing from disk"). Take
+  // the first row properly.
+  const [rows] = await db.query(
+    `SELECT pdv.file_path, pdv.file_name, pdv.mime_type, pd.is_classified, pd.project_id
+     FROM project_document_versions pdv
+     JOIN project_documents pd ON pdv.document_id = pd.id
+     WHERE pdv.id = ?`,
+    [req.params.versionId]
+  );
+  const v = rows[0];
+  if (!v) return res.status(404).json({ error: 'Version not found' });
+
+  const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
+  if (PROJECT_SCOPED_ROLES.includes(role)) {
+    const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === v.project_id);
+    if (!assigned) return res.status(403).json({ error: 'Not authorised for this project' });
+  }
+  if (v.is_classified && !['principal', 'design_principal'].includes(role)) {
+    return res.status(403).json({ error: 'Classified document — principals only' });
+  }
+  if (!fs.existsSync(v.file_path)) {
+    return res.status(410).json({ error: 'File missing from disk', file_name: v.file_name });
+  }
+  if (v.mime_type) res.setHeader('Content-Type', v.mime_type);
+  const safeFilename = String(v.file_name || 'download').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+  fs.createReadStream(v.file_path).pipe(res);
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/documents/:projectId — list documents for a project
 router.get('/:projectId', requireAuth, asyncHandler(async (req, res) => {
   const role = req.session.user.role;
   const [docs] = await db.query(
     `SELECT pd.id, pd.title, pd.doc_type, pd.category, pd.doc_date,
             pd.file_name, pd.file_size_kb, pd.current_version_number,
-            pd.latest_version_id, pd.is_classified, pd.notes,
+            COALESCE(pd.latest_version_id,
+                     (SELECT MAX(pdv.id) FROM project_document_versions pdv WHERE pdv.document_id = pd.id)
+            ) AS latest_version_id,
+            pd.is_classified, pd.notes,
             pd.uploaded_by, pd.uploaded_at
      FROM project_documents pd
      WHERE pd.project_id = ? ${classifiedFilter(role)}
@@ -76,11 +118,12 @@ router.get('/:projectId/:docId', requireAuth, asyncHandler(async (req, res) => {
 router.get('/:projectId/:docId/versions', requireAuth, requireProjectScope(req => req.params.projectId), asyncHandler(async (req, res) => {
   const role = req.session.user.role;
   // First check the document exists and is visible to this role
-  const [[doc]] = await db.query(
+  const [docRows] = await db.query(
     `SELECT pd.id FROM project_documents pd
      WHERE pd.id = ? AND pd.project_id = ? ${classifiedFilter(role)}`,
     [req.params.docId, req.params.projectId]
-  ).then(r => [r]);
+  );
+  const doc = docRows[0];
   if (!doc) return res.status(404).json({ error: 'Document not found' });
 
   const [versions] = await db.query(
@@ -148,10 +191,11 @@ router.post('/:projectId/:docId/versions',
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     // Verify doc belongs to this project
-    const [[doc]] = await db.query(
+    const [docRows2] = await db.query(
       `SELECT id FROM project_documents WHERE id = ? AND project_id = ?`,
       [req.params.docId, req.params.projectId]
-    ).then(r => [r]);
+    );
+    const doc = docRows2[0];
     if (!doc) return res.status(404).json({ error: 'Document not found in this project' });
 
     const result = await storage.saveDocumentVersion({
@@ -170,49 +214,8 @@ router.post('/:projectId/:docId/versions',
   })
 );
 
-// GET /api/documents/file/:versionId — download/stream a specific version
-//
-// Bug B52: previously this route did no scope check at all — sequential
-// version_ids meant a site_manager from Project A could enumerate version_ids
-// and download files from Project B. Now: we derive project_id from the
-// joined project_documents row and enforce scope inline (since the URL has
-// no :project_id to feed requireProjectScope).
-router.get('/file/:versionId', requireAuth, asyncHandler(async (req, res) => {
-  const me   = req.session.user;
-  const role = me.role;
-  const [[v]] = await db.query(
-    `SELECT pdv.file_path, pdv.file_name, pdv.mime_type, pd.is_classified, pd.project_id
-     FROM project_document_versions pdv
-     JOIN project_documents pd ON pdv.document_id = pd.id
-     WHERE pdv.id = ?`,
-    [req.params.versionId]
-  ).then(r => [r]);
-  if (!v) return res.status(404).json({ error: 'Version not found' });
-
-  // Project scope check — for project-scoped roles, confirm the user is
-  // assigned to v.project_id. Firm-wide roles pass through.
-  const { PROJECT_SCOPED_ROLES } = require('../../../middleware/auth');
-  if (PROJECT_SCOPED_ROLES.includes(role)) {
-    const assigned = (me.projects || []).some(p => parseInt(p.id, 10) === v.project_id);
-    if (!assigned) {
-      return res.status(403).json({ error: 'Not authorised for this project' });
-    }
-  }
-
-  if (v.is_classified && !['principal', 'design_principal'].includes(role)) {
-    return res.status(403).json({ error: 'Classified document — principals only' });
-  }
-  if (!fs.existsSync(v.file_path)) {
-    return res.status(410).json({ error: 'File missing from disk', file_name: v.file_name });
-  }
-  if (v.mime_type) res.setHeader('Content-Type', v.mime_type);
-  // Bug B53: filename came directly from upload's originalname, which
-  // could contain CR/LF and break the Content-Disposition header. Strip
-  // anything not in a safe charset before emitting the header.
-  const safeFilename = String(v.file_name || 'download').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
-  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-  fs.createReadStream(v.file_path).pipe(res);
-}));
+// (GET /api/documents/file/:versionId is defined ABOVE the '/:projectId'
+//  routes — it must be, to avoid route shadowing. See there.)
 
 // Resolve the project_id for an approval entity. Returns null if entity not
 // found, or undefined if entity_type is unrecognised. Used by /link to

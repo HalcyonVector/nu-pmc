@@ -308,10 +308,14 @@ const meetingAction = createStateMachine({
   name:  'meeting_action',
   table: 'meeting_actions',
   transitions: {
-    pending:      ['acknowledged', 'overdue'],
+    // 'completed' allowed directly from pending: the "Done" button on an action
+    // item (e.g. an observation the PMC marks resolved) shouldn't require the
+    // full acknowledge → in_progress dance. Was missing, so Done on a pending
+    // item 400'd "cannot go from pending to completed. Allowed: acknowledged, overdue".
+    pending:      ['acknowledged', 'overdue', 'completed'],
     acknowledged: ['in_progress', 'completed', 'overdue'],
     in_progress:  ['completed', 'pending', 'overdue'],
-    overdue:      ['pending', 'acknowledged', 'in_progress'],  // assignee resumes work
+    overdue:      ['pending', 'acknowledged', 'in_progress', 'completed'],  // resume work or close it
   },
   terminal: ['completed'],
 });

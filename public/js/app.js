@@ -5035,16 +5035,20 @@ Tomorrow: start formwork on next bay."
         <label class="field-label" for="doc-notes">Notes (optional)</label>
         <input type="text" id="doc-notes" placeholder="Brief description">
       </div>
+      <div class="field">
+        <label class="field-label" for="doc-modal-file">File</label>
+        <input type="file" id="doc-modal-file" accept=".pdf,image/*,.docx,.xlsx,.doc,.xls" style="width:100%">
+      </div>
       <div class="btn-row">
         <button class="btn-secondary" onclick="UI.closeModal()">Cancel</button>
-        <button class="btn-primary" onclick="document.getElementById('doc-input').click()">Choose File</button>
+        <button class="btn-primary" onclick="APP.uploadNewDocument(${pid}, document.getElementById('doc-modal-file'))">Upload</button>
       </div>`;
     UI.openModal('Upload New Document', body);
   },
 
   async uploadNewDocument(pid, input) {
-    const file = input.files?.[0];
-    if (!file) return;
+    const file = input?.files?.[0];
+    if (!file) { UI.toast('Choose a file first'); return; }
     const title    = document.getElementById('doc-title')?.value || '';
     const category = document.getElementById('doc-category')?.value || 'other';
     const notes    = document.getElementById('doc-notes')?.value || '';
@@ -5061,7 +5065,8 @@ Tomorrow: start formwork on next bay."
     UI.closeModal();
     UI.toast(`✓ Uploaded as v${res.versionNumber}`);
     input.value = '';
-    APP.renderDocuments();
+    (APP._docRefresh || APP.renderDocuments)();
+    APP._docRefresh = null;
   },
 
   // + New version — upload a new revision of an existing document
@@ -5583,7 +5588,7 @@ Tomorrow: start formwork on next bay."
     };
     if (!body.vendor_id || !body.scope) { UI.toast('Vendor and scope required'); return; }
     const res = await API.call('POST', `/vendors/${pid}/engagements`, body);
-    if (res?.success) { UI.closeModal(); UI.toast(res.message || 'Engaged ✓'); APP.renderVendors(); }
+    if (res?.success) { UI.closeModal(); UI.toast(res.message || 'Engaged ✓'); (APP._vendorRefresh || APP.renderVendors)(); APP._vendorRefresh = null; }
     else UI.toast(res?.error || 'Failed');
   },
 
@@ -5656,12 +5661,15 @@ Tomorrow: start formwork on next bay."
   // ── Bulk upload engagements (already on backend; this is the UI wrapper)
   showEngagementBulkUpload(pid) {
     UI.openModal('Bulk Engage Vendors', `
-      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
-        Upload an Excel with columns: Vendor Name, Trade, Scope, Contract Value, Contact, Phone, Account Number, IFSC.
-        Vendors not in master will be created. Engagements will land as <b>pending approval</b>.
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+        Excel columns: <b>Vendor Name</b>, <b>Trade</b>, <b>Scope</b>, Contract Value, Contact, Phone, Account Number, IFSC.
+        Vendors not in the master are created (pending finance clearance); engagements land <b>pending approval</b>.
       </p>
-      <input type="file" id="eng-bulk-file" accept=".xlsx,.xls">
-      <button class="btn-primary" style="margin-top:10px" onclick="APP.submitEngagementBulkUpload(${pid})">Upload</button>
+      <div class="field-row" style="margin-bottom:16px">
+        <label class="field-label">Engagements Excel</label>
+        <input type="file" id="eng-bulk-file" accept=".xlsx,.xls" style="width:100%">
+      </div>
+      <button class="btn-primary" style="width:100%" onclick="APP.submitEngagementBulkUpload(${pid})">Upload</button>
     `);
   },
 
@@ -5675,7 +5683,8 @@ Tomorrow: start formwork on next bay."
     if (res?.success) {
       UI.closeModal();
       UI.toast(res.message || 'Uploaded ✓');
-      APP.renderVendors();
+      (APP._vendorRefresh || APP.renderVendors)();
+      APP._vendorRefresh = null;
     } else UI.toast(res?.error || 'Upload failed');
   },
 
@@ -6965,6 +6974,10 @@ APP.renderHandover = async function() {
   const closureComplete = closureRes?.complete || false;
   const myRole     = APP.user?.role;
   const isPMC      = ['pmc_head','principal','design_principal'].includes(myRole);
+  // Roles that must sign a closure (matches CLOSURE_SIGNOFF_ROLES in handover.js).
+  // They may also attach discipline documents to checklist items.
+  const CLOSURE_ROLES  = ['pmc_head','design_head','services_head','principal','design_principal'];
+  const canHandoverAct = CLOSURE_ROLES.includes(myRole);
 
   // Progress bar
   const barColor = completion === 100 ? 'var(--green)' : completion > 60 ? 'var(--amber)' : 'var(--navy)';
@@ -7017,7 +7030,7 @@ APP.renderHandover = async function() {
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
               ${done ? `<button class="btn-sm" onclick="window.open('${item.file_url}','_blank')">View</button>` : ''}
-              ${isPMC && !na ? `<button class="btn-sm${done?'':' navy'}" onclick="APP._uploadHandoverItem(${pid},${item.id})">${done ? 'Replace' : 'Upload'}</button>` : ''}
+              ${canHandoverAct && !na ? `<button class="btn-sm${done?'':' navy'}" onclick="APP._uploadHandoverItem(${pid},${item.id})">${done ? 'Replace' : 'Upload'}</button>` : ''}
             </div>
           </div>
         </div>`;
@@ -7028,8 +7041,9 @@ APP.renderHandover = async function() {
 
   // Closure signoffs
   if (items.length) {
-    const roleLabel = { pmc_head:'PMC Head', design_head:'Design Head', services_head:'Services Head', principal:'Principal' };
-    const mySignoffRole = { pmc_head:'pmc_head', design_head:'design_head', services_head:'services_head', principal:'principal', design_principal:'principal' }[myRole];
+    const roleLabel = { pmc_head:'PMC Head', design_head:'Design Head', services_head:'Services Head', principal:'Principal', design_principal:'Design Principal' };
+    // Each role signs its OWN slot (design_principal is now a distinct required slot).
+    const mySignoffRole = { pmc_head:'pmc_head', design_head:'design_head', services_head:'services_head', principal:'principal', design_principal:'design_principal' }[myRole];
     const mySigned = signoffs.find(s => s.role === mySignoffRole);
 
     html += `<div class="sec-hdr-row" style="margin-top:20px">
@@ -7037,7 +7051,7 @@ APP.renderHandover = async function() {
       ${closureComplete ? '<span class="badge b-green">All signed</span>' : ''}
     </div>`;
 
-    const allRoles = ['pmc_head','design_head','services_head','principal'];
+    const allRoles = ['pmc_head','design_head','services_head','principal','design_principal'];
     allRoles.forEach(role => {
       const signed = signoffs.find(s => s.role === role);
       html += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
@@ -8078,6 +8092,7 @@ APP.viewMOM = async function(id) {
       ${isPMC && statusLabel === 'draft' ? `<button class="btn-sm navy" onclick="APP.approveMOM(${id})">Approve MOM</button>` : ''}
       ${isPMC && statusLabel === 'approved' ? `<button class="btn-sm navy" onclick="APP.issueToClient(${id}, '${mom?.meeting_number||''}')">Issue to Client</button>` : ''}
       ${isPMC && statusLabel === 'issued' ? `<button class="btn-sm" onclick="APP.reissueMOM(${id})">Reissue</button>` : ''}
+      ${isPMC && statusLabel === 'approved' ? `<button class="btn-sm" disabled title="Issue the MOM to the client first — you can only reissue an issued MOM" style="opacity:0.5;cursor:not-allowed">Reissue (issue first)</button>` : ''}
       ${isPMC ? `<button class="btn-sm" onclick="APP.showAddObservation(${id})">+ Observation</button>` : ''}
       ${isPrincipal && (statusLabel === 'issued' || statusLabel === 'approved') ? `<button class="btn-sm" onclick="APP.unlockMOM(${id})">Unlock</button>` : ''}
     </div>` : '';
@@ -8795,7 +8810,17 @@ APP.renderPayments = async function() {
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
-APP.showUrgentPaymentForm = function(pid) {
+APP.showUrgentPaymentForm = async function(pid) {
+  // Cleared vendors from the master — needed for the "Registered vendor" path
+  // (sends vendor_id; without this the engagement option had no picker and
+  // always fell back to adhoc validation).
+  let vendorOptions = '';
+  try {
+    const vres = await API.call('GET', '/vendors/master');
+    const cleared = (vres?.vendors || []).filter(v => v.is_active && v.clearance_status === 'cleared');
+    vendorOptions = cleared.map(v => `<option value="${v.id}">${UI.escapeText(v.vendor_name)}${v.trade ? ' · ' + UI.escapeText(v.trade) : ''}</option>`).join('');
+  } catch (_) { /* leave empty — engagement picker will show no options */ }
+
   UI.openModal('Raise Urgent Payment', `
     <div class="field-row"><label class="field-label">Amount (₹) *</label>
       <input type="number" id="up-amount" placeholder="e.g. 5000" min="1"></div>
@@ -8804,10 +8829,17 @@ APP.showUrgentPaymentForm = function(pid) {
     <div class="field-row"><label class="field-label">Invoice Photo *</label>
       <input type="file" id="up-invoice" accept="image/*,.pdf"></div>
     <div class="field-row"><label class="field-label">Vendor type</label>
-      <select id="up-type" onchange="document.getElementById('up-adhoc-fields').style.display=this.value==='adhoc'?'block':'none'">
+      <select id="up-type" onchange="var a=this.value==='adhoc';document.getElementById('up-adhoc-fields').style.display=a?'block':'none';document.getElementById('up-eng-fields').style.display=a?'none':'block';">
         <option value="adhoc">Adhoc / Shop (no vendor master)</option>
         <option value="engagement">Registered vendor engagement</option>
       </select></div>
+    <div id="up-eng-fields" style="display:none">
+      <div class="field-row"><label class="field-label">Vendor (from cleared master) *</label>
+        <select id="up-eng-vendor">
+          <option value="">${vendorOptions ? '— Select vendor —' : '— No cleared vendors —'}</option>
+          ${vendorOptions}
+        </select></div>
+    </div>
     <div id="up-adhoc-fields">
       <div class="field-row"><label class="field-label">Shop owner name *</label>
         <input type="text" id="up-adhoc-name" placeholder="Name of shop/person"></div>
@@ -8846,9 +8878,11 @@ APP.submitUrgentPayment = async function(pid) {
   const ifsc    = document.getElementById('up-ifsc')?.value?.trim();
   const gstin   = document.getElementById('up-gstin')?.value?.trim().toUpperCase();
   const pan     = document.getElementById('up-pan')?.value?.trim().toUpperCase();
+  const engVendorId = document.getElementById('up-eng-vendor')?.value;
 
   if (!amount || !desc) { UI.toast('Amount and description required'); return; }
   if (!invoice) { UI.toast('Invoice photo required'); return; }
+  if (!isAdhoc && !engVendorId) { UI.toast('Select a vendor from the cleared master'); return; }
   if (isAdhoc && (!adhocName || !adhocPhone)) { UI.toast('Shop owner name and phone required'); return; }
   if (isAdhoc && !upi && (!bankAcc || !ifsc)) { UI.toast('UPI ID or bank account + IFSC required'); return; }
   // Mirror the backend rule so the user sees it before submitting.
@@ -8874,6 +8908,10 @@ APP.submitUrgentPayment = async function(pid) {
     if (ifsc) fd.append('adhoc_bank_ifsc', ifsc);
     if (gstin) fd.append('adhoc_gstin', gstin);
     if (pan) fd.append('adhoc_pan', pan);
+  } else {
+    // Registered vendor engagement — send vendor_id so the backend does not
+    // treat it as adhoc (isAdhoc = is_adhoc || !vendor_id).
+    fd.append('vendor_id', engVendorId);
   }
   const res = await API.call('POST', `/urgent-payments/${pid}`, fd, true);
   if (res?.success) { UI.closeModal(); UI.toast('Urgent payment raised ✓'); APP.renderPayments(); }
@@ -9051,11 +9089,32 @@ APP.generateICICIBatch = async function(pid) {
   }
 };
 
-APP.showICICIConfirmForm = function(pid) {
+APP.showICICIConfirmForm = async function(pid) {
+  // Pick the batch cycle from a list of generated/uploaded (awaiting-confirmation)
+  // cycles instead of typing an unknown number. Falls back to a number input only
+  // if the list can't be fetched.
+  let cycleField;
+  try {
+    const res = await API.getICICICycles(pid);
+    const cycles = res?.cycles || [];
+    if (cycles.length) {
+      const opts = cycles.map((c, i) => {
+        const label = `Cycle #${c.id} · ${UI.fmtDate(c.cycle_date)} · ${c.payment_count} payment${c.payment_count === 1 ? '' : 's'}`;
+        const sel = (String(c.id) === String(APP._lastICICICycleId) || (i === 0 && !APP._lastICICICycleId)) ? ' selected' : '';
+        return `<option value="${c.id}"${sel}>${label}</option>`;
+      }).join('');
+      cycleField = `<select id="icici-cycle-id">${opts}</select>`;
+    } else {
+      cycleField = `<div style="font-size:12px;color:var(--muted);padding:8px 0">No batches awaiting confirmation. Generate a batch first (step 2).</div>
+        <input type="hidden" id="icici-cycle-id" value="">`;
+    }
+  } catch (_) {
+    cycleField = `<input type="number" id="icici-cycle-id" placeholder="e.g. 42" value="${APP._lastICICICycleId || ''}">`;
+  }
   UI.openModal('Upload ICICI Confirmation', `
     <div class="field-row">
-      <label class="field-label">Cycle ID</label>
-      <input type="number" id="icici-cycle-id" placeholder="e.g. 42" value="${APP._lastICICICycleId || ''}">
+      <label class="field-label">Cycle</label>
+      ${cycleField}
     </div>
     <div class="field-row">
       <label class="field-label">ICICI Confirmation Excel</label>
@@ -11187,6 +11246,10 @@ APP.renderProjectDetail = async function() {
     <div class="card" style="margin-bottom:16px;padding:0;overflow:hidden">${teamRows}</div>`;
   }
 
+  // Documents render here (built below, injected at this slot so it sits under
+  // the team cards rather than at the very bottom of the summary).
+  html += '<!--DOCSSLOT-->';
+
   if (buttons.length) {
     html += `<div class="sec-label">Actions</div>`;
     html += `<div class="action-nav-group">`;
@@ -11250,6 +11313,7 @@ APP.renderProjectDetail = async function() {
                     'senior_site_manager','site_manager','team_lead','services_engineer',
                     'coordinator','finance_admin'];
   if (docRoles.includes(APP.user.role)) {
+    let docsHtml = '';
     const docsRes = await API.get(`/documents/${pid}`).catch(() => null);
     const docs = docsRes?.documents || [];
     const canUpload = ['principal','design_principal','pmc_head','design_head','services_head',
@@ -11258,22 +11322,22 @@ APP.renderProjectDetail = async function() {
       statutory:'Statutory', invoice:'Invoices', photo:'Photos', report:'Reports', other:'Other' };
     const catOrder = ['contract','approval','statutory','drawing','quote','invoice','report','photo','other'];
 
-    html += `<div class="sec-hdr-row" style="margin-top:20px">
+    docsHtml += `<div class="sec-hdr-row" style="margin-top:20px">
       <div class="sec-label" style="margin:0;flex:1">Documents (${docs.length})</div>
-      ${canUpload ? `<button class="btn-sm navy" onclick="APP.showNewDocumentForm(${pid})">+ Upload</button>` : ''}
+      ${canUpload ? `<button class="btn-sm navy" onclick="APP._docRefresh=APP.renderProjectDetail;APP.showNewDocumentForm(${pid})">+ Upload</button>` : ''}
     </div>`;
 
     if (!docs.length) {
-      html += `<div style="font-size:12px;color:var(--muted);padding:10px 0">No documents uploaded yet.</div>`;
+      docsHtml += `<div style="font-size:12px;color:var(--muted);padding:10px 0">No documents uploaded yet.</div>`;
     } else {
       const byCat = {};
       docs.forEach(d => { const c = d.category||d.doc_type||'other'; (byCat[c]=byCat[c]||[]).push(d); });
       catOrder.forEach(cat => {
         const list = byCat[cat];
         if (!list?.length) return;
-        html += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">${catLabels[cat]||cat}</div>`;
+        docsHtml += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">${catLabels[cat]||cat}</div>`;
         list.forEach(d => {
-          html += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
+          docsHtml += `<div class="card" style="padding:10px 14px;margin-bottom:6px">
             <div style="display:flex;align-items:center;gap:10px">
               <div style="width:32px;height:32px;border-radius:8px;background:rgba(29,61,98,0.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">
                 ${d.category==='photo'?'🖼️':d.category==='drawing'?'📐':d.category==='contract'?'📜':'📄'}
@@ -11291,8 +11355,11 @@ APP.renderProjectDetail = async function() {
         });
       });
     }
+    html = html.replace('<!--DOCSSLOT-->', docsHtml);
   }
 
+  // Any unreplaced slot (role without docs access) is an invisible comment — strip it.
+  html = html.replace('<!--DOCSSLOT-->', '');
   el.innerHTML = `<div class="fade-in">${html}</div>`;
 };
 
@@ -12633,6 +12700,7 @@ APP.renderBOQMapping = async function() {
   const data = await API.get('/boq-mapping/' + pid);
   if (!data) return;
   const { engagements = [], unmapped_count = 0, mappings = [] } = data;
+  const canInitiate = ['principal','design_principal','pmc_head','design_head','services_head'].includes(APP.user?.role);
   let html = APP._projectSelectHtml('APP.renderBOQMapping()') + `
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">BOQ to Vendor Mapping</div>
@@ -12654,7 +12722,11 @@ APP.renderBOQMapping = async function() {
         </div></div>`;
     });
   }
-  html += '<div class="sec-label">Engagements</div>';
+  html += `<div class="sec-hdr-row" style="margin-bottom:8px">
+    <div class="sec-label" style="margin:0;flex:1">Engagements</div>
+    ${canInitiate ? `<button class="btn-sm navy" onclick="APP._vendorRefresh=APP.renderBOQMapping;APP.showEngageVendor(${pid})">+ Engage Vendor</button>
+      <button class="btn-sm navy" style="margin-left:6px" onclick="APP._vendorRefresh=APP.renderBOQMapping;APP.showEngagementBulkUpload(${pid})">Bulk Upload</button>` : ''}
+  </div>`;
   engagements.forEach(e => {
     const em = mappings.filter(m => m.engagement_id === e.id);
     html += `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start">

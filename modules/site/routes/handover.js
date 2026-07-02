@@ -17,7 +17,7 @@
 
 const express = require('express');
 const db      = require('../../../middleware/db');
-const { requireAuth, requireProjectScope, requireScopeFromEntity, requirePMC } = require('../../../middleware/auth');
+const { requireAuth, requireProjectScope, requireScopeFromEntity, requirePMC, requireRole } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/permissions');
 const { upload } = require('../../../middleware/upload');
 const asyncHandler = require('../../../middleware/asyncHandler');
@@ -29,7 +29,13 @@ const fileUrls = require('../../../services/file-url');
 
 const router = express.Router();
 
-const CLOSURE_SIGNOFF_ROLES = ['pmc_head', 'design_head', 'services_head', 'principal'];
+// Roles that must each sign off before a project can be marked completed.
+// Design Principal added per closure-authority requirement. These roles are
+// ALSO the ones allowed to reach the upload/signoff endpoints (see gates
+// below) — previously those used requirePMC, which excluded design_head /
+// services_head, so their required slots could never be signed and no project
+// could ever close.
+const CLOSURE_SIGNOFF_ROLES = ['pmc_head', 'design_head', 'services_head', 'principal', 'design_principal'];
 
 // ── CHECKLIST ──────────────────────────────────────────────────────────────
 
@@ -101,7 +107,7 @@ router.post('/:project_id/checklist/initialise',
 );
 
 router.post('/:project_id/checklist/:item_id/upload',
-  requireAuth, requireProjectScope(), requirePMC,
+  requireAuth, requireProjectScope(), requireRole(...CLOSURE_SIGNOFF_ROLES),
   upload.single('doc'),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
@@ -141,7 +147,7 @@ router.get('/:project_id/closure',
 );
 
 router.post('/:project_id/closure/signoff',
-  requireAuth, requireProjectScope(), requirePMC,
+  requireAuth, requireProjectScope(), requireRole(...CLOSURE_SIGNOFF_ROLES),
   asyncHandler(async (req, res) => {
     const me = req.session.user;
     const projectId = parseInt(req.params.project_id, 10);

@@ -304,6 +304,7 @@ API.validateLabour = (pid, d) => API.call('POST', `/labour/${pid}/validate-all`,
 
 // ── PAYMENT REQUESTS
 API.getPaymentBatch  = (pid) => API.call('GET',  `/payment-requests/${pid}/weekly-batch`);
+API.getICICICycles   = (pid) => API.call('GET',  `/payments/${pid}/icici/cycles`);
 API.batchApprovePay  = (pid) => API.call('POST', `/payments/${pid}/batch-approve`);
 API.runCompliance    = (pid) => API.call('POST', `/payments/${pid}/compliance-check`);
 

@@ -18,12 +18,12 @@
       <div class="sec-label" style="margin:0">Client Master</div>
       <div style="display:flex;gap:8px;align-items:center">
         <template x-if="canBulkUpload">
-          <span>
+          <span style="display:inline-flex">
             <input type="file" id="clients-bulk-file" accept=".xlsx,.xls" style="display:none" @change="bulkUpload($event)">
-            <button class="btn-secondary" @click="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>
+            <button class="btn-secondary" style="margin-top:0" @click="document.getElementById('clients-bulk-file').click()">Bulk Upload</button>
           </span>
         </template>
-        <button class="btn-primary" @click="openNewClient()">+ New Client</button>
+        <button class="btn-primary" style="margin-top:0;width:auto" @click="openNewClient()">+ New Client</button>
       </div>
     </div>
 

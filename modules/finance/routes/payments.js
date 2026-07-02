@@ -474,6 +474,26 @@ router.post('/:project_id/icici/generate', requireAuth, requireProjectScope(), r
     });
   }));
 
+// GET /api/payments/:project_id/icici/cycles — batch cycles awaiting confirmation.
+// Powers the Cycle ID picker on the "Upload ICICI Confirmation" modal so finance
+// selects a real cycle instead of typing an unknown number. Returns generated /
+// uploaded (not-yet-confirmed) cycles, newest first.
+router.get('/:project_id/icici/cycles', requireAuth, requireProjectScope(),
+  requireRole('principal','design_principal','pmc_head','finance_admin'),
+  asyncHandler(async (req, res) => {
+    const [cycles] = await db.query(
+      `SELECT c.id, c.cycle_date, c.status,
+              (SELECT COUNT(*) FROM vendor_payments vp WHERE vp.payment_cycle_id = c.id) AS payment_count
+         FROM vendor_payment_cycles c
+        WHERE c.project_id = ?
+          AND c.status IN ('icici_generated','icici_uploaded')
+        ORDER BY c.id DESC
+        LIMIT 30`,
+      [req.params.project_id]
+    );
+    res.json({ cycles });
+  }));
+
 // ── POST upload ICICI confirmation — parse and fire WhatsApp
 // POST /api/payments/:project_id/icici/confirm/preview — parse ICICI confirmation Excel
 // Returns matched rows, no DB changes, no WhatsApp.

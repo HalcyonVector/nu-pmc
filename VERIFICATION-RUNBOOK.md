@@ -102,9 +102,9 @@ Legend: **U** = upload succeeds (no error). **D** = download/view opens the corr
 | 16 | Vendor-master bulk | PMC Head | Vendors → Master Upload | 16_.../vendor-master.xlsx | Vendors created; appear in finance clearance |
 | 17 | Vendor-engagements bulk | Principal | Vendors → Engagements → Bulk Upload | 17_.../vendor-engagements.xlsx | Engagements created |
 | 18 | Users bulk | Principal | Users → Bulk Upload | 18_.../users-bulk-upload.xlsx | Users created; temp passwords returned |
-| 19 | Clients bulk | Principal | **No UI on this build** (endpoint only) | 19_.../clients-bulk-upload.xlsx | N/A — build a button if you want it |
+| 19 | Clients bulk | Principal / Finance Admin | Money → Clients → **Bulk Upload** button | 19_.../clients-bulk-upload.xlsx | "added / skipped / errors" modal; clients appear in list |
 | 20 | Project documents | Principal | Documents → Upload (do both, one after another) | 20_.../building-plan-sanction.pdf, project-agreement.pdf | Both listed; each downloads correctly |
-| 21 | Handover document | PMC Head | More → Handover → Initialise Checklist → upload to an item | 21_.../handover-document.pdf | Needs handover seed (Part A). Doc attaches to item; opens |
+| 21 | Handover document | PMC Head | **More → Handover** (after the 2026-07-02 handover-nav migration) → Initialise Checklist → upload to an item | 21_.../handover-document.pdf | Needs handover seed (Part A) + handover-nav migration. Doc attaches to item; opens |
 | 22 | Measurement signed cert | PMC Head | Measurements → open a measurement → Client Acceptance | 22_.../measurement-signed-certificate.pdf | Measurement → client_accepted; cert attached |
 | 23 | Weekly report | PMC Head | Reports → Weekly → Upload | 23_.../weekly-report.pdf | Report appears in the weekly list |
 | 24 | MOM reissue | PMC Head | Meetings → an **issued** MOM → Reissue | 24_.../mom-reissued.pdf | New revision created; PDF opens |

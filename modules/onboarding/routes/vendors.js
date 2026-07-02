@@ -1225,19 +1225,35 @@ router.post('/:project_id/engagements/bulk-upload', requireAuth, requireRole(...
     const rows = await xl.readFile(req.file.path);
     const pid  = req.params.project_id;
 
+    // Header-tolerant accessor — matches ignoring case, trailing '*' and
+    // surrounding whitespace (ExcelJS can leave a stray space on a header key,
+    // which broke exact `row['Vendor Name']` lookups → "No valid rows").
+    // Same normalisation the vendor-master upload uses.
+    const pick = (row, ...keys) => {
+      for (const k of keys) {
+        for (const actualKey of Object.keys(row)) {
+          if (actualKey.toLowerCase().replace(/\s*\*/, '').trim() === k.toLowerCase()) {
+            const v = row[actualKey];
+            if (v !== null && v !== undefined && String(v).trim() !== '') return String(v).trim();
+          }
+        }
+      }
+      return null;
+    };
+
     // Validate and collect rows first
     const parsed = [];
     let skipped = 0;
     for (const row of rows) {
-      const vendorName    = (row['Vendor Name']    || '').toString().trim();
-      const scope         = (row['Scope']          || '').toString().trim();
-      const contractValue = parseFloat(row['Contract Value'] || 0);
-      const trade         = (row['Trade']          || '').toString().trim();
+      const vendorName    = pick(row, 'Vendor Name', 'vendor_name', 'Vendor') || '';
+      const scope         = pick(row, 'Scope', 'Scope of Work', 'Work Scope') || '';
+      const contractValue = parseFloat(pick(row, 'Contract Value', 'contract_value') || 0);
+      const trade         = pick(row, 'Trade', 'Trade / Discipline', 'trade') || '';
       if (!vendorName || !scope) { skipped++; continue; }
       parsed.push({
         vendorName, scope, contractValue, trade,
-        contact: row['Contact']||null, phone: row['Phone']||null,
-        account: row['Account Number']||null, ifsc: row['IFSC']||null,
+        contact: pick(row, 'Contact Person', 'Contact'), phone: pick(row, 'Phone', 'WhatsApp'),
+        account: pick(row, 'Account Number', 'Bank Account Number', 'Account'), ifsc: pick(row, 'IFSC', 'Bank IFSC Code'),
       });
     }
 
